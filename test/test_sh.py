@@ -524,6 +524,45 @@ class TestSH(unittest.TestCase):
 
         self.assertEqual(prepare.call_count, 1)
 
+    @unittest.skipIf(specula.cp is None, 'GPU not available')
+    def test_shared_kernels_in_cuda_graph(self):
+        '''
+        Two GPU SH objects with the same kernel share it. When the sodium
+        profile of one of them changes, it gets new kernels and must capture
+        its CUDA graph again: its output must match an SH created with the
+        new profile, while the other one is unaffected.
+        '''
+        xp = specula.cp
+        new_profile = xp.array([0.5, 0.3, 0.2], dtype=xp.float32)
+
+        def out(sh):
+            return cpuArray(sh.outputs['out_i'].i).copy()
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            sh1, _, step1 = self._lgs_sh(0, xp, data_dir)
+            sh2, intensity2, step2 = self._lgs_sh(0, xp, data_dir)
+            for t in (1, 2):
+                step1(t)
+                step2(t)
+            self.assertIs(sh1._kernelobj.kernels, sh2._kernelobj.kernels)
+            self.assertIsNotNone(sh2.cuda_graph)
+            out1 = out(sh1)
+
+            intensity2.value[:] = new_profile
+            for t in (3, 4):
+                step1(t)
+                step2(t)
+            self.assertIsNot(sh1._kernelobj.kernels, sh2._kernelobj.kernels)
+
+            ref_sh, ref_intensity, ref_step = self._lgs_sh(0, xp, data_dir)
+            ref_intensity.value[:] = new_profile
+            ref_step(1)
+
+            np.testing.assert_allclose(out(sh1), out1, rtol=1e-5)
+            np.testing.assert_allclose(out(sh2), out(ref_sh), rtol=1e-4,
+                                       atol=1e-6 * out(ref_sh).max())
+            self.assertFalse(np.allclose(out(sh2), out1, rtol=1e-4))
+
     def test_choose_fov_resolution(self):
         '''
         The resolution is turbulence_pxscale / k. Here all candidates k = 3...12

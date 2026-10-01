@@ -471,11 +471,17 @@ class SH(BaseProcessingObj):
             sodium_altitude = None
             sodium_intensity = None
 
+        kernels = self._kernelobj.kernels
         self._kernelobj.prepare_for_sh(
             sodium_altitude=sodium_altitude,
             sodium_intensity=sodium_intensity,
             current_time=self.current_time
         )
+        # The kernels can be reallocated (e.g. when they start or stop being
+        # shared with other SH objects), and the CUDA graph reads them
+        # at the address they had at capture time
+        if self._kernelobj.kernels is not kernels:
+            self.invalidate_graph()
 
 
     def trigger_code(self):

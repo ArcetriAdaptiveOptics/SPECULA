@@ -819,15 +819,88 @@ class TestKernel(unittest.TestCase):
                                    dimension=dimension, return_fft=True,
                                    target_device_idx=target_device_idx)
         rng = np.random.default_rng(1)
-        kernels_before = kernel.kernels
         kernel.set_value(rng.random((dimx * dimy, dimension, dimension)))
-        self.assertIs(kernel.kernels, kernels_before)
+        kernels_before = kernel.kernels
         kernel.set_value(rng.random((dimx * dimy, dimension, dimension)))
         self.assertIs(kernel.kernels, kernels_before)
 
         kernel.process_kernels(return_fft=False)
         self.assertEqual(kernel.kernels.shape, (dimx * dimy, dimension, dimension))
         self.assertEqual(kernel.kernels.dtype, kernel.dtype)
+
+    def _lgs_kernel(self, data_dir, target_device_idx, launcher_pos=(5, 5, 0)):
+        kernel = ConvolutionKernel(dimx=4, dimy=4, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=16, launcher_pos=list(launcher_pos),
+                                   seeing=1.0, zfocus=90e3, data_dir=data_dir,
+                                   target_device_idx=target_device_idx)
+        return kernel
+
+    @cpu_and_gpu
+    def test_same_kernels_are_shared(self, target_device_idx, xp):
+        '''
+        Objects with the same kernel share the same array, the other ones don't.
+        '''
+        zlayer = [85e3, 90e3, 95e3]
+        zprofile = [0.25, 0.5, 0.25]
+        temp_dir = tempfile.mkdtemp()
+        try:
+            k1 = self._lgs_kernel(temp_dir, target_device_idx)
+            k2 = self._lgs_kernel(temp_dir, target_device_idx)
+            k3 = self._lgs_kernel(temp_dir, target_device_idx, launcher_pos=(-5, 5, 0))
+            for k in (k1, k2, k3):
+                k.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile, current_time=1)
+                self.assertEqual(k.generation_time, 1)
+            self.assertIs(k1.kernels, k2.kernels)
+            self.assertIsNot(k1.kernels, k3.kernels)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    @cpu_and_gpu
+    def test_shared_kernels_are_not_overwritten(self, target_device_idx, xp):
+        '''
+        When the kernel of an object changes, the kernels it shared with
+        other objects are left unchanged, and it gets new ones. An object
+        that does not share its kernels anymore updates them in place.
+        '''
+        zlayer = [85e3, 90e3, 95e3]
+        zprofile = [0.25, 0.5, 0.25]
+        zprofile2 = [0.5, 0.25, 0.25]
+        temp_dir = tempfile.mkdtemp()
+        try:
+            k1 = self._lgs_kernel(temp_dir, target_device_idx)
+            k2 = self._lgs_kernel(temp_dir, target_device_idx)
+            k1.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            k2.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            shared = k1.kernels
+            expected = cpuArray(shared).copy()
+
+            k2.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile2)
+            self.assertIs(k1.kernels, shared)
+            self.assertIsNot(k2.kernels, shared)
+            np.testing.assert_array_equal(cpuArray(shared), expected)
+            self.assertFalse(np.allclose(cpuArray(k2.kernels), expected))
+
+            # k1 switches to the kernel already computed by k2
+            k1.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile2)
+            self.assertIs(k1.kernels, k2.kernels)
+
+            # A kernel not shared anymore is updated in place
+            zprofile3 = [0.25, 0.25, 0.5]
+            k3 = self._lgs_kernel(temp_dir, target_device_idx)
+            k3.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            self.assertIsNot(k3.kernels, shared)
+            np.testing.assert_allclose(cpuArray(k3.kernels), expected, rtol=1e-5, atol=1e-7)
+            own = k3.kernels
+            k3.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile3)
+            self.assertIs(k3.kernels, own)
+
+            # ... and its old kernel is not in the cache anymore
+            k4 = self._lgs_kernel(temp_dir, target_device_idx)
+            k4.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            self.assertIsNot(k4.kernels, own)
+            np.testing.assert_allclose(cpuArray(k4.kernels), expected, rtol=1e-5, atol=1e-7)
+        finally:
+            shutil.rmtree(temp_dir)
 
     @cpu_and_gpu
     def test_restore_without_fft_gives_full_real_kernels(self, target_device_idx, xp):
