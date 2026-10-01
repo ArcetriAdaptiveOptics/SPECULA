@@ -118,6 +118,25 @@ class TestDisplays(unittest.TestCase):
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_reset_windows(self):
+        saved_plot_completed = dict(BaseDisplay._BaseDisplay__plot_completed)
+        BaseDisplay._BaseDisplay__plot_completed = {}
+
+        try:
+            d1 = PhaseDisplay(title='First simulation', window=3)
+            BaseDisplay.reset_windows()
+            self.assertFalse(matplotlib.pyplot.fignum_exists(d1.fig.number))
+
+            # A new simulation can use the same window
+            d2 = PhaseDisplay(title='Second simulation', window=3)
+            self.assertEqual(d2.window, 3)
+            self.assertEqual(len(d2.fig.axes), 1)
+        finally:
+            BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
+            matplotlib.pyplot.close('all')
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
     def test_double_phase_display_trigger(self, target_device_idx, xp):
         """DoublePhaseDisplay draws both phases and accumulates the PSD"""
