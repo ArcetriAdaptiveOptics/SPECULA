@@ -108,7 +108,7 @@ class CurWfsSlopec(Slopec):
         self.flat_p1 = self.local_inputs['in_pixels1'].pixels.flatten()
         self.flat_p2 = self.local_inputs['in_pixels2'].pixels.flatten()
 
-    def trigger_code(self):
+    def compute_slopes(self):
         # Extract valid pixels according to PupData
         i1 = self.flat_p1[self.pup_idx].astype(self.xp.float32)
         i2 = self.flat_p2[self.pup_idx].astype(self.xp.float32)

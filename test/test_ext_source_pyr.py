@@ -689,11 +689,13 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         pyr_all.inputs['ext_source_coeff'].set(src.outputs['coeff'])
         pyr_all.setup()
 
-        # Check that all points are processed
-        # Four extra points where the flux has been redistributed
+        # Check that all points are processed. The face centers added by
+        # pyr_filtered are in its own copy, not in the shared source output
         n_valid_all = len(cpuArray(pyr_all.valid_idx))
-        self.assertEqual(n_valid_all, n_points+4,
-            f"Expected {n_points+4} valid points without threshold, got {n_valid_all}")
+        self.assertEqual(n_valid_all, n_points,
+            f"Expected {n_points} valid points without threshold, got {n_valid_all}")
+        np.testing.assert_array_equal(cpuArray(src.outputs['coeff'].value), cpuArray(coeff),
+                                      err_msg="ExtSourcePyramid modified its input")
 
         # Test 3: Verify outputs are similar (weak flux has negligible effect)
         pyr_filtered.check_ready(1)

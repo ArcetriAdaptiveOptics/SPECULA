@@ -659,3 +659,182 @@ class TestShSlopec(unittest.TestCase):
                                       cpuArray(xp.arange(0, len(m))))
         np.testing.assert_array_equal(cpuArray(slopec_int.slopes.indx()),
                                       cpuArray(xp.arange(0, len(m)*2, 2)))
+
+    def _run_slopec_steps(self, subapdata, frames, target_device_idx, use_setup, cls=ShSlopec,
+                          **kwargs):
+        """Run a ShSlopec (or *cls*) over *frames* and return the outputs of each step"""
+        pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=target_device_idx)
+        slopec = cls(subapdata, target_device_idx=target_device_idx, **kwargs)
+        slopec.inputs['in_pixels'].set(pixels)
+        if use_setup:
+            slopec.setup()
+        results = []
+        for i, frame in enumerate(frames):
+            t = slopec.seconds_to_t(i + 1)
+            # Written in place: the CUDA graph always reads the same input array
+            pixels.pixels[:] = pixels.xp.asarray(frame)
+            pixels.generation_time = t
+            slopec.check_ready(t)
+            slopec.trigger()
+            slopec.post_trigger()
+            results.append([cpuArray(x).copy() for x in (
+                slopec.slopes.slopes, slopec.flux_per_subaperture_vector.value,
+                slopec.total_counts.value, slopec.subap_counts.value, slopec.slopes_map.value)])
+        return slopec, results
+
+    def test_cuda_graph_matches_eager_and_cpu(self):
+        """
+        The CUDA graph built by setup() must give the same results as
+        the eager GPU execution, and the GPU results must match the CPU ones,
+        with changing input pixels and all the slope corrections.
+        """
+        rng = np.random.default_rng(0)
+        np_sub = 6
+        n_blocks = 5
+        blocks = [np.zeros((np_sub, np_sub)) for _ in range(n_blocks)]
+        subapdata_cpu, pixels = self._build_multi_subap_pixels(blocks, -1, np)
+        n_subaps = subapdata_cpu.n_subaps
+        frames = [rng.poisson(20, pixels.pixels.shape).astype(np.float32) for _ in range(6)]
+        # One dark subaperture, whose slopes must be set to zero
+        for frame in frames:
+            frame[:, :np_sub] = 0
+
+        filtmat = [rng.normal(size=(2 * n_subaps, 2)), rng.normal(size=(2 * n_subaps, 2)) * 0.1]
+        configs = [
+            dict(),
+            dict(thr_value=15, interleave=True),
+            dict(thr_ratio_value=0.5, weightedPixRad=2),
+            dict(weight_int_pixel_dt=2, window_int_pixel=True, window_int_threshold=10, filtmat=filtmat),
+            dict(weight_int_pixel_dt=3, filtmat=filtmat, interleave=True),
+            dict(thr_value=5, filtmat=filtmat, precision=0),
+        ]
+        targets = [-1] if specula.cp is None else [-1, 0]
+        for kwargs in configs:
+            for interleave_sn in [False, True]:
+                results = {}
+                for target_device_idx in targets:
+                    subapdata = SubapData(idxs=subapdata_cpu.idxs, display_map=subapdata_cpu.display_map,
+                                          nx=n_blocks, ny=1, target_device_idx=target_device_idx)
+                    sn = Slopes(slopes=rng.normal(size=2 * n_subaps) * 0.01 if target_device_idx < 0
+                                else results['sn'], interleave=interleave_sn,
+                                target_device_idx=target_device_idx)
+                    results['sn'] = cpuArray(sn.slopes)
+                    for use_setup in ([False] if target_device_idx < 0 else [False, True]):
+                        slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx,
+                                                             use_setup, sn=sn, **kwargs)
+                        results[(target_device_idx, use_setup)] = res
+                        if use_setup:
+                            self.assertIsNotNone(slopec.cuda_graph)
+
+                msg = f'{kwargs=} {interleave_sn=}'
+                for step_cpu, step_eager, step_graph in zip(results[(-1, False)],
+                                                            results.get((0, False), results[(-1, False)]),
+                                                            results.get((0, True), results[(-1, False)])):
+                    for cpu_value, eager_value, graph_value in zip(step_cpu, step_eager, step_graph):
+                        # Not bit-identical: without a graph, matrix products use cuBLAS
+                        np.testing.assert_allclose(eager_value, graph_value, rtol=1e-6, atol=1e-7,
+                                                   err_msg=msg)
+                        np.testing.assert_allclose(cpu_value, eager_value, rtol=1e-5, atol=1e-6, err_msg=msg)
+                slopes = results[(-1, False)][-1][0]
+                self.assertFalse(np.any(np.isnan(slopes)), msg)
+                self.assertTrue(np.any(slopes != 0), msg)
+                # Dark subaperture
+                self.assertEqual(results[(-1, False)][-1][1][0], 0)
+
+    def _frames_and_subapdata(self, target_device_idx, xp, nframes=4):
+        np_sub = 6
+        blocks = [np.zeros((np_sub, np_sub)) for _ in range(4)]
+        subapdata, pixels = self._build_multi_subap_pixels(blocks, target_device_idx, xp)
+        rng = np.random.default_rng(1)
+        frames = [rng.poisson(20, pixels.pixels.shape).astype(np.float32) for _ in range(nframes)]
+        return subapdata, pixels, frames
+
+    @cpu_and_gpu
+    def test_derived_class_slope_null_applied_once(self, target_device_idx, xp):
+        """
+        A derived class extending compute_slopes() gets the slope null subtracted
+        exactly once, and uses a CUDA graph only if it opts in.
+        """
+        class DerivedShSlopec(ShSlopec):
+            def compute_slopes(self):
+                super().compute_slopes()
+
+        class GraphShSlopec(DerivedShSlopec):
+            def setup(self):
+                super().setup()
+                self.build_stream(capture=False)
+
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
+        sn = Slopes(slopes=np.random.default_rng(2).normal(size=2 * subapdata.n_subaps),
+                    target_device_idx=target_device_idx)
+        _, ref_no_sn = self._run_slopec_steps(subapdata, frames, target_device_idx, True)
+        for cls in [ShSlopec, DerivedShSlopec, GraphShSlopec]:
+            slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx, True,
+                                                 sn=sn, cls=cls)
+            uses_graph = target_device_idx >= 0 and cls is not DerivedShSlopec
+            self.assertEqual(slopec.cuda_graph is not None, uses_graph, cls.__name__)
+            for step, ref_step in zip(res, ref_no_sn):
+                np.testing.assert_allclose(step[0], ref_step[0] - cpuArray(sn.slopes),
+                                           rtol=1e-5, atol=1e-6, err_msg=cls.__name__)
+
+    def test_derived_class_overriding_trigger_code_raises(self):
+        """trigger_code() applies the slope corrections, and must not be overridden"""
+        with self.assertRaisesRegex(TypeError, 'compute_slopes'):
+            class WrongShSlopec(ShSlopec):
+                def trigger_code(self):
+                    self.calc_slopes_nofor()
+
+    @unittest.skipIf(specula.cp is None, 'GPU not available')
+    def test_reallocated_input_raises_with_cuda_graph(self):
+        """With a CUDA graph, an input reallocated by its producer raises an error,
+        instead of the graph silently reading the old array"""
+        subapdata, _, frames = self._frames_and_subapdata(0, specula.cp)
+        pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=0)
+        slopec = ShSlopec(subapdata, target_device_idx=0)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.setup()
+        for i, frame in enumerate(frames):
+            t = slopec.seconds_to_t(i + 1)
+            if i < 2:
+                pixels.pixels[:] = specula.cp.asarray(frame)
+            else:
+                pixels.pixels = specula.cp.asarray(frame)
+            pixels.generation_time = t
+            slopec.check_ready(t)
+            if i < 2:
+                slopec.trigger()
+                slopec.post_trigger()
+            else:
+                with self.assertRaisesRegex(RuntimeError, 'in_pixels has been reallocated'):
+                    slopec.trigger()
+                break
+
+    @cpu_and_gpu
+    def test_dynamic_dark_calibrator_chain(self, target_device_idx, xp):
+        """
+        Pixels -> DynamicDarkCalibrator -> ShSlopec, with a CUDA graph on GPU:
+        the slopes must follow the input pixels at every step.
+        """
+        from specula.processing_objects.dynamic_dark_calibrator import DynamicDarkCalibrator
+
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp, nframes=5)
+        pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=target_device_idx)
+        dark = DynamicDarkCalibrator(data_dir='', nframes=1, target_device_idx=target_device_idx)
+        dark.inputs['in_pixels'].set(pixels)
+        dark.setup()
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(dark.outputs['out_subtracted_pixels'])
+        slopec.setup()
+
+        _, expected = self._run_slopec_steps(subapdata, frames, target_device_idx, False)
+        for i, frame in enumerate(frames):
+            t = slopec.seconds_to_t(i + 1)
+            pixels.pixels[:] = xp.asarray(frame)
+            pixels.generation_time = t
+            for obj in [dark, slopec]:
+                obj.check_ready(t)
+                obj.trigger()
+                obj.post_trigger()
+            np.testing.assert_allclose(cpuArray(slopec.slopes.slopes), expected[i][0],
+                                       rtol=1e-5, atol=1e-6, err_msg=f'step {i}')
+        self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)

@@ -71,7 +71,7 @@ class ZwfsSlopec(Slopec):
         super().prepare_trigger(t)
         self.flat_pixels = self.to_xp(self.local_inputs['in_pixels'].pixels).flatten().astype(self.dtype)
 
-    def trigger_code(self):
+    def compute_slopes(self):
         self.flat_pixels -= self.threshold
 
         # clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required

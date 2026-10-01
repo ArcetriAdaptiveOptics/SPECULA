@@ -13,7 +13,6 @@ from specula import cpuArray
 from specula.lib.utils import unravel_index_2d
 from specula.lib.utils import camelcase_to_snakecase
 from specula.lib.utils import get_type_hints
-from specula.lib.utils import remove_suffix
 from specula.lib.utils import make_tn
 from specula.lib.utils import resolve_type
 
@@ -122,12 +121,6 @@ class TestGetTypeHints(unittest.TestCase):
         hints = get_type_hints(A)
         # Default __init__ has no annotations
         self.assertEqual(hints, {})
-
-    def test_remove_suffix(self):
-        self.assertEqual(remove_suffix('parameter_ref', '_ref'), 'parameter')
-        self.assertEqual(remove_suffix('parameter_data', '_data'), 'parameter')
-        self.assertEqual(remove_suffix('parameter_object', '_object'), 'parameter')
-        self.assertEqual(remove_suffix('parameter', '_ref'), 'parameter')  # No suffix to remove
 
     def test_make_tn_format(self):
         """Output should match YYYYMMDD_HHMMSS format"""
