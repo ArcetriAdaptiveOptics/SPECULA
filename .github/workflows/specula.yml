@@ -104,6 +104,11 @@ jobs:
 
     - name: Test MPI and generate coverage report
       if: ${{ matrix.mpi != 'none' }}
+      env:
+        # Ubuntu's MPICH uses UCX, which crashes MPI_Init on runners with
+        # an Azure MANA RDMA device. Tests are single-node, so restrict UCX
+        # to shared memory and TCP.
+        UCX_TLS: self,sm,tcp
       run: |
         pytest -k mpi --cov=./ --cov-append
 
