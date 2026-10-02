@@ -445,23 +445,25 @@ class TestAtmoEvolution(unittest.TestCase):
             for gpu_layer, cpu_layer in zip(layers[0], layers[-1]):
                 np.testing.assert_allclose(gpu_layer, cpu_layer, rtol=1e-10, atol=1e-8)
 
-    @unittest.skipIf(specula.cp is None, 'GPU not available')
-    def test_cuda_graph_in_shared_stream(self):
+    @cpu_and_gpu
+    def test_shared_stream(self, target_device_idx, xp):
         """
-        Test that the evolution can be captured in the device stream shared with
+        Test that the evolution can run in the device stream shared with
         other objects (allow_parallel=False), with the same layers as in its own stream
         """
         simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
         layers = {}
         for allow_parallel in [True, False]:
-            seeing = WaveGenerator(constant=0.8, amp=0.3, freq=5.0, target_device_idx=0)
+            seeing = WaveGenerator(constant=0.8, amp=0.3, freq=5.0,
+                                   target_device_idx=target_device_idx)
             wind_speed = WaveGenerator(constant=[25.5, 30.0], amp=[5.0, 5.0], freq=[3.0, 3.0],
-                                       target_device_idx=0)
+                                       target_device_idx=target_device_idx)
             wind_direction = WaveGenerator(constant=[90, -212.7], amp=[20.0, 20.0],
-                                           freq=[2.0, 2.0], target_device_idx=0)
+                                           freq=[2.0, 2.0], target_device_idx=target_device_idx)
             atmo = AtmoEvolution(simul_params, L0=23, data_dir=self.data_dir,
                                  heights=[0, 10000], Cn2=[0.5, 0.5], fov=60.0,
-                                 pixel_phasescreens=256, target_device_idx=0, precision=0)
+                                 pixel_phasescreens=256, target_device_idx=target_device_idx,
+                                 precision=0)
             atmo.inputs['seeing'].set(seeing.output)
             atmo.inputs['wind_speed'].set(wind_speed.output)
             atmo.inputs['wind_direction'].set(wind_direction.output)
@@ -472,8 +474,9 @@ class TestAtmoEvolution(unittest.TestCase):
             loop.add(atmo, idx=1)
             loop.start(run_time=0.2, dt=simul_params.time_step)
             atmo.build_stream(allow_parallel=allow_parallel)
-            assert atmo.cuda_graph is not None
-            assert (atmo.stream is BaseProcessingObj.device_stream(0)) == (not allow_parallel)
+            assert (atmo.cuda_graph is not None) == (target_device_idx >= 0)
+            if target_device_idx >= 0:
+                assert (atmo.stream is BaseProcessingObj.device_stream(0)) == (not allow_parallel)
             layers[allow_parallel] = []
             for _ in range(20):
                 loop.iter()
