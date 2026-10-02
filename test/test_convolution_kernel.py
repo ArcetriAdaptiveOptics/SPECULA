@@ -906,6 +906,35 @@ class TestKernel(unittest.TestCase):
             shutil.rmtree(temp_dir)
 
     @cpu_and_gpu
+    def test_set_value_does_not_overwrite_shared_kernels(self, target_device_idx, xp):
+        '''
+        set_value() on an object sharing its kernels stores the new ones
+        in a new array: the other objects and the cache are unaffected.
+        '''
+        zlayer = [85e3, 90e3, 95e3]
+        zprofile = [0.25, 0.5, 0.25]
+        temp_dir = tempfile.mkdtemp()
+        try:
+            k1 = self._lgs_kernel(temp_dir, target_device_idx)
+            k2 = self._lgs_kernel(temp_dir, target_device_idx)
+            k1.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            k2.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            shared = k1.kernels
+            expected = cpuArray(shared).copy()
+
+            rng = np.random.default_rng(2)
+            k1.set_value(rng.random((k1.dimx * k1.dimy, k1.dimension, k1.dimension)))
+            self.assertIsNot(k1.kernels, shared)
+            self.assertIs(k2.kernels, shared)
+            np.testing.assert_array_equal(cpuArray(shared), expected)
+
+            k3 = self._lgs_kernel(temp_dir, target_device_idx)
+            k3.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
+            self.assertIs(k3.kernels, shared)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    @cpu_and_gpu
     def test_restore_without_fft_gives_full_real_kernels(self, target_device_idx, xp):
         dimx = dimy = 2
         dimension = 8

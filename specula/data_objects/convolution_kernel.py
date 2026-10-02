@@ -294,11 +294,15 @@ class ConvolutionKernel(BaseDataObj):
         if self.xp.any(~self.xp.isfinite(self.real_kernels)):
             raise ValueError("Kernel contains non-finite values!")
 
-        # Reallocate only if the requested layout is different from the current one,
-        # since users may keep references to self.kernels (e.g. in CUDA graphs)
+        # Kernels in the cache can be shared with other objects (see prepare_for_sh()):
+        # they are never overwritten, the new ones are stored in a new array.
+        # Other kernels are reused if the layout is the same. Users like SH, that keep
+        # references to self.kernels (e.g. in CUDA graphs), must check if it has changed.
         shape = self._kernels_shape(return_fft)
         dtype = self.complex_dtype if return_fft else self.dtype
-        if self.kernels is None or self.kernels.shape != shape or self.kernels.dtype != dtype:
+        cached = any(k is self.kernels for k in _kernels_cache.values())
+        if cached or self.kernels is None or self.kernels.shape != shape \
+                or self.kernels.dtype != dtype:
             self.kernels = self.xp.zeros(shape, dtype=dtype)
 
         # Process the kernels - apply FFT if needed.
@@ -378,15 +382,12 @@ class ConvolutionKernel(BaseDataObj):
             self._kernel_fn = kernel_fn  # Update the stored kernel filename
 
             # Objects with the same kernel (e.g. LGS WFSs with the same launcher) share it.
-            # Since it can be shared, a new kernel is always stored in a new array:
-            # users like SH must check if self.kernels has been reallocated.
             key = (kernel_fn, self.target_device_idx, self.return_fft)
             cached = _kernels_cache.get(key)
             if cached is not None:
                 self.kernels = cached
                 self.logger.info(f"Sharing kernel {kernel_fn} with another object")
                 return
-            self.kernels = None
 
             # Build full path using data_dir
             if self.data_dir:

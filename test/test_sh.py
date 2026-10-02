@@ -524,28 +524,28 @@ class TestSH(unittest.TestCase):
 
         self.assertEqual(prepare.call_count, 1)
 
-    @unittest.skipIf(specula.cp is None, 'GPU not available')
-    def test_shared_kernels_in_cuda_graph(self):
+    @cpu_and_gpu
+    def test_shared_kernels(self, target_device_idx, xp):
         '''
-        Two GPU SH objects with the same kernel share it. When the sodium
-        profile of one of them changes, it gets new kernels and must capture
-        its CUDA graph again: its output must match an SH created with the
-        new profile, while the other one is unaffected.
+        Two SH objects with the same kernel share it. When the sodium
+        profile of one of them changes, it gets new kernels and, on GPU,
+        must capture its CUDA graph again: its output must match an SH
+        created with the new profile, while the other one is unaffected.
         '''
-        xp = specula.cp
         new_profile = xp.array([0.5, 0.3, 0.2], dtype=xp.float32)
 
         def out(sh):
             return cpuArray(sh.outputs['out_i'].i).copy()
 
         with tempfile.TemporaryDirectory() as data_dir:
-            sh1, _, step1 = self._lgs_sh(0, xp, data_dir)
-            sh2, intensity2, step2 = self._lgs_sh(0, xp, data_dir)
+            sh1, _, step1 = self._lgs_sh(target_device_idx, xp, data_dir)
+            sh2, intensity2, step2 = self._lgs_sh(target_device_idx, xp, data_dir)
             for t in (1, 2):
                 step1(t)
                 step2(t)
             self.assertIs(sh1._kernelobj.kernels, sh2._kernelobj.kernels)
-            self.assertIsNotNone(sh2.cuda_graph)
+            if target_device_idx >= 0:
+                self.assertIsNotNone(sh2.cuda_graph)
             out1 = out(sh1)
 
             intensity2.value[:] = new_profile
@@ -554,7 +554,7 @@ class TestSH(unittest.TestCase):
                 step2(t)
             self.assertIsNot(sh1._kernelobj.kernels, sh2._kernelobj.kernels)
 
-            ref_sh, ref_intensity, ref_step = self._lgs_sh(0, xp, data_dir)
+            ref_sh, ref_intensity, ref_step = self._lgs_sh(target_device_idx, xp, data_dir)
             ref_intensity.value[:] = new_profile
             ref_step(1)
 
