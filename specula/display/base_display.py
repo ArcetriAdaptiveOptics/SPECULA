@@ -21,8 +21,9 @@ class BaseDisplay(BaseProcessingObj):
     # Displays that accumulate a history set this to False
     skip_updates = True
 
+    # Override __new__ in order to remember constructor arguments,
+    # even for derived classes
     def __new__(cls, *args, **kwargs):
-        # Constructor arguments, used to build a replica in the display process
         obj = super().__new__(cls)
         obj._init_args = args
         obj._init_kwargs = kwargs
@@ -59,9 +60,9 @@ class BaseDisplay(BaseProcessingObj):
         self.output_id = IntValue(value=-1)
         self.outputs['out_window_id'] = self.output_id
 
-        # Drawing happens in the display process: no figure here.
-        # The display code, including setup() and finalize() of derived classes,
-        # runs there: here setup() only checks the inputs
+        # Redirect standard calls. The object will be
+        # re-instantiated in the display process
+        # with the correct methods.
         self.async_mode = display_process.enabled
         if self.async_mode:
             self.fig = self.ax = None
