@@ -125,14 +125,13 @@ Multiple displays can be grouped into a single window and updated together. Each
 
 This produces a single Matplotlib window arranged as::
 
-
-+-----------+-----------+
-| Modes     | Phase     |
-| (221)     | (222)     |
-+-----------+-----------+
-| PSF       | Slopes    |
-| (223)     | (224)     |
-+-----------+-----------+
+    +-----------+-----------+
+    | Modes     | Phase     |
+    | (221)     | (222)     |
+    +-----------+-----------+
+    | PSF       | Slopes    |
+    | (223)     | (224)     |
+    +-----------+-----------+
 
 
 

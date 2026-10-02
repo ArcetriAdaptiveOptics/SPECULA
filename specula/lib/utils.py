@@ -337,13 +337,9 @@ def resolve_type(tp, require_list=False, require_dict=False):
     Extract type information from compound type declaration:
     List[Recmat] -> Recmat
     Dict[str, Recmat] -> Recmat
-    Union[Recmat, None] -> Recmat
+    Recmat | None -> Recmat
     '''
-    # Python < 3.10 has no types.UnionType
-    try:
-        union_types = [typing.Union, types.UnionType]
-    except AttributeError:
-        union_types = [typing.Union]
+    union_types = [typing.Union, types.UnionType]
 
     origin = typing.get_origin(tp)
     args = typing.get_args(tp)

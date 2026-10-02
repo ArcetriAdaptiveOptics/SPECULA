@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List
 from specula import ASEC2RAD, np, fuse
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
@@ -88,7 +88,7 @@ class AtmoEvolution(BaseProcessingObj):
     """
     def __init__(self,
                  simul_params: SimulParams,
-                 L0: Union[float, List[float]],
+                 L0: float | List[float],
                  heights: list,
                  Cn2: list,
                  data_dir: str = "",

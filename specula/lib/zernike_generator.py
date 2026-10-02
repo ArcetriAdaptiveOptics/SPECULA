@@ -3,7 +3,7 @@ import numpy as np
 
 from specula import cpuArray, to_xp
 
-from functools import lru_cache
+from functools import cache
 from scipy.special import eval_jacobi
 from specula.lib.mask import CircularMask
 
@@ -419,9 +419,8 @@ class ZernikeGenerator():
         '''
         return np.ceil(0.5 * (np.sqrt(8 * np.array(j) + 1) - 3)).astype(int)
 
-    # We use lru_cache() instead of cache() for python 3.8 compatibility
     @classmethod
-    @lru_cache(maxsize=None)
+    @cache
     def index_to_name_dict(cls):
         '''
         Zernike index to zernike name mapping
@@ -436,9 +435,8 @@ class ZernikeGenerator():
                 3:'tilt',
                 4:'focus'}
 
-    # We use lru_cache() instead of cache() for python 3.8 compatibility
     @classmethod
-    @lru_cache(maxsize=None)
+    @cache
     def name_to_index_dict(cls):
         '''
         Zernike name to zernike index mapping

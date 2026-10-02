@@ -128,11 +128,3 @@ class DoublePhaseDisplay(BaseDisplay):
         self.ax4.legend()
 
         self._safe_draw()
-
-    def trigger_code(self):
-        """Override to handle dual phase inputs"""
-        try:
-            # DoublePhaseDisplay handles dual inputs
-            self._update_display()
-        except Exception as e:
-            self._show_error(f"Double phase display error: {str(e)}")

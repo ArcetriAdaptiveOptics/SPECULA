@@ -1,5 +1,4 @@
 import os
-import sys
 import tempfile
 import unittest
 import matplotlib
@@ -17,7 +16,6 @@ from specula.scalar_values import IntValue
 from specula.display.display_recorder import DisplayRecorder
 
 
-@unittest.skipIf(sys.platform == 'darwin' and sys.version_info < (3, 9), reason='Not implemented on MacOSX with python 3.8')
 class TestDisplayRecorder(unittest.TestCase):
 
     def test_recorded_frame_is_not_empty(self):

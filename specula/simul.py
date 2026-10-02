@@ -940,6 +940,10 @@ class Simul():
                     raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
     
     def run(self, start_time=0, end_time=None):
+        # Forget the display windows of a previous simulation in the same process
+        from specula.display.base_display import BaseDisplay
+        BaseDisplay.reset_windows()
+
         params = {}
         # Read YAML file(s)
         self.logger.info('Reading parameters from ' + self.param_files[0])
