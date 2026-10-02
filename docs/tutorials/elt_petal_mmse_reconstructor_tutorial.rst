@@ -171,12 +171,15 @@ below):
 .. note::
 
    **Is dropping one petal equivalent to a proper differential basis?**
-   Yes, not just approximately: the six raw petal masks sum, pixel for
-   pixel, to the uniform (global piston) pattern, which projects to
-   KL-mode RMS ~3e-17 (machine-precision zero, since the KL basis carries
-   no piston). The six raw influence functions are therefore rank-5, not
-   rank-6, so dropping petal 6 discards precisely that redundant,
-   unobservable direction and nothing else.
+   Yes. The six raw petal masks sum, pixel for pixel, to the uniform
+   (global piston) pattern, and that pattern projects through
+   ``influence_function_inv`` to KL-mode RMS ~3e-17 -- machine-precision
+   zero, since the KL basis cannot represent piston. Projected into
+   KL-mode space this way, the 6-row petal matrix is therefore rank 5, not
+   rank 6 (the raw, un-projected petal masks themselves are full rank 6:
+   it is specifically the projection through a piston-free basis that
+   creates the redundancy). Dropping petal 6 discards exactly that
+   redundant direction and nothing else.
 
 Step 3: Turbulence covariance in KL-mode space
 ----------------------------------------------------

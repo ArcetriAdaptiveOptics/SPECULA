@@ -186,9 +186,10 @@ multi-layer atmospheric reconstruction, which is orthogonal to what this
 tutorial demonstrates.
 
 **WFS path.** A modulated pyramid (3 :math:`\lambda/D` modulation radius,
-800 nm) feeding a noisy CCD (photon and readout noise both enabled, unlike
-the noise-free calibration steps) and the slope computer calibrated in
-Step 2:
+800 nm) observing an 8th-magnitude on-axis NGS (``wfs_source``, defined in
+the same shared base file as ``pupilstop`` and ``prop``), feeding a noisy
+CCD (photon and readout noise both enabled, unlike the noise-free
+calibration steps) and the slope computer calibrated in Step 2:
 
 .. code-block:: yaml
 
@@ -278,16 +279,20 @@ Step 3. That residual then goes through a per-mode-group IIR filter,
    configuration at 1.0 arcsec seeing, not a real per-mode optimization --
    treat it as a starting point to adapt.
 
+.. note::
+
    **Band 1 (tip-tilt) is different.** It uses a two-pole/two-zero IIR
    filter, not a plain integrator: the same design used for the ANDES
    tip-tilt channel to reject the ELT M2 wind-shake (up to ~10 :math:`\mu`\ m
    RMS); see Agapito et al., "MORFEO control strategy", *J. Astron.
    Telesc. Instrum. Syst.* 12(3), 039001 (2026), Appendix A, for the
-   derivation of these coefficients. This tutorial's atmosphere is a
+   derivation of these coefficients. The atmosphere used in this tutorial is a
    single turbulence layer with no injected wind-shake, so a plain
    integrator on tip-tilt would perform just as well here; the filter is
    kept to mirror the real ANDES architecture, useful if you later add
    M1/M2 dynamics of your own.
+
+.. note::
 
    The ``in_ost`` input on ``control`` closes a second loop: it lets the
    Soft-Limiter leak correction feed back directly into the accumulated
