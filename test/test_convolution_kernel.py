@@ -858,9 +858,8 @@ class TestKernel(unittest.TestCase):
     @cpu_and_gpu
     def test_shared_kernels_are_not_overwritten(self, target_device_idx, xp):
         '''
-        When the kernel of an object changes, the kernels it shared with
-        other objects are left unchanged, and it gets new ones. An object
-        that does not share its kernels anymore updates them in place.
+        When the kernel of an object changes, it is stored in a new array:
+        the kernels shared with other objects are left unchanged.
         '''
         zlayer = [85e3, 90e3, 95e3]
         zprofile = [0.25, 0.5, 0.25]
@@ -883,22 +882,6 @@ class TestKernel(unittest.TestCase):
             # k1 switches to the kernel already computed by k2
             k1.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile2)
             self.assertIs(k1.kernels, k2.kernels)
-
-            # A kernel not shared anymore is updated in place
-            zprofile3 = [0.25, 0.25, 0.5]
-            k3 = self._lgs_kernel(temp_dir, target_device_idx)
-            k3.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
-            self.assertIsNot(k3.kernels, shared)
-            np.testing.assert_allclose(cpuArray(k3.kernels), expected, rtol=1e-5, atol=1e-7)
-            own = k3.kernels
-            k3.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile3)
-            self.assertIs(k3.kernels, own)
-
-            # ... and its old kernel is not in the cache anymore
-            k4 = self._lgs_kernel(temp_dir, target_device_idx)
-            k4.prepare_for_sh(sodium_altitude=zlayer, sodium_intensity=zprofile)
-            self.assertIsNot(k4.kernels, own)
-            np.testing.assert_allclose(cpuArray(k4.kernels), expected, rtol=1e-5, atol=1e-7)
         finally:
             shutil.rmtree(temp_dir)
 

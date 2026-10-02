@@ -108,18 +108,8 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     return ccd
 
 
-class _SharedKernels:
-    '''
-    Kernels shared by all the ConvolutionKernel objects with the same kernel
-    (same build() hash, device and layout), so that they are stored only once.
-    '''
-    def __init__(self, kernels):
-        self.kernels = kernels
-        self.owners = weakref.WeakSet()
-
-
-# (kernel_fn, target_device_idx, return_fft) -> _SharedKernels.
-# Weak values: the kernels are freed when no ConvolutionKernel uses them anymore.
+# Kernels already loaded or computed, shared by all the objects with the same kernel.
+# Weak values: the kernels are freed when no object uses them anymore.
 _kernels_cache = weakref.WeakValueDictionary()
 
 
@@ -182,7 +172,6 @@ class ConvolutionKernel(BaseDataObj):
         # Allocated by process_kernels(), or shared with other objects by prepare_for_sh()
         self.kernels = None
         self._kernel_fn = None
-        self._shared = None
 
     def _kernels_shape(self, return_fft):
         '''
@@ -305,9 +294,6 @@ class ConvolutionKernel(BaseDataObj):
         if self.xp.any(~self.xp.isfinite(self.real_kernels)):
             raise ValueError("Kernel contains non-finite values!")
 
-        # Do not overwrite kernels shared with other objects
-        self._detach_kernels()
-
         # Reallocate only if the requested layout is different from the current one,
         # since users may keep references to self.kernels (e.g. in CUDA graphs)
         shape = self._kernels_shape(return_fft)
@@ -328,25 +314,6 @@ class ConvolutionKernel(BaseDataObj):
                     self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
                 else:
                     self.kernels[j * self.dimx + i, :, :] = subap_kern
-
-    def _detach_kernels(self):
-        '''
-        Stop sharing self.kernels, before they are overwritten. If other objects
-        still use them, self.kernels is set to None, so that process_kernels()
-        allocates new ones. Otherwise they are reused in place, and removed
-        from the cache since they will not match their hash anymore.
-        '''
-        shared = self._shared
-        if shared is None:
-            return
-        self._shared = None
-        shared.owners.discard(self)
-        if len(shared.owners) > 0:
-            self.kernels = None
-        else:
-            for key, value in list(_kernels_cache.items()):
-                if value is shared:
-                    del _kernels_cache[key]
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -401,24 +368,20 @@ class ConvolutionKernel(BaseDataObj):
 
         kernel_fn = self.build()
 
-        # Only reload or recalculate if the kernel has changed
-        if kernel_fn != self._kernel_fn:
-            self._kernel_fn = kernel_fn  # Update the stored kernel filename
+        # Objects with the same kernel (e.g. LGS WFSs with the same launcher) share it.
+        # Since it can be shared, a new kernel is always stored in a new array:
+        # users like SH must check if self.kernels has been reallocated.
+        key = (kernel_fn, self.target_device_idx, self.return_fft)
+        cached = _kernels_cache.get(key) if kernel_fn != self._kernel_fn else None
+        if cached is not None:
+            self._kernel_fn = kernel_fn
+            self.kernels = cached
+            self.logger.info(f"Sharing kernel {kernel_fn} with another object")
 
-            # Objects with the same kernel (e.g. LGS WFSs with the same launcher)
-            # share it, instead of storing a copy each. Users like SH must check
-            # if self.kernels has been reallocated, as it happens in this case.
-            key = (kernel_fn, self.target_device_idx, self.return_fft)
-            shared = _kernels_cache.get(key)
-            if shared is not None:
-                self._detach_kernels()
-                self.logger.info(f"Sharing kernel {kernel_fn} with another object")
-                self.kernels = shared.kernels
-                self._shared = shared
-                shared.owners.add(self)
-                if current_time is not None:
-                    self.generation_time = current_time
-                return
+        # Only reload or recalculate if the kernel has changed
+        elif kernel_fn != self._kernel_fn:
+            self._kernel_fn = kernel_fn  # Update the stored kernel filename
+            self.kernels = None
 
             # Build full path using data_dir
             if self.data_dir:
@@ -443,9 +406,7 @@ class ConvolutionKernel(BaseDataObj):
             # free memory
             self.real_kernels = None
 
-            self._shared = _SharedKernels(self.kernels)
-            self._shared.owners.add(self)
-            _kernels_cache[key] = self._shared
+            _kernels_cache[key] = self.kernels
 
         if current_time is not None:
             self.generation_time = current_time
