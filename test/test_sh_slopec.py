@@ -12,6 +12,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.sh import SH
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.pixels import Pixels
+from specula.data_objects.recmat import Recmat
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
@@ -661,10 +662,13 @@ class TestShSlopec(unittest.TestCase):
                                       cpuArray(xp.arange(0, len(m)*2, 2)))
 
     def _run_slopec_steps(self, subapdata, frames, target_device_idx, use_setup, cls=ShSlopec,
-                          **kwargs):
-        """Run a ShSlopec (or *cls*) over *frames* and return the outputs of each step"""
+                          attrs=None, **kwargs):
+        """Run a ShSlopec (or *cls*) over *frames* and return the outputs of each step.
+        *attrs* are set on the instance before setup(), and are frozen in the CUDA graph."""
         pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=target_device_idx)
         slopec = cls(subapdata, target_device_idx=target_device_idx, **kwargs)
+        for name, value in (attrs or {}).items():
+            setattr(slopec, name, value)
         slopec.inputs['in_pixels'].set(pixels)
         if use_setup:
             slopec.setup()
@@ -838,3 +842,73 @@ class TestShSlopec(unittest.TestCase):
             np.testing.assert_allclose(cpuArray(slopec.slopes.slopes), expected[i][0],
                                        rtol=1e-5, atol=1e-6, err_msg=f'step {i}')
         self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)
+
+    @cpu_and_gpu
+    def test_int_pixels_weight(self, target_device_idx, xp):
+        """
+        int_pixels_weight is None without pixel weighting. With uniform
+        accumulated pixels, no subaperture has a valid weight and all weights are 1.
+        """
+        subapdata, pixels, frames = self._frames_and_subapdata(target_device_idx, xp)
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        self.assertIsNone(slopec.int_pixels_weight)
+
+        uniform = [np.full_like(frames[0], 10.0) for _ in frames]
+        slopec, res = self._run_slopec_steps(subapdata, uniform, target_device_idx, True,
+                                             weight_int_pixel_dt=1)
+        self.assertIsNotNone(slopec.int_pixels)
+        weight = cpuArray(slopec.int_pixels_weight)
+        self.assertEqual(weight.shape, (subapdata.np_sub ** 2, subapdata.n_subaps))
+        np.testing.assert_array_equal(weight, 1.0)
+        np.testing.assert_allclose(res[-1][0], 0, atol=1e-6)
+
+    @cpu_and_gpu
+    def test_mult_factor(self, target_device_idx, xp):
+        """A non-zero mult_factor multiplies the slopes, with a warning"""
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
+        _, ref = self._run_slopec_steps(subapdata, frames, target_device_idx, True)
+
+        with self.assertLogs('specula.ShSlopec', level='WARNING') as logs:
+            slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx, True,
+                                                 attrs=dict(mult_factor=2.0))
+        self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)
+        self.assertTrue(any('multiplication factor' in line for line in logs.output))
+        for step, ref_step in zip(res, ref):
+            np.testing.assert_allclose(step[0], ref_step[0] * 2, rtol=1e-5, atol=1e-6)
+
+    @cpu_and_gpu
+    def test_recmat(self, target_device_idx, xp):
+        """
+        With a recmat, the slopes are replaced by slopes @ recmat.
+        On GPU the product is part of the CUDA graph, and uses sum_product().
+        """
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
+        n_slopes = 2 * subapdata.n_subaps
+        recmat = np.random.default_rng(3).normal(size=(n_slopes, n_slopes))
+        _, ref = self._run_slopec_steps(subapdata, frames, target_device_idx, True)
+        slopec, res = self._run_slopec_steps(
+            subapdata, frames, target_device_idx, True,
+            attrs=dict(recmat=Recmat(recmat, target_device_idx=target_device_idx)))
+        self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)
+        for step, ref_step in zip(res, ref):
+            np.testing.assert_allclose(step[0], ref_step[0] @ recmat, rtol=1e-4, atol=1e-5)
+
+    @cpu_and_gpu
+    def test_debug_log_slopes_statistics(self, target_device_idx, xp):
+        """With DEBUG logging, post_trigger() logs the slopes statistics"""
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
+        # The logger of the class, since other tests may set the level of the 'specula' logger
+        with self.assertLogs('specula.ShSlopec', level='DEBUG') as logs:
+            self._run_slopec_steps(subapdata, frames, target_device_idx, True)
+        self.assertTrue(any('Slopes min, max and rms' in line for line in logs.output))
+
+    @cpu_and_gpu
+    def test_invalid_subapdata_warns(self, target_device_idx, xp):
+        """Without valid subapdata, calc_slopes_nofor() warns and does nothing"""
+        subapdata, _, _ = self._frames_and_subapdata(target_device_idx, xp)
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        slopec.subapdata = None
+        with self.assertLogs(level='WARNING') as logs:
+            slopec.calc_slopes_nofor()
+        self.assertTrue(any('subapdata is not valid' in line for line in logs.output))
+

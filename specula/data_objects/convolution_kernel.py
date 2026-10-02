@@ -298,19 +298,21 @@ class ConvolutionKernel(BaseDataObj):
         if self.kernels is None or self.kernels.shape != shape or self.kernels.dtype != dtype:
             self.kernels = self.xp.zeros(shape, dtype=dtype)
 
-        # Process the kernels - apply FFT if needed
-        for i in range(self.dimx):
-            for j in range(self.dimy):
-                subap_kern = self.to_xp(self.real_kernels[i * self.dimx + j, :, :])
-                total = self.xp.sum(subap_kern)
-                if total > 0:  # Avoid division by zero
-                    subap_kern /= total
-                if return_fft:
-                    # Non-redundant half of the FFT, see _kernels_shape()
-                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)[:, :self.dimension // 2 + 1]
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
-                else:
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern
+        # Process the kernels - apply FFT if needed.
+        # One row of subapertures at a time: real_kernels is x-major
+        # (see lgs_map_sh()), so real_kernels[i * dimy + j] goes to
+        # kernels[j * dimx + i] for all i, and the strided slice is a view,
+        # so that real_kernels is normalized in place.
+        for j in range(self.dimy):
+            subap_kern = self.to_xp(self.real_kernels[j::self.dimy])
+            total = self.xp.sum(subap_kern, axis=(1, 2), keepdims=True)
+            subap_kern /= self.xp.where(total > 0, total, 1)  # Avoid division by zero
+            dst = slice(j * self.dimx, (j + 1) * self.dimx)
+            if return_fft:
+                # Non-redundant half of the FFT, see _kernels_shape()
+                self.kernels[dst] = self.xp.fft.ifft2(subap_kern)[:, :, :self.dimension // 2 + 1]
+            else:
+                self.kernels[dst] = subap_kern
 
     def get_fits_header(self):
         hdr = fits.Header()
