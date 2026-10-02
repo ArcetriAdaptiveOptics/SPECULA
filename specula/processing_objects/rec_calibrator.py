@@ -1,5 +1,4 @@
 import os
-from typing import Union
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
@@ -27,7 +26,7 @@ class RecCalibrator(BaseProcessingObj):
                  r0: float = 0.15,
                  L0: float = 25.0,
                  dm: DM = None,
-                 noise_cov: Union[float, np.ndarray, list] = None,
+                 noise_cov: float | np.ndarray | list = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):

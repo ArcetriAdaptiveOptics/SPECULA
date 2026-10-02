@@ -189,6 +189,46 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
 
     return ifft_covariance
 
+def _orthogonalize_filt_modes(filt_proj, filt_norms, ref_modes, rel_tol, xp=np):
+    """
+    Gram-Schmidt of filt_proj against ref_modes and among themselves.
+
+    Two kinds of degenerate modes are dropped:
+    - outside the IF span: the projection norm is below rel_tol times the norm
+      of the original mode (*filt_norms*). The projection is then numerical
+      noise, and comparing it with its own norm would not detect it;
+    - in the span of ref_modes or of the previous modes: the residual norm is
+      below rel_tol times the projection norm.
+
+    Returns:
+    --------
+    kept : 2D array
+        Orthogonalized modes, normalized to unit RMS, shape (n_kept, n_pix)
+    dropped : list of (int, str)
+        Index and reason of each dropped mode
+    """
+    q, _ = xp.linalg.qr(ref_modes.T)
+    kept = []
+    dropped = []
+    for i, mode in enumerate(filt_proj):
+        mode_norm = xp.linalg.norm(mode)
+        if mode_norm <= rel_tol * filt_norms[i]:
+            dropped.append((i, 'outside the IF span'))
+            continue
+        res = mode.copy()
+        # Two passes: classical Gram-Schmidt loses orthogonality in float32
+        for _ in range(2):
+            res -= xp.matmul(q, xp.matmul(q.T, res))
+        res_norm = xp.linalg.norm(res)
+        if res_norm <= rel_tol * mode_norm:
+            dropped.append((i, 'in the span of piston/Zernike/previous filt_modes'))
+            continue
+        q = xp.hstack((q, (res / res_norm)[:, None]))
+        kept.append(res / xp.sqrt(xp.mean(res**2)))
+    if len(kept) == 0:
+        return xp.zeros((0, filt_proj.shape[1]), dtype=filt_proj.dtype), dropped
+    return xp.stack(kept), dropped
+
 def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, L0,
                             zern_modes=0, oversampling=2, filt_modes=None,
                             if_max_condition_number=None, log_level=None,
@@ -212,8 +252,13 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
         Number of Zernike modes to be used as first modes
     oversampling : int
         Oversampling factor
-    filt_modes : 2D array
-        Modes to be removed from the influence functions
+    filt_modes : 2D array, optional
+        Modes to be removed from the influence functions (and hence from the
+        KL basis), shape (n_modes, n_pupil_pixels). They are not returned in the
+        basis. Only their projection on the influence functions span is removed,
+        orthogonalized against piston and the Zernike modes. Modes outside the
+        influence functions span, or degenerate (e.g. duplicating a Zernike mode),
+        are discarded with a warning.
     if_max_condition_number : float
         Maximum condition number for the influence functions
     log_level : int, optional
@@ -228,7 +273,8 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
     kl_basis : 2D array
         Modal basis
     m2c : 2D array
-        Modes-to-command matrix
+        Modes-to-command matrix: influence_functions.T @ m2c gives the modes
+        of kl_basis, with no piston
     singular_values : dict
         Singular values of the covariance matrices
     """
@@ -257,9 +303,14 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     logger.debug("Step 1: Removing modes from influence functions...")
 
-    number_of_modes_to_be_removed = 1 + zern_modes
     if filt_modes is not None:
-        number_of_modes_to_be_removed += filt_modes.shape[0]
+        filt_modes = xp.asarray(filt_modes, dtype=dtype)
+        if filt_modes.ndim != 2 or filt_modes.shape[1] != npupil_mask:
+            raise ValueError(f"filt_modes should have shape (n_modes, {npupil_mask})")
+        if filt_modes.shape[0] == 0:
+            filt_modes = None
+
+    number_of_modes_to_be_removed = 1 + zern_modes
 
     modes_to_be_removed = xp.zeros((number_of_modes_to_be_removed, npupil_mask), dtype=dtype)
     modes_to_be_removed[0, :] = 1.0
@@ -280,9 +331,25 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
             modes_to_be_removed[i+1, :] -= xp.mean(modes_to_be_removed[i+1, :])
             modes_to_be_removed[i+1, :] /= xp.sqrt(xp.mean(modes_to_be_removed[i+1, :]**2))
 
-    if zern_modes > 0:
-        coef_zern = xp.matmul(modes_to_be_removed, pinv(influence_functions))
-        modes_to_be_removed = xp.matmul(coef_zern, influence_functions)
+    # Project on the IF span, so that removed modes are reproducible by commands
+    # (coef_proj) and m2c stays consistent with the KL shapes
+    project_on_ifs = zern_modes > 0 or filt_modes is not None
+    if project_on_ifs:
+        pinv_ifs = pinv(influence_functions)
+        coef_proj = xp.matmul(modes_to_be_removed, pinv_ifs)
+        modes_to_be_removed = xp.matmul(coef_proj, influence_functions)
+
+    if filt_modes is not None:
+        filt_proj = xp.matmul(xp.matmul(filt_modes, pinv_ifs), influence_functions)
+        # Orthogonalized against piston/Zernike so that these keep their definition
+        filt_orth, dropped = _orthogonalize_filt_modes(
+            filt_proj, xp.linalg.norm(filt_modes, axis=1), modes_to_be_removed,
+            rel_tol=1e-3, xp=xp)
+        for i, reason in dropped:
+            logger.warning(f"filt_modes[{i}] is {reason} and is discarded")
+        coef_proj = xp.vstack((coef_proj, xp.matmul(filt_orth, pinv_ifs)))
+        modes_to_be_removed = xp.vstack((modes_to_be_removed, filt_orth))
+        number_of_modes_to_be_removed += filt_orth.shape[0]
 
     coef = xp.zeros((number_of_modes_to_be_removed, n_actuators), dtype=dtype)
     filtered_ifs = influence_functions.copy()
@@ -352,27 +419,32 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
 
     kl_modes = xp.matmul(filtered_ifs.T, Bp[:, :n_actuators-number_of_modes_to_be_removed])
 
+    # m2c_kl = K @ Bp must give the KL shapes filtered_ifs.T @ Bp, piston included:
+    # otherwise each KL command also applies a (WFS-invisible) piston.
+    # With c the commands reproducing the removed modes (modes_to_be_removed = c @ IF),
+    # filtered_ifs = (I - coef.T @ c) @ IF, so K = I - c.T @ coef.
+    K = xp.eye(n_actuators, dtype=dtype)
+    if project_on_ifs:
+        # Removed modes are in the IF span: c = coef_proj, exact
+        K -= xp.matmul(coef_proj.T, coef)
+    else:
+        # Exact piston was removed, to keep the KL shapes unchanged: its command
+        # is the least-squares one, exact up to the part of piston outside the IF span
+        piston_command = xp.matmul(xp.ones(npupil_mask, dtype=dtype), pinv(influence_functions))
+        K -= xp.outer(piston_command, coef[0, :])
+    m2c_kl = xp.matmul(K, Bp[:, :n_actuators-number_of_modes_to_be_removed])
+
     if zern_modes > 0:
         logger.debug("Step 6: Adding Zernike modes to basis...")
 
         zern_basis = modes_to_be_removed[1:zern_modes+1, :]
         kl_basis = xp.vstack((zern_basis, kl_modes.T))
 
-        K = xp.eye(n_actuators, dtype=dtype)
-        projection = xp.matmul(coef_zern[1:zern_modes+1, :].T, coef[1:zern_modes+1, :])
-        K -= projection
-
-        m2c_zern = coef_zern[1:zern_modes+1, :].T
-        m2c_kl = xp.matmul(K, Bp[:, :n_actuators-number_of_modes_to_be_removed])
+        m2c_zern = coef_proj[1:zern_modes+1, :].T
         m2c = xp.hstack((m2c_zern, m2c_kl))
     else:
         kl_basis = kl_modes.T
-
-        K = xp.eye(n_actuators, dtype=dtype)
-        projection = xp.outer(coef[0, :], coef[0, :])
-        K -= projection
-
-        m2c = xp.matmul(K, Bp[:, :n_actuators-number_of_modes_to_be_removed])
+        m2c = m2c_kl
 
     singular_values = {"S1": S1, "S2": S2}
 

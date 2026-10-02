@@ -39,8 +39,12 @@ class BaseDisplay(BaseProcessingObj):
 
         if isinstance(window, Integral) and not isinstance(window, bool) and window >= 1:
             window = int(window)
-            if window in self.__plot_completed.keys():
-                raise ValueError(f'window {window} already exists')
+            # Displays can share a window, each one in its own subplot.
+            # The figure size is set by the first display of the window
+            if window in self.__plot_completed:
+                if subplot in self.__plot_completed[window]:
+                    raise ValueError(f'subplot {subplot} of window {window} already exists')
+                figsize = None
         elif window is None:
             # Find an unused window number
             window = max(self.__plot_completed.keys(), default=0) + 1
@@ -60,9 +64,15 @@ class BaseDisplay(BaseProcessingObj):
         self.output_id = IntValue(value=-1)
         self.outputs['out_window_id'] = self.output_id
 
+<<<<<<< HEAD
         # Redirect standard calls. The object will be
         # re-instantiated in the display process
         # with the correct methods.
+=======
+        # Drawing happens in the display process: no figure here.
+        # The display code, including setup() and finalize() of derived classes,
+        # runs there: here setup() only checks the inputs
+>>>>>>> main
         self.async_mode = display_process.enabled
         if self.async_mode:
             self.fig = self.ax = None
@@ -107,6 +117,14 @@ class BaseDisplay(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {'out_window_id': OutputDesc(IntValue, 'Window ID where the plot has been drawn')}
+
+    @classmethod
+    def reset_windows(cls):
+        '''Forget all windows and close their figures,
+        so that a new simulation can use the same window numbers'''
+        for window in cls.__plot_completed:
+            plt.close(window)
+        cls.__plot_completed.clear()
 
     def _update_display(self, data):
         """Update the display with new data"""
