@@ -370,6 +370,9 @@ class ConvolutionKernel(BaseDataObj):
 
         kernel_fn = self.build()
 
+        if current_time is not None:
+            self.generation_time = current_time
+
         # Only reload or recalculate if the kernel has changed
         if kernel_fn != self._kernel_fn:
             self._kernel_fn = kernel_fn  # Update the stored kernel filename
@@ -382,36 +385,33 @@ class ConvolutionKernel(BaseDataObj):
             if cached is not None:
                 self.kernels = cached
                 self.logger.info(f"Sharing kernel {kernel_fn} with another object")
+                return
+            self.kernels = None
+
+            # Build full path using data_dir
+            if self.data_dir:
+                full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
             else:
-                self.kernels = None
+                full_path = kernel_fn + '.fits'
 
-                # Build full path using data_dir
-                if self.data_dir:
-                    full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
-                else:
-                    full_path = kernel_fn + '.fits'
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
+                        else '.', exist_ok=True)
 
-                # Create directory if it doesn't exist
-                os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
-                            else '.', exist_ok=True)
+            if os.path.exists(full_path):
+                self.logger.info(f"Loading kernel from {full_path}")
+                self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
+                             return_fft=True)
+            else:
+                self.logger.info('Calculating kernel...')
+                self.calculate_lgs_map()
+                self.save(full_path)
+                self.logger.info('Done')
 
-                if os.path.exists(full_path):
-                    self.logger.info(f"Loading kernel from {full_path}")
-                    self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
-                                 return_fft=True)
-                else:
-                    self.logger.info('Calculating kernel...')
-                    self.calculate_lgs_map()
-                    self.save(full_path)
-                    self.logger.info('Done')
+            # free memory
+            self.real_kernels = None
 
-                # free memory
-                self.real_kernels = None
-
-                _kernels_cache[key] = self.kernels
-
-        if current_time is not None:
-            self.generation_time = current_time
+            _kernels_cache[key] = self.kernels
 
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
