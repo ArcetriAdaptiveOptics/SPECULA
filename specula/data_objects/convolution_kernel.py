@@ -370,45 +370,45 @@ class ConvolutionKernel(BaseDataObj):
 
         kernel_fn = self.build()
 
-        # Objects with the same kernel (e.g. LGS WFSs with the same launcher) share it.
-        # Since it can be shared, a new kernel is always stored in a new array:
-        # users like SH must check if self.kernels has been reallocated.
-        key = (kernel_fn, self.target_device_idx, self.return_fft)
-        cached = _kernels_cache.get(key) if kernel_fn != self._kernel_fn else None
-        if cached is not None:
-            self._kernel_fn = kernel_fn
-            self.kernels = cached
-            self.logger.info(f"Sharing kernel {kernel_fn} with another object")
-
         # Only reload or recalculate if the kernel has changed
-        elif kernel_fn != self._kernel_fn:
+        if kernel_fn != self._kernel_fn:
             self._kernel_fn = kernel_fn  # Update the stored kernel filename
-            self.kernels = None
 
-            # Build full path using data_dir
-            if self.data_dir:
-                full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
+            # Objects with the same kernel (e.g. LGS WFSs with the same launcher) share it.
+            # Since it can be shared, a new kernel is always stored in a new array:
+            # users like SH must check if self.kernels has been reallocated.
+            key = (kernel_fn, self.target_device_idx, self.return_fft)
+            cached = _kernels_cache.get(key)
+            if cached is not None:
+                self.kernels = cached
+                self.logger.info(f"Sharing kernel {kernel_fn} with another object")
             else:
-                full_path = kernel_fn + '.fits'
+                self.kernels = None
 
-            # Create directory if it doesn't exist
-            os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
-                        else '.', exist_ok=True)
+                # Build full path using data_dir
+                if self.data_dir:
+                    full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
+                else:
+                    full_path = kernel_fn + '.fits'
 
-            if os.path.exists(full_path):
-                self.logger.info(f"Loading kernel from {full_path}")
-                self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
-                             return_fft=True)
-            else:
-                self.logger.info('Calculating kernel...')
-                self.calculate_lgs_map()
-                self.save(full_path)
-                self.logger.info('Done')
+                # Create directory if it doesn't exist
+                os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
+                            else '.', exist_ok=True)
 
-            # free memory
-            self.real_kernels = None
+                if os.path.exists(full_path):
+                    self.logger.info(f"Loading kernel from {full_path}")
+                    self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
+                                 return_fft=True)
+                else:
+                    self.logger.info('Calculating kernel...')
+                    self.calculate_lgs_map()
+                    self.save(full_path)
+                    self.logger.info('Done')
 
-            _kernels_cache[key] = self.kernels
+                # free memory
+                self.real_kernels = None
+
+                _kernels_cache[key] = self.kernels
 
         if current_time is not None:
             self.generation_time = current_time
