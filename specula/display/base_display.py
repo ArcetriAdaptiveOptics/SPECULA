@@ -64,15 +64,9 @@ class BaseDisplay(BaseProcessingObj):
         self.output_id = IntValue(value=-1)
         self.outputs['out_window_id'] = self.output_id
 
-<<<<<<< HEAD
         # Redirect standard calls. The object will be
         # re-instantiated in the display process
         # with the correct methods.
-=======
-        # Drawing happens in the display process: no figure here.
-        # The display code, including setup() and finalize() of derived classes,
-        # runs there: here setup() only checks the inputs
->>>>>>> main
         self.async_mode = display_process.enabled
         if self.async_mode:
             self.fig = self.ax = None
