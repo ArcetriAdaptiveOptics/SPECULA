@@ -807,6 +807,26 @@ class TestKernel(unittest.TestCase):
                 np.testing.assert_allclose(conv_half, conv_full, rtol=1e-10, atol=1e-14)
 
     @cpu_and_gpu
+    def test_process_kernels_non_square(self, target_device_idx, xp):
+        '''
+        real_kernels is x-major (real_kernels[x * dimy + y]) and kernels is
+        row-major (kernels[y * dimx + x]), also when dimx != dimy.
+        '''
+        dimension = 4
+        for dimx, dimy in [(3, 5), (5, 3)]:
+            kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                       dimension=dimension, return_fft=False,
+                                       target_device_idx=target_device_idx)
+            real = np.random.default_rng(3).random((dimx * dimy, dimension, dimension))
+            kernel.set_value(real)
+
+            kernels = cpuArray(kernel.kernels)
+            for x in range(dimx):
+                for y in range(dimy):
+                    expected = real[x * dimy + y] / real[x * dimy + y].sum()
+                    np.testing.assert_allclose(kernels[y * dimx + x], expected, rtol=1e-6)
+
+    @cpu_and_gpu
     def test_process_kernels_keeps_array_for_same_layout(self, target_device_idx, xp):
         '''
         self.kernels must not be reallocated when the layout does not change,
