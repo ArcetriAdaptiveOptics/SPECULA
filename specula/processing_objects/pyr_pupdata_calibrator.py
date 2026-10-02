@@ -259,7 +259,11 @@ class PyrPupdataCalibrator(BaseProcessingObj):
         thresh_img = image.copy()
         thresh_img[thresh_img < s1] = 0
 
-        s2 = float(self.xp.mean(thresh_img[thresh_img > 0])) * self.thr2
+        above_thr = thresh_img[thresh_img > 0]
+        if above_thr.size == 0:
+            return self.xp.array([0.0, 0.0]), 0.0
+
+        s2 = float(self.xp.mean(above_thr)) * self.thr2
         mask = thresh_img >= s2
 
         # Calculate centroid and radius

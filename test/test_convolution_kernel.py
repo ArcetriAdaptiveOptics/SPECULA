@@ -58,8 +58,8 @@ class TestKernel(unittest.TestCase):
         kernel_fn = kernel.build()
         kernel.calculate_lgs_map()
 
-        # Check kernel shape and dimensions
-        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension))
+        # Check kernel shape and dimensions (FFT kernels: half spectrum only)
+        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension // 2 + 1))
 
         # Check that all values are finite
         self.assertTrue(xp.all(xp.isfinite(kernel.kernels)))
@@ -159,8 +159,8 @@ class TestKernel(unittest.TestCase):
         kernel_fn = kernel.build()
         kernel.calculate_lgs_map()
 
-        # Check kernel shape and dimensions again
-        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension))
+        # Check kernel shape and dimensions again (FFT kernels: half spectrum only)
+        self.assertEqual(kernel.kernels.shape, (dimx*dimy, dimension, dimension // 2 + 1))
 
         # Check that all values are finite
         self.assertTrue(xp.all(xp.isfinite(kernel.kernels)))
@@ -362,14 +362,13 @@ class TestKernel(unittest.TestCase):
             kernel2.zlayer = zlayer.tolist()
             kernel2.zprofile = zprofile.tolist()
 
-            original_kernels = cpuArray(kernel2.real_kernels.copy())
-
             # First call: should calculate and save
             kernel2.prepare_for_sh(
                 sodium_altitude=zlayer.tolist(),
                 sodium_intensity=zprofile.tolist(),
                 current_time=1
             )
+            original_kernels = cpuArray(kernel2.kernels.copy())
 
             kernel_fn = kernel2.build()
             expected_file = os.path.join(temp_dir, kernel_fn + '.fits')
@@ -388,13 +387,12 @@ class TestKernel(unittest.TestCase):
             kernel3.zlayer = zlayer.tolist()
             kernel3.zprofile = zprofile.tolist()
 
-            new_kernels = cpuArray(kernel3.real_kernels.copy())
-
             kernel3.prepare_for_sh(
                 sodium_altitude=zlayer.tolist(),
                 sodium_intensity=zprofile.tolist(),
                 current_time=2
             )
+            new_kernels = cpuArray(kernel3.kernels.copy())
 
             # Verify loaded data matches
             np.testing.assert_allclose(
@@ -776,3 +774,130 @@ class TestKernel(unittest.TestCase):
         finally:
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
+
+    @cpu_and_gpu
+    def test_fft_kernels_are_half_spectrum(self, target_device_idx, xp):
+        '''
+        With return_fft=True only the non-redundant half of each kernel FFT
+        is stored, and a convolution done with rfft2/irfft2 on it gives the
+        same result as one done with the full spectrum.
+        '''
+        dimx = dimy = 3
+        dimension = 16
+        kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=dimension, return_fft=True,
+                                   target_device_idx=target_device_idx, precision=0)
+        rng = np.random.default_rng(0)
+        real = rng.random((dimx * dimy, dimension, dimension))
+        kernel.set_value(real)
+
+        kernels = cpuArray(kernel.kernels)
+        self.assertEqual(kernels.shape, (dimx * dimy, dimension, dimension // 2 + 1))
+
+        psf = rng.random((dimension, dimension))
+        for i in range(dimx):
+            for j in range(dimy):
+                k = real[i * dimx + j] / real[i * dimx + j].sum()
+                full = np.fft.ifft2(k)
+                half = kernels[j * dimx + i]
+                np.testing.assert_allclose(half, full[:, :dimension // 2 + 1], rtol=1e-10, atol=1e-14)
+
+                conv_full = np.real(np.fft.ifft2(np.fft.fft2(psf) * full))
+                conv_half = np.fft.irfft2(np.fft.rfft2(psf) * half, s=(dimension, dimension))
+                np.testing.assert_allclose(conv_half, conv_full, rtol=1e-10, atol=1e-14)
+
+    @cpu_and_gpu
+    def test_process_kernels_non_square(self, target_device_idx, xp):
+        '''
+        real_kernels is x-major (real_kernels[x * dimy + y]) and kernels is
+        row-major (kernels[y * dimx + x]), also when dimx != dimy.
+        '''
+        dimension = 4
+        for dimx, dimy in [(3, 5), (5, 3)]:
+            kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                       dimension=dimension, return_fft=False,
+                                       target_device_idx=target_device_idx)
+            real = np.random.default_rng(3).random((dimx * dimy, dimension, dimension))
+            kernel.set_value(real)
+
+            kernels = cpuArray(kernel.kernels)
+            for x in range(dimx):
+                for y in range(dimy):
+                    expected = real[x * dimy + y] / real[x * dimy + y].sum()
+                    np.testing.assert_allclose(kernels[y * dimx + x], expected, rtol=1e-6)
+
+    @cpu_and_gpu
+    def test_process_kernels_keeps_array_for_same_layout(self, target_device_idx, xp):
+        '''
+        self.kernels must not be reallocated when the layout does not change,
+        since users like SH keep references to it in their CUDA graphs.
+        A different layout (here return_fft=False) reallocates it.
+        '''
+        dimx = dimy = 2
+        dimension = 8
+        kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=dimension, return_fft=True,
+                                   target_device_idx=target_device_idx)
+        rng = np.random.default_rng(1)
+        kernels_before = kernel.kernels
+        kernel.set_value(rng.random((dimx * dimy, dimension, dimension)))
+        self.assertIs(kernel.kernels, kernels_before)
+        kernel.set_value(rng.random((dimx * dimy, dimension, dimension)))
+        self.assertIs(kernel.kernels, kernels_before)
+
+        kernel.process_kernels(return_fft=False)
+        self.assertEqual(kernel.kernels.shape, (dimx * dimy, dimension, dimension))
+        self.assertEqual(kernel.kernels.dtype, kernel.dtype)
+
+    @cpu_and_gpu
+    def test_restore_without_fft_gives_full_real_kernels(self, target_device_idx, xp):
+        dimx = dimy = 2
+        dimension = 8
+        kernel = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.1, pupil_size_m=8.0,
+                                   dimension=dimension, return_fft=True,
+                                   target_device_idx=target_device_idx)
+        kernel.set_value(np.random.default_rng(2).random((dimx * dimy, dimension, dimension)))
+        kernel.spot_size = 1.0
+        temp_dir = tempfile.mkdtemp()
+        try:
+            filename = os.path.join(temp_dir, 'kernel.fits')
+            kernel.save(filename)
+            restored = ConvolutionKernel.restore(filename, target_device_idx=target_device_idx,
+                                                 return_fft=False)
+            self.assertEqual(restored.kernels.shape, (dimx * dimy, dimension, dimension))
+            self.assertEqual(restored.kernels.dtype, restored.dtype)
+            restored_fft = ConvolutionKernel.restore(filename, target_device_idx=target_device_idx,
+                                                     return_fft=True)
+            self.assertEqual(restored_fft.kernels.shape, (dimx * dimy, dimension, dimension // 2 + 1))
+            np.testing.assert_allclose(cpuArray(restored_fft.kernels), cpuArray(kernel.kernels),
+                                       rtol=1e-5, atol=1e-7)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    @cpu_and_gpu
+    def test_real_kernels_allocated_only_when_needed(self, target_device_idx, xp):
+        '''
+        real_kernels is not allocated at construction, and a kernel loaded from
+        a file by prepare_for_sh() into a fresh object is the same as the computed one
+        '''
+        temp_dir = tempfile.mkdtemp()
+        try:
+            def make():
+                return GaussianConvolutionKernel(dimx=4, dimy=4, pxscale=0.2, dimension=16,
+                                                 spot_size=1.0, pupil_size_m=8.0,
+                                                 data_dir=temp_dir,
+                                                 target_device_idx=target_device_idx)
+            computed = make()
+            self.assertIsNone(computed.real_kernels)
+            computed.prepare_for_sh(current_time=1)     # computes and saves the file
+            self.assertIsNone(computed.real_kernels)
+
+            loaded = make()
+            self.assertIsNone(loaded.real_kernels)
+            loaded.prepare_for_sh(current_time=1)       # loads the file
+            self.assertIsNone(loaded.real_kernels)
+            np.testing.assert_allclose(cpuArray(loaded.kernels), cpuArray(computed.kernels),
+                                       rtol=1e-5, atol=1e-7)
+            self.assertGreater(float(cpuArray(xp.abs(loaded.kernels).sum())), 0)
+        finally:
+            shutil.rmtree(temp_dir)

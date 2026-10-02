@@ -1,4 +1,5 @@
 
+from specula import cp, np
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -6,6 +7,22 @@ from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
+
+if cp is not None:
+    @cp.fuse(kernel_name='sum_product')
+    def _sum_product_gpu(a, b):
+        return cp.sum(a * b, axis=-1)
+
+
+def sum_product(a, b, xp):
+    '''
+    xp.sum(a * b, axis=-1), with broadcasting, without allocating a * b.
+    Used instead of matrix products inside CUDA graphs, since CuPy does not
+    allow cuBLAS calls during stream capture.
+    '''
+    if xp is np:
+        return np.einsum('...i,...i->...', a, b)
+    return _sum_product_gpu(a, b)
 
 
 class Slopec(BaseProcessingObj):
@@ -46,13 +63,15 @@ class Slopec(BaseProcessingObj):
                                       precision=precision)
         # 2d view of the slopes, e.g. shape (2, size_x, size_y) for a single
         # subaperture-sized x/y slope map. Allocated lazily on the first
-        # post_trigger() call, once a derived class has set self.slopes.single_mask
+        # apply_slopes_corrections() call, once a derived class has set self.slopes.single_mask
         # and self.slopes.display_map (see Slopes.get2d()). Its exact shape depends
         # on those, and it is not duplicated data: it is recomputed from self.slopes
         # at every step, not accumulated separately.
         self.slopes_map = BaseValue(target_device_idx=self.target_device_idx,
                                     precision=precision)
         self._slopes_map_unavailable = False
+        # Flat index into slopes_map.value of each slope, see update_slopes_map()
+        self._slopes_map_idx = None
         self.recmat = recmat
         if filtmat is not None:
             if filt_intmat:
@@ -133,30 +152,67 @@ class Slopec(BaseProcessingObj):
             self.do_reset_accumulation = False
 
         # Add to existing accumulation
-        self.int_pixels.pixels += current_pixels.astype(self.dtype)
+        self.int_pixels.pixels += current_pixels.astype(self.dtype, copy=False)
 
         if (t % self.weight_int_pixel_dt) == 0 and t >= self.weight_int_pixel_dt:
             # Update generation time
             self.int_pixels.generation_time = t
             self.do_reset_accumulation = True
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if 'trigger_code' in cls.__dict__:
+            raise TypeError(f'{cls.__name__}: Slopec-derived classes must implement compute_slopes()'
+                            f' instead of trigger_code(), so that the slope corrections'
+                            f' (slope null, filtering) are applied')
+
     def trigger_code(self):
-        raise NotImplementedError(f'{self.__class__.__name__}: please implement trigger_code() in your derived class!')
+        '''
+        Computes the slopes with compute_slopes(), implemented by derived
+        classes, then applies the slope corrections. Derived classes must not
+        override this method. If a derived class uses a CUDA graph, both are
+        part of the graph.
+        '''
+        self.compute_slopes()
+        self.apply_slopes_corrections()
 
-    def post_trigger(self):
-        super().post_trigger()
+    def compute_slopes(self):
+        '''
+        Derived classes must implement this method, computing self.slopes
+        and the flux outputs from the input pixels.
+        '''
+        raise NotImplementedError(f'{self.__class__.__name__}: please implement compute_slopes() in your derived class!')
 
+    def vecmat(self, v, m):
+        '''
+        Vector-matrix product v @ m. cuBLAS cannot be used in a CUDA graph,
+        so objects using one use sum_product() instead.
+        '''
+        if self.stream is not None:
+            return sum_product(m.T, v, xp=self.xp)
+        return v @ m
+
+    def apply_slopes_corrections(self):
+        '''
+        Slope null subtraction, reconstruction, filtering and 2d slopes map.
+        GPU operations only, so that it can be part of a CUDA graph.
+        '''
         if self.sn:
-            self.slopes.xslopes -= self.sn.xslopes
-            self.slopes.yslopes -= self.sn.yslopes
+            n = self.slopes.size
+            if self.sn.interleave == self.slopes.interleave and self.sn.size == n and n % 2 == 0:
+                # Same layout: a single subtraction, without gathers and scatters
+                self.slopes.slopes -= self.sn.slopes
+            else:
+                self.slopes.xslopes -= self.sn.xslopes
+                self.slopes.yslopes -= self.sn.yslopes
 
         if self.recmat:
-            m = self.xp.dot(self.slopes.slopes, self.recmat.recmat)
+            m = self.vecmat(self.slopes.slopes, self.recmat.recmat)
             self.slopes.slopes[:] = m
 
         if self.filt_intmat and self.filt_recmat:
-            m = self.slopes.slopes @ self.filt_recmat.recmat
-            sl0 = m @ self.filt_intmat.intmat.T
+            m = self.vecmat(self.slopes.slopes, self.filt_recmat.recmat)
+            sl0 = self.vecmat(m, self.filt_intmat.intmat.T)
             self.slopes.slopes -= sl0
 
         # Not duplicated storage: recomputed from self.slopes at every step
@@ -167,15 +223,47 @@ class Slopec(BaseProcessingObj):
         # warning is logged once.
         if self.slopes.single_mask is not None and self.slopes.display_map is not None:
             if not self._slopes_map_unavailable:
-                try:
-                    self.slopes_map.set_value(self.slopes.get2d())
-                    self.outputs['out_slopes_map'].generation_time = self.current_time
-                except (IndexError, ValueError) as e:
-                    self._slopes_map_unavailable = True
-                    self.logger.warning(
-                        f'{self.__class__.__name__}: out_slopes_map could not be computed '
-                        f'({e}); this output will stay empty for this object.'
-                    )
+                self.update_slopes_map()
+
+    def update_slopes_map(self):
+        '''
+        Update slopes_map from self.slopes. The first call uses Slopes.get2d(),
+        the following ones scatter the slopes into the existing map with a
+        single operation, using the same geometry. Geometries not handled
+        here keep using get2d().
+        '''
+        if self._slopes_map_idx is not None:
+            self.xp.put(self.slopes_map.value, self._slopes_map_idx, self.slopes.slopes)
+            return
+        try:
+            self.slopes_map.set_value(self.slopes.get2d())
+        except (IndexError, ValueError) as e:
+            self._slopes_map_unavailable = True
+            self.logger.warning(
+                f'{self.__class__.__name__}: out_slopes_map could not be computed '
+                f'({e}); this output will stay empty for this object.'
+            )
+            return
+
+        # Same geometry as Slopes.get2d()
+        idx = self.slopes.display_map
+        mask_shape = self.slopes.single_mask.shape
+        flat_idx = idx if len(idx.shape) == 1 else idx[0] * mask_shape[1] + idx[1]
+        if self.slopes.slopes.size == len(idx):
+            # slopes from intensity case
+            if len(idx.shape) == 1:
+                self._slopes_map_idx = flat_idx
+        elif self.slopes.slopes.size == 2 * len(flat_idx):
+            map_idx = self.xp.zeros(self.slopes.slopes.size, dtype=flat_idx.dtype)
+            map_idx[self.slopes.indx()] = flat_idx
+            map_idx[self.slopes.indy()] = flat_idx + mask_shape[0] * mask_shape[1]
+            self._slopes_map_idx = map_idx
+
+    def post_trigger(self):
+        super().post_trigger()
+
+        if self.slopes_map.value is not None and not self._slopes_map_unavailable:
+            self.outputs['out_slopes_map'].generation_time = self.current_time
 
         self.outputs['out_slopes'].generation_time = self.current_time
         self.outputs['out_flux_per_subaperture'].generation_time = self.current_time

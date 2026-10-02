@@ -115,7 +115,7 @@ class PyrSlopec(Slopec):
         sy = (B+C-A-D) * factor
         return sx, sy
 
-    def trigger_code(self):
+    def compute_slopes(self):
 
         self.flat_pixels -= self.threshold
 

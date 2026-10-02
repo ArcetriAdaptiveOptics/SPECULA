@@ -458,15 +458,16 @@ class TestComputeIfsCovmat(unittest.TestCase):
         pupil_mask = xp.asarray(self.pupil_mask)
         infs = xp.asarray(self.influence_functions).copy()
         infs[0, 0] = xp.inf if xp.__name__ == 'cupy' else np.inf
-        result = compute_ifs_covmat(
-            pupil_mask,
-            self.diameter,
-            infs,
-            self.r0,
-            self.L0,
-            xp=xp,
-            dtype=xp.float32
-        )
+        with np.errstate(invalid='ignore'):
+            result = compute_ifs_covmat(
+                pupil_mask,
+                self.diameter,
+                infs,
+                self.r0,
+                self.L0,
+                xp=xp,
+                dtype=xp.float32
+            )
         # Either Inf or NaN should appear due to numerical issues
         self.assertTrue(np.isinf(cpuArray(result)).any() or np.isnan(cpuArray(result)).any())
 

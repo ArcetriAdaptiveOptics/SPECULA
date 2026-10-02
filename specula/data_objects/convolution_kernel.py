@@ -164,11 +164,23 @@ class ConvolutionKernel(BaseDataObj):
             dtype = self.complex_dtype
         else:
             dtype = self.dtype
-        self.real_kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
-                                          dtype=self.dtype)
-        self.kernels = self.xp.zeros((self.dimx*self.dimy, self.dimension, self.dimension),
-                                     dtype=dtype)
+        # Real space kernels: only allocated when the kernels are computed, restored
+        # from a file or set with set_value(), and freed again by prepare_for_sh()
+        self.real_kernels = None
+        self.kernels = self.xp.zeros(self._kernels_shape(self.return_fft), dtype=dtype)
         self._kernel_fn = None
+
+    def _kernels_shape(self, return_fft):
+        '''
+        Shape of self.kernels. The kernels are real, so their FFT is Hermitian:
+        with return_fft, only its first dimension // 2 + 1 columns are stored,
+        as needed by rfft2()/irfft2(). The other ones are redundant.
+        '''
+        n_kernels = self.dimx * self.dimy
+        if return_fft:
+            return (n_kernels, self.dimension, self.dimension // 2 + 1)
+        else:
+            return (n_kernels, self.dimension, self.dimension)
 
     def build(self):
         if len(self.zlayer) != len(self.zprofile):
@@ -279,18 +291,28 @@ class ConvolutionKernel(BaseDataObj):
         if self.xp.any(~self.xp.isfinite(self.real_kernels)):
             raise ValueError("Kernel contains non-finite values!")
 
-        # Process the kernels - apply FFT if needed
-        for i in range(self.dimx):
-            for j in range(self.dimy):
-                subap_kern = self.to_xp(self.real_kernels[i * self.dimx + j, :, :])
-                total = self.xp.sum(subap_kern)
-                if total > 0:  # Avoid division by zero
-                    subap_kern /= total
-                if return_fft:
-                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
-                else:
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern
+        # Reallocate only if the requested layout is different from the current one,
+        # since users may keep references to self.kernels (e.g. in CUDA graphs)
+        shape = self._kernels_shape(return_fft)
+        dtype = self.complex_dtype if return_fft else self.dtype
+        if self.kernels is None or self.kernels.shape != shape or self.kernels.dtype != dtype:
+            self.kernels = self.xp.zeros(shape, dtype=dtype)
+
+        # Process the kernels - apply FFT if needed.
+        # One row of subapertures at a time: real_kernels is x-major
+        # (see lgs_map_sh()), so real_kernels[i * dimy + j] goes to
+        # kernels[j * dimx + i] for all i, and the strided slice is a view,
+        # so that real_kernels is normalized in place.
+        for j in range(self.dimy):
+            subap_kern = self.to_xp(self.real_kernels[j::self.dimy])
+            total = self.xp.sum(subap_kern, axis=(1, 2), keepdims=True)
+            subap_kern /= self.xp.where(total > 0, total, 1)  # Avoid division by zero
+            dst = slice(j * self.dimx, (j + 1) * self.dimx)
+            if return_fft:
+                # Non-redundant half of the FFT, see _kernels_shape()
+                self.kernels[dst] = self.xp.fft.ifft2(subap_kern)[:, :, :self.dimension // 2 + 1]
+            else:
+                self.kernels[dst] = subap_kern
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -313,11 +335,11 @@ class ConvolutionKernel(BaseDataObj):
             hdr (fits.Header, optional): Additional header information
 
         Raises:
-            ValueError: If real_kernels has been deallocated
+            ValueError: If real_kernels is not allocated
         """
         if self.real_kernels is None:
             raise ValueError(
-                "real_kernels has been deallocated. "
+                "real_kernels is not allocated (not computed yet, or deallocated). "
                 "Cannot save to file. Use restore() to reload from existing file, "
                 "or recalculate with calculate_lgs_map()."
             )
@@ -408,14 +430,8 @@ class ConvolutionKernel(BaseDataObj):
             kernel_obj.positive_shift_tt = hdr['POSTT']
             kernel_obj.spot_size = hdr['SPOTSIZE']
 
-        # Reallocate real_kernels if it was deallocated
-        if kernel_obj.real_kernels is None:
-            kernel_obj.real_kernels = kernel_obj.xp.zeros(
-                (kernel_obj.dimx * kernel_obj.dimy, kernel_obj.dimension, kernel_obj.dimension),
-                dtype=kernel_obj.dtype
-            )
-
-        kernel_obj.real_kernels[:] = kernel_obj.to_xp(fits.getdata(filename, ext=1))
+        kernel_obj.real_kernels = kernel_obj.to_xp(fits.getdata(filename, ext=1),
+                                                   dtype=kernel_obj.dtype)
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
 
@@ -442,11 +458,11 @@ class ConvolutionKernel(BaseDataObj):
 
     def get_value(self):
         '''Get current kernels.
-        If real_kernels was deallocated, raise an error.'''
+        If real_kernels is not allocated, raise an error.'''
 
         if self.real_kernels is None:
             raise ValueError(
-                "real_kernels has been deallocated. "
+                "real_kernels is not allocated (not computed yet, or deallocated). "
                 "Use set_value() to recreate or restore() from file."
             )
 
@@ -455,11 +471,11 @@ class ConvolutionKernel(BaseDataObj):
     def set_value(self, v):
         '''Set new kernels.
         Arrays are not reallocated if real_kernels exists.
-        If real_kernels was deallocated, it will be recreated.'''
+        If real_kernels is not allocated, it will be created.'''
 
-        # Check if real_kernels was deallocated
+        # Check if real_kernels is allocated
         if self.real_kernels is None:
-            # Recreate real_kernels with the expected shape
+            # Create real_kernels with the expected shape
             expected_shape = (self.dimx * self.dimy, self.dimension, self.dimension)
             if v.shape != expected_shape:
                 raise ValueError(

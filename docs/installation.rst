@@ -3,13 +3,13 @@
 Installation
 ============
 
-SPECULA requires Python 3.8 or higher and we strongly recommend using conda for package management.
+SPECULA requires Python 3.10 or higher and we strongly recommend using conda for package management.
 
 Prerequisites
 -------------
 
 **System Requirements:**
-   * Python 3.8 or higher
+   * Python 3.10 or higher
    * Git (for repository cloning)
    * CUDA-compatible GPU (optional, for acceleration)
 

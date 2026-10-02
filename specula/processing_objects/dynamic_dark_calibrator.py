@@ -184,7 +184,8 @@ class DynamicDarkCalibrator(BaseProcessingObj):
         
         value = self.local_inputs['in_pixels'].pixels
 
-        self.subtracted_pixels.pixels = value - self.darkframe.pixels
+        # In place, since consumers with a CUDA graph read it at a fixed address
+        self.xp.subtract(value, self.darkframe.pixels, out=self.subtracted_pixels.pixels)
         self.subtracted_pixels.generation_time = self.current_time
 
         if self.counter == 0:

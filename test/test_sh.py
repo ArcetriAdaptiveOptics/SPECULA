@@ -1,13 +1,18 @@
 import specula
 specula.init(0)  # Default target device
 
+import tempfile
 import unittest
+from unittest import mock
 
 from specula import np
 from specula import cpuArray
 
+from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
-from specula.processing_objects.sh import SH
+from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
+from specula.data_objects.simul_params import SimulParams
+from specula.processing_objects.sh import SH, choose_fov_resolution
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -209,9 +214,7 @@ class TestSH(unittest.TestCase):
                                msg=f"Expected 120 total pixels, got {calculated_size}")
 
         # 3. Verify internal pixel count
-        # With Lenslet diameter normalization = 2.0 (standard implied by 12!=6):
-        # lens[2] = 2/n_lenses = 0.2
-        # _ovs_np_sub = round(120 * 0.2 * 0.5) = round(12.0) = 12
+        # _ovs_np_sub = 120 // 10 = 12
         # This represents the full subaperture width in pixels (120 pixels / 10 subaps).
         self.assertEqual(sh._ovs_np_sub, 12,
                          "Internal subap pixel count should match total/n_lenses")
@@ -394,3 +397,146 @@ class TestSH(unittest.TestCase):
         out_b = run(sh_b)
         run(sh_a)
         np.testing.assert_array_equal(run(sh_b), out_b)
+
+    @cpu_and_gpu
+    def test_oversampled_size_not_truncated(self, target_device_idx, xp):
+        '''
+        Test that the oversampled size is not truncated by float rounding:
+        with 4 subaps and a 47 pixel pupil, the oversampled size is 96,
+        but int(47 * (96 / 47)) == 95.
+        '''
+        t = 1
+        ref_S0 = 100
+        sh = SH(wavelengthInNm=500,
+                subap_wanted_fov=3,
+                sensor_pxscale=0.5,
+                subap_on_diameter=4,
+                subap_npx=6,
+                target_device_idx=target_device_idx)
+
+        ef = ElectricField(47, 47, 0.05, S0=ref_S0, target_device_idx=target_device_idx)
+        ef.generation_time = t
+        sh.inputs['in_ef'].set(ef)
+
+        sh.setup()
+        self.assertEqual(sh._ovs_ef_size, 96)
+        self.assertEqual(sh.ef_row.shape[1], 96)
+
+        sh.check_ready(t)
+        sh.trigger()
+        sh.post_trigger()
+        intensity = sh.outputs['out_i']
+        np.testing.assert_almost_equal(xp.sum(intensity.i), ref_S0 * ef.masked_area(), decimal=3)
+
+    def test_sensor_pxscale_effective(self):
+        '''
+        The simulated sensor pixel scale is available in arcsec, and a warning
+        is logged when it differs from the requested one by more than 1%
+        '''
+        def make(sensor_pxscale):
+            sh = SH(wavelengthInNm=500,
+                    subap_wanted_fov=6 * sensor_pxscale,
+                    sensor_pxscale=sensor_pxscale,
+                    subap_on_diameter=10,
+                    subap_npx=6,
+                    target_device_idx=-1)
+            return sh, ElectricField(80, 80, 0.05, S0=1, target_device_idx=-1)
+
+        # 0.27% difference: no warning
+        sh, ef = make(0.3)
+        with self.assertNoLogs('specula.SH', level='WARNING'):
+            sh._set_in_ef(ef)
+        self.assertAlmostEqual(sh.sensor_pxscale_effective, 0.3, delta=0.3 * 0.01)
+        self.assertAlmostEqual(sh.subap_real_fov_arcsec, 6 * sh.sensor_pxscale_effective)
+
+        # 1.8% difference: warning
+        sh, ef = make(0.7)
+        with self.assertLogs('specula.SH', level='WARNING') as logs:
+            sh._set_in_ef(ef)
+        self.assertGreater(abs(sh.sensor_pxscale_effective - 0.7) / 0.7, 0.01)
+        self.assertTrue(any('Effective sensor pixel scale' in line for line in logs.output))
+
+    def _lgs_sh(self, target_device_idx, xp, data_dir):
+        '''
+        LGS SH with sodium profile inputs, after setup(). Returns the SH, the
+        sodium intensity input and a function that runs one step, refreshing
+        all inputs as generators do, and returns a copy of the kernels.
+        '''
+        llt = LaserLaunchTelescope(simul_params=SimulParams(zenithAngleInDeg=30.0),
+                                   spot_size=1.0, tel_position=[5.0, 0.0, 0.0],
+                                   target_device_idx=target_device_idx)
+        altitude = BaseValue(value=xp.array([85e3, 90e3, 95e3], dtype=xp.float32),
+                             target_device_idx=target_device_idx)
+        intensity = BaseValue(value=xp.array([0.2, 0.6, 0.2], dtype=xp.float32),
+                              target_device_idx=target_device_idx)
+        ef = ElectricField(80, 80, 0.1, S0=100, target_device_idx=target_device_idx)
+
+        sh = SH(wavelengthInNm=589,
+                subap_wanted_fov=6,
+                sensor_pxscale=0.5,
+                subap_on_diameter=10,
+                subap_npx=12,
+                laser_launch_tel=llt,
+                data_dir=data_dir,
+                target_device_idx=target_device_idx)
+        sh.inputs['in_ef'].set(ef)
+        sh.inputs['sodium_altitude'].set(altitude)
+        sh.inputs['sodium_intensity'].set(intensity)
+        sh.setup()
+
+        def step(t):
+            for obj in (ef, altitude, intensity):
+                obj.generation_time = t
+            sh.check_ready(t)
+            sh.trigger()
+            sh.post_trigger()
+            return cpuArray(sh._kernelobj.kernels).copy()
+
+        return sh, intensity, step
+
+    @cpu_and_gpu
+    def test_kernels_follow_in_place_sodium_update(self, target_device_idx, xp):
+        '''
+        Generators update the sodium profile in place at every step. The SH must
+        detect the new values and recompute its kernels. On CPU, cpuArray() does
+        not copy: the SH must keep its own copy of the last profile to compare with.
+        '''
+        with tempfile.TemporaryDirectory() as data_dir:
+            _, intensity, step = self._lgs_sh(target_device_idx, xp, data_dir)
+            kernels1 = step(1)
+            intensity.value[:] = xp.array([0.5, 0.3, 0.2], dtype=xp.float32)
+            kernels2 = step(2)
+
+        self.assertFalse(np.allclose(kernels1, kernels2))
+
+    @cpu_and_gpu
+    def test_kernels_not_prepared_if_sodium_unchanged(self, target_device_idx, xp):
+        '''
+        Generators refresh the sodium profile at every step, even if its values
+        do not change: the kernels must be prepared only at the first step.
+        '''
+        with tempfile.TemporaryDirectory() as data_dir:
+            sh, _, step = self._lgs_sh(target_device_idx, xp, data_dir)
+            with mock.patch.object(sh._kernelobj, 'prepare_for_sh',
+                                   wraps=sh._kernelobj.prepare_for_sh) as prepare:
+                for t in range(1, 5):
+                    step(t)
+
+        self.assertEqual(prepare.call_count, 1)
+
+    def test_choose_fov_resolution(self):
+        '''
+        The resolution is turbulence_pxscale / k. Here all candidates k = 3...12
+        give the exact FoV: with 6 pixels the first one (k=3) has the smallest
+        L.C.M. / k ratio and is chosen, while with 8 pixels the L.C.M. criterion
+        prefers k=4 (L.C.M. 16 instead of 24).
+        '''
+        turb = 0.5
+        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 6), turb / 3)
+        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 8), turb / 4)
+
+        # The resolution is always finer than the sensor pixel scale
+        for sensor_pxscale in (0.1, 0.2, 0.3, 0.45):
+            res = choose_fov_resolution(turb, sensor_pxscale, 2.0, 8)
+            self.assertLess(res, sensor_pxscale)
+            self.assertAlmostEqual(turb / res, round(turb / res))

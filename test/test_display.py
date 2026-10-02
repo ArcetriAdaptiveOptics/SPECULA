@@ -254,12 +254,16 @@ class TestDisplays(unittest.TestCase):
 
         matplotlib.pyplot.close(display.fig)
 
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     def test_display_figsize_parameter(self):
         """Test that figsize parameter is properly handled"""
         figsize = (8, 6)
         display = PhaseDisplay(figsize=figsize)
         self.assertEqual(display.figsize, figsize)
 
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     def test_display_log_scale_parameter(self):
         """Test log_scale parameter for PixelsDisplay"""
         display = PixelsDisplay(log_scale=True)
@@ -268,6 +272,8 @@ class TestDisplays(unittest.TestCase):
         display = PixelsDisplay(log_scale=False)
         self.assertFalse(display._log_scale)
 
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
     def test_display_data_consistency(self, target_device_idx, xp):
         """Test that display maintains data consistency"""
@@ -280,6 +286,8 @@ class TestDisplays(unittest.TestCase):
         retrieved_ef = display.inputs['phase'].get(target_device_idx)
         np.testing.assert_array_equal(cpuArray(ef.phaseInNm), cpuArray(retrieved_ef.phaseInNm))
 
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
     def test_multiple_displays_same_data(self, target_device_idx, xp):
         """Test that multiple displays can use the same data source"""
@@ -297,6 +305,8 @@ class TestDisplays(unittest.TestCase):
 
         np.testing.assert_array_equal(cpuArray(ef1.phaseInNm), cpuArray(ef2.phaseInNm))
 
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     def test_display_title_customization(self):
         """Test custom titles for displays"""
         custom_titles = [
@@ -933,5 +943,55 @@ class TestDisplays(unittest.TestCase):
         display = PixelsPupDisplay()
         try:
             self.assertIsNone(display.img)
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_skipped_with_non_interactive_backend(self):
+        """With a non-interactive backend (Agg) nobody sees the figure,
+        so it must not be rendered"""
+        display = PhaseDisplay()
+        try:
+            with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+                display._safe_draw()
+            draw_idle.assert_not_called()
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_done_with_open_interactive_window(self):
+        """An open GUI window must be redrawn"""
+        display = PhaseDisplay()
+        try:
+            display.fig.canvas.required_interactive_framework = 'tk'
+            with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+                display._safe_draw()
+            draw_idle.assert_called_once()
+        finally:
+            matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_skipped_with_closed_window(self):
+        """A GUI window closed by the user must not be redrawn"""
+        display = PhaseDisplay()
+        display.fig.canvas.required_interactive_framework = 'tk'
+        matplotlib.pyplot.close(display.fig)
+        with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+            display._safe_draw()
+        draw_idle.assert_not_called()
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_safe_draw_done_on_notebook(self):
+        """On notebooks the figure is drawn even with a non-interactive backend"""
+        display = PhaseDisplay()
+        try:
+            display.onNotebook = True
+            with mock.patch.object(display.fig.canvas, 'draw_idle') as draw_idle:
+                display._safe_draw()
+            draw_idle.assert_called_once()
         finally:
             matplotlib.pyplot.close(display.fig)

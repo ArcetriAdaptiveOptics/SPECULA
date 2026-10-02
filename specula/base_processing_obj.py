@@ -46,6 +46,9 @@ class BaseProcessingObj(BaseTimeObj):
         # Memory pool for the arrays allocated while capturing the CUDA graph
         self._graph_mempool = None
 
+        # Addresses of the input arrays when the CUDA graph was captured
+        self._captured_input_ptrs = {}
+
         # Will be populated by derived class
         self.inputs = {}
         self.local_inputs = {}
@@ -266,6 +269,43 @@ class BaseProcessingObj(BaseTimeObj):
             self.trigger_code()
             self.cuda_graph = self.stream.end_capture()
         self._cuda_graph_invalid = False
+        self._captured_input_ptrs = self.graph_input_ptrs()
+
+    def graph_input_ptrs(self):
+        '''
+        Addresses of the GPU arrays of the local inputs, as a dictionary
+        {(input name, list index, attribute name): address}, checked by
+        check_input_ptrs(). Derived classes whose CUDA graph does not read
+        some inputs (for example copied by prepare_trigger()) can override
+        this method to exclude them.
+        '''
+        ptrs = {}
+        for name, value in self.local_inputs.items():
+            values = value if type(value) is list else [value]
+            for i, obj in enumerate(values):
+                if obj is None:
+                    continue
+                for attr, array in getattr(obj, '__dict__', {}).items():
+                    if isinstance(array, cp.ndarray):
+                        ptrs[(name, i, attr)] = array.data.ptr
+        return ptrs
+
+    def check_input_ptrs(self):
+        '''
+        The CUDA graph reads the inputs at the addresses they had when it was
+        captured: raise an error if an input array has been reallocated since,
+        instead of silently reading stale data. Host-side check, no synchronization.
+        '''
+        if not self._captured_input_ptrs:
+            return
+        current = self.graph_input_ptrs()
+        for key, ptr in self._captured_input_ptrs.items():
+            if current.get(key) != ptr:
+                name, i, attr = key
+                where = f'{name}[{i}]' if type(self.local_inputs[name]) is list else name
+                raise RuntimeError(f'{self.name}: input {where} has been reallocated after the'
+                                   f' CUDA graph capture (attribute {attr}), its producer must'
+                                   f' update its value in place')
 
     def invalidate_graph(self):
         '''
@@ -311,7 +351,10 @@ class BaseProcessingObj(BaseTimeObj):
             self.logger.debug('Capturing the CUDA graph')
             self.capture_stream()
         elif self.target_device_idx >= 0 and self.cuda_graph:
-            self.cuda_graph.launch(stream=self.stream)
+            self.check_input_ptrs()
+            # NVTX range only, to mark the graph kernels in Nsight Systems
+            with tracer.no_record(), tracer('cuda_graph', self):
+                self.cuda_graph.launch(stream=self.stream)
         else:
             self.trigger_code()
 

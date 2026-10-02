@@ -540,14 +540,18 @@ class TestLift(unittest.TestCase):
         modalbase = np.random.rand(lift.nmodes, valid_pixels)
 
         # 2. Run the method with the INT mask and store the result
-        lift.set_modalbase(modalbase, mask2d_int)
+        # The resized mask is a single column, so the x-ramp correlation in
+        # the tip/tilt coherence check is NaN: silence the expected warning.
+        with np.errstate(invalid='ignore'):
+            lift.set_modalbase(modalbase, mask2d_int)
     
         # Note: If self.xp is cupy, we use .get() to bring it to the CPU for testing. 
         # The lambda acts as a fallback if it's already a numpy array.
         modesCube_int = getattr(lift.modesCube, 'get', lambda: lift.modesCube)()
 
         # 3. Run the method with the FLOAT mask and store the result
-        lift.set_modalbase(modalbase, mask2d_float)
+        with np.errstate(invalid='ignore'):
+            lift.set_modalbase(modalbase, mask2d_float)
         modesCube_float = getattr(lift.modesCube, 'get', lambda: lift.modesCube)()
 
         # 4. Assert the outputs are exactly identical

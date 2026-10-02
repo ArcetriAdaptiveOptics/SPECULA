@@ -170,7 +170,8 @@ class TestGenerateObjectsSummary(unittest.TestCase):
             sys.path.insert(0, str(root))
             self.addCleanup(lambda: sys.path.remove(str(root)) if str(root) in sys.path else None)
 
-            with self.assertRaises(RuntimeError) as cm:
+            with self.assertRaises(RuntimeError) as cm, \
+                    self.assertWarns(RuntimeWarning):
                 generate_objects_summary.generate_rst_table(
                     'Processing Objects',
                     modules,

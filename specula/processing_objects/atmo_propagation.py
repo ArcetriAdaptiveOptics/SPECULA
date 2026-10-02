@@ -51,7 +51,9 @@ class AtmoPropagation(BaseProcessingObj):
             Dictionary of source objects (e.g., stars, LGS) to be propagated.
         doFresnel : bool
             If True, physical Fresnel propagation is performed. Default is False
-            (geometric propagation).
+            (geometric propagation). The lowest layer is the pupil plane: there is no
+            propagation between it and the ground, so a layer at 0 m (e.g. the pupilstop)
+            is normally expected.
         wavelengthInNm : float [nm], optional
             Wavelength in nanometers for Fresnel propagation. Required if doFresnel is True.
             Default is 500.0 nm.
@@ -393,12 +395,14 @@ class AtmoPropagation(BaseProcessingObj):
                     x2 = topleft[0] + output_ef.size[0]
                     y2 = topleft[1] + output_ef.size[1]
                     self.ef_temp.A[:] = layer.A[topleft[0]: x2, topleft[1]: y2]
-                    self.ef_temp.phaseInNm[:] = self.prop_sign * layer.phaseInNm[topleft[0]: x2, topleft[1]: y2]
+                    self.ef_temp.phaseInNm[:] = layer.phaseInNm[topleft[0]: x2, topleft[1]: y2]
                 else:
-                    self.ef_temp.A[:] = interpolator.interpolate(layer.A)
-                    self.ef_temp.phaseInNm[:] = self.prop_sign * interpolator.interpolate(layer.phaseInNm)
+                    interpolator.interpolate(layer.A, out=self.ef_temp.A)
+                    interpolator.interpolate(layer.phaseInNm, out=self.ef_temp.phaseInNm)
 
                 if self.doFresnel:
+                    # Same phase sign in both directions (reciprocity): conjugating the field
+                    # upwards would propagate it backwards, mirroring beam wander and scintillation
                     self.ef_fresnel[s:s + self.pixel_pupil, s:s + self.pixel_pupil] *= self.ef_temp.ef_at_lambda(
                         self.wavelengthInNm)
                     if self.propagators[li] is not None:
@@ -410,10 +414,12 @@ class AtmoPropagation(BaseProcessingObj):
 
                 else:
                     output_ef.A *= self.ef_temp.A
-                    output_ef.phaseInNm += self.prop_sign * self.ef_temp.phaseInNm
+                    # The geometric phase does not depend on the propagation direction
+                    # (reciprocity): the same phase map is accumulated upwards and downwards
+                    output_ef.phaseInNm += self.ef_temp.phaseInNm
 
             if self.doFresnel:
-                output_ef.phaseInNm[:] = (self.prop_sign * self.xp.angle(
+                output_ef.phaseInNm[:] = (self.xp.angle(
                     self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]) * self.wavelengthInNm / (
                                                   2 * self.xp.pi))
                 output_ef.A[:] = (abs(self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]))
