@@ -36,8 +36,9 @@ generated here.
 
    **This is not a quick tutorial to run.** "ELT-class" means a large
    pupil and thousands of actuators, and there is no small/fast version of
-   this that still means anything (see the note on modal bandwidth in
-   :ref:`elt_petal_mmse_reconstructor_tutorial`). On a single CPU core,
+   this that still means anything (see the
+   :ref:`note on modal bandwidth <elt_modal_bandwidth_note>` below). On a
+   single CPU core,
    for the configuration used here (400x400 pixels, 90-actuator grid, 4000
    modes), expect the whole pipeline to take on the order of **an hour**,
    with :func:`compute_zonal_ifunc` (Step 3) responsible for most of it.
@@ -133,12 +134,21 @@ Design choices
    to 3 pixels. This is a uniform average, though; see the caveats above
    for how the real spider differs.
 
+.. _elt_modal_bandwidth_note:
+
 .. note::
 
-   **Why 4000 modes.** No fixed rule sets this number: use anywhere up to
-   the full generated count. 4000 is just the choice made here and in
-   :ref:`segmented_pupil_soft_limiter_tutorial`; change ``n_modes_to_use``
-   freely for a different case.
+   **Why 4000 modes, and why that count cannot be shrunk down.** No fixed
+   rule sets the number itself: use anywhere up to the full generated
+   count, and change ``n_modes_to_use`` freely for a different case. What
+   does matter is having *enough*: the petal-piston pattern Part 2 and
+   Part 3 need to reconstruct is a sharp, sector-wise step, and
+   representing a step in any smooth modal basis (KL, Zernike, ...) takes
+   many modes, the same way a Fourier series needs many harmonics to
+   approximate one. A basis generated from a handful of actuators (as in
+   the smoke test below) is missing essentially all of that bandwidth, so
+   any reconstruction accuracy it produces is not a scaled-down preview of
+   the full-size result -- it is a different, much worse regime.
 
 Step 1: A shared pupil mask
 -----------------------------
@@ -219,7 +229,15 @@ to define the telescope aperture.
 
 .. code-block:: python
 
+    import os
+
     calib = CalibManager('./calib_elt_segmented_dm_tutorial')
+
+    # CalibManager resolves tags to paths but does not create directories;
+    # a YAML-driven calibrator (as in Part 3) does this for you, but a
+    # direct .save() call like the ones below does not.
+    for subdir in ['pupilstop', 'ifunc', 'm2c', 'rec']:
+        os.makedirs(calib.root_subdir(subdir), exist_ok=True)
 
     simul_params = SimulParams(pixel_pupil=pixel_pupil,
                                 pixel_pitch=telescope_diameter / pixel_pupil)
@@ -468,11 +486,11 @@ many as you need without re-running Step 3:
 
 .. code-block:: python
 
-    n_modes_to_use = min(4000, kl_basis.shape[0])  # see note on this choice above
+    n_modes_total = kl_basis.shape[0]              # before truncation
+    n_modes_to_use = min(4000, n_modes_total)      # see note on this choice above
     kl_basis = kl_basis[:n_modes_to_use]
     m2c = m2c[:, :n_modes_to_use]
-    print(f'Using the first {n_modes_to_use} of {singular_values["S1"].shape[0]} '
-          f'generated modes')
+    print(f'Using the first {n_modes_to_use} of {n_modes_total} generated modes')
 
 With ``n_act=90`` there are more than 4000 modes available, so this line
 does real work, keeping the first 4000 and dropping the rest.
@@ -600,4 +618,4 @@ These products are the starting point for
 :ref:`elt_petal_mmse_reconstructor_tutorial`, which uses the shared mask to
 build a self-consistent reconstructor from KL-mode commands to petal-piston
 estimates, and, further down the line, for the closed-loop simulation in
-:ref:`segmented_pupil_soft_limiter_tutorial`.
+:ref:`elt_petal_soft_limiter_closed_loop_tutorial`.

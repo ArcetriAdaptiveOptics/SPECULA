@@ -267,13 +267,16 @@ Step 3. That residual then goes through a per-mode-group IIR filter,
    that the optical gain of the pyramid is not flat across modes -- how
    much slope signal a given wavefront error produces depends strongly on
    spatial frequency -- so a single loop gain over- or under-drives large
-   parts of the basis. A mild leak on the higher-order bands also limits
-   how much spatial aliasing of the turbulence those modes can
-   accumulate. ``temporal_filter`` groups the 4000 modes into six bands
-   (sizes given by ``n_modes``), each with its own IIR pole via
-   ``num``/``den``: bands 2-6 are plain leaky integrators of increasing
-   leak (band 2 closest to a pure integrator, band 6 fastest and mildly
-   leaky). See :doc:`control_stability_analysis` for the transfer-function
+   parts of the basis. Leak on the higher-order bands, increasingly strong
+   toward the highest band, also limits how much spatial aliasing of the
+   turbulence those modes can accumulate. ``temporal_filter`` groups the
+   4000 modes into six bands (sizes given by ``n_modes``), each with its
+   own IIR pole via ``num``/``den``: band 2 (98 modes) is an exact pure
+   integrator (``den`` = ``[-1, 1, 0]``, infinite DC gain); bands 3-6
+   progressively trade gain for leak as mode order increases (gain 0.7855
+   down to 0.4635, pole 0.995 down to 0.94), so band 6 is the most leaky
+   and the least aggressive of the six, not the fastest. See
+   :doc:`control_stability_analysis` for the transfer-function
    convention and how to derive/verify a per-band pole from a stability
    margin. This is a deliberately coarse scheme tuned for this pupil/DM
    configuration at 1.0 arcsec seeing, not a real per-mode optimization --
@@ -382,7 +385,10 @@ Step 5: Running Classical vs Soft-Limiter
 ------------------------------------------
 
 Run the same 30 s, single-seed closed loop twice, with one override file
-each:
+each. Each file also redirects ``data_store`` to its own directory --
+without that, both runs would write their timestamped output folder under
+the same ``store_dir``, and the analysis in Step 6 below would not find
+separate ``output_classical``/``output_softlimiter`` trees to compare:
 
 .. code-block:: yaml
 
@@ -390,11 +396,17 @@ each:
     unwrapper_override:
       gain: 0.0
 
+    data_store_override:
+      store_dir: 'output_classical'
+
 .. code-block:: yaml
 
     # override_softlimiter.yml
     unwrapper_override:
       gain: 0.1
+
+    data_store_override:
+      store_dir: 'output_softlimiter'
 
 .. code-block:: bash
 

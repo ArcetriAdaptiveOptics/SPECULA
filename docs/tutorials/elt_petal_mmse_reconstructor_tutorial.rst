@@ -30,9 +30,11 @@ project-specific calibration file.
 
 * :ref:`elt_segmented_dm_tutorial` completed: the full run, not a
   shrunk-down version. This tutorial restores its products by tag and does
-  not regenerate them, and (see the note in Step 2) a modal basis with too
-  little spatial bandwidth cannot represent the petal signal it needs to
-  reconstruct, regardless of how correct the reconstructor code is
+  not regenerate them, and (see the
+  :ref:`note on modal bandwidth <elt_modal_bandwidth_note>` in Part 1) a
+  modal basis with too little spatial bandwidth cannot represent the
+  petal signal it needs to reconstruct, regardless of how correct the
+  reconstructor code is
 * Basic familiarity with modal wavefront reconstruction (interaction
   matrices, reconstruction matrices)
 
@@ -378,4 +380,4 @@ Starting from the products of Part 1, this tutorial built:
 What remains for a full closed-loop demonstration, calibrating the
 pyramid WFS itself (pupil geometry, interaction matrix, reconstruction
 matrix) and running the loop with and without the Soft-Limiter, is
-covered in :ref:`segmented_pupil_soft_limiter_tutorial` (Part 3).
+covered in :ref:`elt_petal_soft_limiter_closed_loop_tutorial` (Part 3).
