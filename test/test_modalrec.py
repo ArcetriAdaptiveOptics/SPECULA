@@ -36,6 +36,14 @@ class TestModalrec(unittest.TestCase):
             rec.trigger_code()
 
     @cpu_and_gpu
+    def test_modalrec_nmodes_is_deprecated(self, target_device_idx, xp):
+
+        recmat = Recmat(xp.arange(12).reshape((3,4)), target_device_idx=target_device_idx)
+        with self.assertWarns(FutureWarning):
+            rec = Modalrec(recmat=recmat, nmodes=2, target_device_idx=target_device_idx)
+        self.assertEqual(rec.modes.value.shape, (3,))
+
+    @cpu_and_gpu
     def test_modalrec_vs_implicit_polc(self, target_device_idx, xp):
 
         # intmat (shape 6x4)

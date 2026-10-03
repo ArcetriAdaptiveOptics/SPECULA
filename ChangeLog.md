@@ -5,7 +5,8 @@
 
 ### New processing and data objects
 
-- ...
+-`ModalrecExplicitPolc` and `ModalrecImplicitPolc` share the command inputs and the slopes update check in the new base class `BasePolcModalrec`.
+
 
 ### Interface changes
 
@@ -21,6 +22,8 @@
 - Added `compute_single_im` (bool, default True) to `ImCalibrator` to optionally skip populating the `out_single_im` per-mode output (the output itself is always present, empty when disabled). When True (default, unchanged behavior) this costs an O(nmodes) Python loop on every `trigger_code()` call (not just push-pull events) plus roughly double the fixed memory (one extra Intmat per mode); set to False to skip that loop/memory when nothing downstream consumes `out_single_im` (only `out_intmat` is used elsewhere in this codebase) -- needed for large-nmodes, long calibrations.
 - Removed `specula.lib.modal_pushpull_signal.modal_pushpull_signal()`, which duplicated the step ordering of `PushPullGenerator` and was only used by tests (it is kept in test\_generators.py as a reference implementation). Per-mode amplitudes are available from `modal_pushpull_amplitudes()`.
 - `ModalAnalysis` now always computes the wavefront RMS: the `dorms` parameter is deprecated and ignored (a `FutureWarning` is issued if it is set). In list mode (`in_ef_list`) the per-input RMS is available from the new `rms_list` output, mirroring `out_modes_list`; `rms` is now only updated for the single input `in_ef` (previously, in list mode, it held the RMS of the last input only).
+- MORFEO configurations: the LGS (and reference) tomographic reconstructors now use `ModalrecImplicitPolc` instead of `ModalrecExplicitPolc`, since the pseudo open-loop modes were not used. The `out_pseudo_ol_modes` output is not available anymore for these objects: use `ModalrecExplicitPolc` again if needed.
+- `Modalrec`: the `nmodes` parameter, which was ignored, is deprecated (a `FutureWarning` is issued if it is set): the number of modes is set by the recmat, use `ncutmodes` to discard the last modes. Removed it from the ANDES configurations.
 - Added `cache` to `ZernikeGenerator.getZernike()` (default True, unchanged behavior): if False, the polynomial is not cached.
 - `TerminalInput` now keeps the input prompt on the last line of the terminal while log output scrolls above it (using `prompt_toolkit`, new dependency). `SpeculaInput` now reads input in a background thread instead of a separate process: `set_input_task()` is replaced by the thread-safe `put_input()`, which validates values immediately.
 

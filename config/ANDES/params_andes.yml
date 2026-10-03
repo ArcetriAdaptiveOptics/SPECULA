@@ -161,7 +161,6 @@ slopec:
 modalrec:
   class:              'Modalrec'
   recmat_object:      'andes_ps400p0.097_pyr100x100_wl850_fv2.1_ft4.0_slInten_ma3_bn1_th_mn4000_noSlaving_hexObstr_spider2023_OOMAO_rot15'
-  nmodes:             4000                   # number of modes
   inputs:
     in_slopes: 'slopec.out_slopes'
   outputs: ['out_modes']
