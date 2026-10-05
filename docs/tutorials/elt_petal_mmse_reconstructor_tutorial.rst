@@ -190,18 +190,35 @@ This is :math:`C_m`: how much power ordinary atmospheric turbulence puts
 into each KL mode (and how the modes correlate), independent of any petal
 signal. :func:`compute_ifs_covmat`, the same routine Part 1 uses internally
 to rank the KL basis, gives us this directly from the forward KL basis and
-an ``r0``/``L0`` pair:
+an ``r0``/``L0`` pair.
+
+Two details matter here, because :math:`C_m` is compared directly with
+:math:`C_p` inside the MMSE formula, so both must describe the same
+quantities in the same units:
+
+* **Units.** :func:`compute_ifs_covmat` returns the covariance in
+  **rad²** at the wavelength where ``r0`` is defined (500 nm). The KL
+  coefficients and the petal pistons are in **nm**, so we convert with
+  :math:`(500 / 2\pi)^2`. Without this conversion :math:`C_m` is about
+  6000 times too small, the prior :math:`C_p` has almost no effect, and
+  the MMSE silently becomes a plain least-squares estimator.
+* **Same turbulence as the validation.** ``r0`` is computed from the same
+  seeing used in Step 6, with the same formula as
+  :class:`AtmoRandomPhase`.
 
 .. code-block:: python
 
     from specula.lib.modal_base_generator import compute_ifs_covmat
 
     telescope_diameter = 39.0
-    r0 = 0.15
+    seeing_arcsec = 0.8                                    # also used in Step 6
+    r0 = 0.9759 * 0.5 / (seeing_arcsec * 4.848)            # [m] at 500 nm, ~0.126 m
     L0 = 25.0
 
     c_modes = compute_ifs_covmat(pupil_mask, telescope_diameter, kl_basis,
                                   r0, L0, oversampling=2, xp=xp, dtype=xp.float32)
+    # rad^2 at 500 nm -> nm^2
+    c_modes = c_modes * (500.0 / (2 * np.pi)) ** 2
     print('c_modes:', c_modes.shape)
 
 ::
@@ -212,15 +229,32 @@ Step 4: Petal prior covariance
 ------------------------------------
 
 This is :math:`C_p`: the prior covariance of the petal state itself, as
-opposed to :math:`C_m`, the covariance of what competes with it. Following
-the paper this tutorial accompanies (Sect. 3, Eq. 2), we use a plain
-isotropic, deliberately *uninformative* prior, :math:`C_p = \sigma_p^2 I`:
+opposed to :math:`C_m`, the covariance of what competes with it.
+
+We assume the six absolute petal pistons :math:`g_1, \dots, g_6` are
+independent, each with variance :math:`\sigma_p^2`. What we estimate,
+though, are the five pistons *relative* to petal 6 (Step 2):
+:math:`x_i = g_i - g_6`. All of them contain the same reference
+:math:`g_6`, so they are not independent:
+
+.. math::
+
+   \mathrm{var}(x_i) = 2\sigma_p^2, \qquad
+   \mathrm{cov}(x_i, x_j) = \sigma_p^2 \quad (i \neq j)
+   \quad\Longrightarrow\quad
+   C_p = \sigma_p^2 \left( I + \mathbf{1}\mathbf{1}^T \right)
+
+where :math:`\mathbf{1}` is a vector of ones. (The simpler
+:math:`\sigma_p^2 I` would halve the variance and ignore the shared
+reference.)
 
 .. code-block:: python
 
-    petal_sigma_nm = 800.0   # see note below: the exact value barely matters
+    petal_sigma_nm = 800.0   # typical petal amplitude; see the note below
 
-    c_petals = (petal_sigma_nm ** 2) * xp.eye(n_petals - 1, dtype=xp.float32)
+    n_rel = n_petals - 1
+    c_petals = (petal_sigma_nm ** 2) * (xp.eye(n_rel, dtype=xp.float32) +
+                                        xp.ones((n_rel, n_rel), dtype=xp.float32))
     print('c_petals:', c_petals.shape)
 
 ::
@@ -229,20 +263,22 @@ isotropic, deliberately *uninformative* prior, :math:`C_p = \sigma_p^2 I`:
 
 .. note::
 
-   The paper shows the output of this static estimator is essentially
-   invariant to :math:`\sigma_p` across more than six orders of magnitude (8 nm to
-   8e6 nm): for any sufficiently uninformative prior, the estimator
-   converges to the Gauss-Markov (minimum-variance-unbiased) limit, so
-   ``petal_sigma_nm`` is not really a tunable parameter of the method; any
-   plausible order of magnitude works.
+   **How much does** :math:`\sigma_p` **matter?** It sets how strongly the
+   estimator trusts the prior with respect to the data.
 
-   The same reasoning covers the choice of prior structure. If the six
-   absolute petals were independent with variance :math:`\sigma_p^2`, the
-   exact covariance of the five petals relative to the reference would be
-   :math:`\sigma_p^2 (I + \mathbf{1}\mathbf{1}^T)`, not :math:`\sigma_p^2 I`.
-   For :math:`\sigma_p` of a few hundred nm or more the two priors give
-   the same reconstructor to within numerical precision, so we use the
-   simpler diagonal form.
+   * For :math:`\sigma_p` of several hundred nm or more (realistic petal
+     amplitudes) the prior is weak compared with the information in the
+     KL modes: the estimator approaches the Gauss-Markov
+     (minimum-variance unbiased) limit and its result changes very little
+     with :math:`\sigma_p`. In a static test on an ELT-class 4000-mode
+     basis, the RMS error stayed within 214--219 nm for :math:`\sigma_p`
+     from 800 nm to 8e6 nm.
+   * For small :math:`\sigma_p` (tens of nm) the prior dominates, as it
+     should in an MMSE estimator: the estimates are shrunk towards zero
+     (gain clearly below 1).
+
+   So :math:`\sigma_p` should be a realistic order of magnitude of the
+   petal amplitudes, not an arbitrarily small number.
 
 Step 5: Computing and checking the reconstructor
 ------------------------------------------------------
@@ -257,21 +293,21 @@ Step 5: Computing and checking the reconstructor
     print('mmse_recmat:', mmse_recmat.shape)
 
     # Sanity check: applied to the noise-free interaction matrix, the
-    # reconstructor should recover a (5, 5) identity. This is the check
-    # that would catch a shared-mask mismatch of the kind described above,
-    # and it also confirms that dropping the sixth (reference) petal,
-    # rather than building a separate 5-mode "relative petal" basis, was a
-    # safe simplification: there is no leftover cross-talk.
+    # reconstructor should give a (5, 5) matrix close to the identity.
+    # This is the check that would catch a shared-mask mismatch of the
+    # kind described above, and it also confirms that dropping the sixth
+    # (reference) petal, rather than building a separate 5-mode
+    # "relative petal" basis, was a safe simplification.
     print(np.round(cpuArray(mmse_recmat @ intmat), 3))
 
-::
-
-    mmse_recmat: (5, 4000)
-    [[ 1. -0. -0. -0. -0.]
-     [-0.  1. -0. -0. -0.]
-     [-0. -0.  1. -0. -0.]
-     [-0. -0. -0.  1. -0.]
-     [-0. -0. -0. -0.  1.]]
+The result is close to, but not exactly, the identity: the diagonal is
+slightly below 1 (about 0.99 for :math:`\sigma_p = 800` nm on an
+ELT-class 4000-mode basis), with off-diagonal terms of a few
+:math:`10^{-3}`. This is the expected effect of the prior: an MMSE
+estimator shrinks the estimates slightly towards the prior mean (zero).
+An *exact* identity would mean that the prior has no effect, which is
+what happens if :math:`C_m` is left in rad² (Step 3). Larger deviations
+from the identity point to a basis mismatch.
 
 (Computing ``c_modes`` and ``mmse_recmat`` at this scale takes a few
 minutes, comparatively cheap next to Part 1.)
@@ -312,7 +348,7 @@ known-truth random petal offsets:
     from specula.processing_objects.atmo_random_phase import AtmoRandomPhase
 
     n_realizations = 300
-    seeing_arcsec = 0.8
+    # seeing_arcsec: same value used for r0 in Step 3
     np.random.seed(1234)
 
     dim = pupil_mask.shape[0]

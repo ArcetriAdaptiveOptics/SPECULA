@@ -98,7 +98,10 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     Returns:
     --------
     ifft_covariance : 2D array
-        Covariance matrix (n_actuators, n_actuators)
+        Covariance matrix (n_actuators, n_actuators), in rad^2 at the
+        wavelength where r0 is defined (500 nm by convention). Multiply by
+        (500 / (2 * pi))**2 to get nm^2, e.g. when it is combined with
+        quantities in nm.
     """
     logger = get_specula_logger(__name__)
     if log_level is not None:
