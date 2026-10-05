@@ -402,6 +402,8 @@ iir_lgs:
   outputs:  ['out_comm']
 
 
+# Note: out_pseudo_ol_modes requires tomo_polc_lgs to be a ModalrecExplicitPolc.
+# The DM-space pseudo open-loop modes are also available as out_modes + commands.
 # avc_lgs:
 #   class:             'AVC'
 #   inputs:
@@ -499,12 +501,11 @@ dm3:
 # ----------------
 
 tomo_ngs:
-  class:              'ModalreExplicitPolc'
+  class:              'Modalrec'
   recmat_object:      '20240614_073541.0/recmat'
-  projmat_object:     'p20230222_104426.0/projmatAll'
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 iir_ngs:
   class:             'IirFilter'
@@ -514,6 +515,7 @@ iir_ngs:
       delta_comm: 'tomo_ngs.out_modes'     
   outputs:  ['out_comm']
 
+# Note: tomo_ngs is not a POLC reconstructor and has no out_pseudo_ol_modes.
 # avc_ngs:
 #   class:             'AVC'
 #   inputs:

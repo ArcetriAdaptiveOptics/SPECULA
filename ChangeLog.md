@@ -5,8 +5,7 @@
 
 ### New processing and data objects
 
--`ModalrecExplicitPolc` and `ModalrecImplicitPolc` share the command inputs and the slopes update check in the new base class `BasePolcModalrec`.
-
+- ...
 
 ### Interface changes
 
@@ -29,6 +28,7 @@
 
 ### Other
 
+- `ModalrecExplicitPolc` and `ModalrecImplicitPolc` share the command inputs and the slopes update check in the new base class `BasePolcModalrec`.
 - `compute_zern_ifunc()` (Zernike `IFunc` and `ModalAnalysis`) no longer keeps all full-frame Zernike polynomials in memory, and normalizes the modes in place (480 pixels, 1000 modes: peak GPU memory 4.0 -> 2.3 GB).
 - Fixed `filt_modes` in `make_modal_base_from_ifs_fft()`, whose content was ignored: only their number was used, to drop the same number of the highest-order KL modes. They are now projected on the influence functions span and removed from the KL basis; modes outside the span, or duplicating piston, the Zernike modes or other `filt_modes`, are discarded with a warning.
 - Fixed display grouping: displays can share a window again, each one in its own `subplot` (an error is raised only if the same subplot of a window is used twice). The window size is set by the first display of the window. Each simulation now starts with no windows, closing those of a previous simulation in the same process (with `--nsimul` or in a notebook, explicit window numbers raised an error).

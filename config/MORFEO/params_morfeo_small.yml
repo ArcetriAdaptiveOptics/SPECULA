@@ -342,12 +342,11 @@ dm3:
 # ----------------
 
 tomo_ngs:
-  class:              'ModalrecExplicitPolc'
+  class:              'Modalrec'
   recmat_object:      '20240614_073541.0/recmat'
-  projmat_object:     'p20230222_104426.0/projmatAll'
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 iir_ngs:
   class:             'IirFilter'
