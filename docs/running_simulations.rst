@@ -39,6 +39,32 @@ Examples of the diagram can be found in :doc:`simul_diagrams` page.
 A tutorial for running SCAO simulations is available in the :doc:`tutorials/scao_tutorial` page.
 To find out where the simulation time is spent, see the :doc:`profiling` page.
 
+Listing simulation runs
+=======================
+
+Each run saved by a :class:`~specula.processing_objects.data_store.DataStore` gets its own TN folder
+(e.g. ``20260805_080019``, or ``20260805_080019.0`` for a second run started in the same second),
+containing a ``params.yml`` with the full simulation parameters, overrides included.
+When many runs accumulate in the same folder, the ``specula_list_runs`` command line tool shows what
+changes between them::
+
+    specula_list_runs ./output/
+
+For each TN, in chronological order, it prints only the parameters that changed with respect to the
+previous TN, so that runs launched in a batch show up as consecutive TNs changing the same key(s).
+It also writes ``list_runs.csv`` in the same folder, with one row per TN and one column per parameter
+that takes different values, to be sorted/filtered in a spreadsheet.
+Only the TN folders directly inside the given folder are read; other sub-folders are just listed.
+
+Main options (see ``specula_list_runs -h``):
+
+- ``--keys PATTERN ...``: only these parameters, wildcards allowed (e.g. ``--keys '*magnitude*' seeing.constant``)
+- ``--ignore PATTERN ...``: skip these parameters (e.g. ``--ignore '*seed*'``)
+- ``--since YYYYMMDD``: only TNs from this date on
+- ``--all-keys``: CSV columns also for parameters present only in some runs
+- ``--short``: shorten values longer than 50 characters (values longer than 1000 characters are always shortened)
+- ``--out FILE``: write the CSV elsewhere
+
 Output logging
 ==============
 
