@@ -22,7 +22,8 @@ import re
 import csv
 import argparse
 import fnmatch
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import yaml
 
@@ -37,13 +38,13 @@ CSV_NAME = 'list_runs.csv'
 TN_PATTERN = re.compile(r'\d{8}_\d{6}(\.\d+)?')
 
 
-def flatten(d: dict, prefix: str = '') -> dict:
+def flatten_dict(d: dict, prefix: str = '') -> dict:
     """Nested dict -> {"a.b.c": value}. Lists are kept as a single value."""
     out = {}
     for k, v in d.items():
         key = f'{prefix}.{k}' if prefix else str(k)
         if isinstance(v, dict):
-            out.update(flatten(v, key))
+            out.update(flatten_dict(v, key))
         else:
             out[key] = v
     return out
@@ -122,7 +123,7 @@ def collect_runs(root_dir: str,
     other_dirs = []
     warnings = []
     undated = []
-    for name in sorted(os.listdir(root_dir)):
+    for name in sorted(os.listdir(root_dir), key=chrono_key):
         path = os.path.join(root_dir, name)
         if not os.path.isdir(path) or name.endswith('_PSF'):
             continue
@@ -146,12 +147,10 @@ def collect_runs(root_dir: str,
         if not isinstance(params, dict):
             warnings.append(f'{name}: params.yml empty or not a dictionary, skipped')
             continue
-        params = flatten(params)
-        runs[name] = {k: v for k, v in params.items()
+        runs[name] = {k: v for k, v in flatten_dict(params).items()
                       if (keys is None or matches(k, keys)) and not matches(k, ignore)}
     if undated:
-        warnings.append(f'non-standard TN names, not filtered by --since: {sorted(undated)}')
-    runs = {tn: runs[tn] for tn in sorted(runs, key=chrono_key)}
+        warnings.append(f'non-standard TN names, not filtered by --since: {undated}')
     return runs, sorted(other_dirs), warnings
 
 
@@ -172,31 +171,35 @@ def select_columns(runs: dict[str, dict], all_keys: bool = False,
     mistaken for a wrong pattern.
     """
     keys = sorted(set().union(*runs.values()))
-    if selected:
-        return keys
-    if all_keys:
-        return [k for k in keys
-                if len({str(r.get(k, MISSING)) for r in runs.values()}) > 1]
-    return [k for k in keys
-            if len({str(r[k]) for r in runs.values() if k in r}) > 1]
+
+    def n_values(k):
+        return len({str(r.get(k, MISSING)) for r in runs.values() if all_keys or k in r})
+
+    return [k for k in keys if selected or n_values(k) > 1]
+
+
+def make_formatter(max_len: int) -> tuple[Callable[[str, Any], str], set[str]]:
+    """Formatter fmt(key, value) -> str, and the set where it records the keys
+    whose values were shortened (shared by terminal and CSV output)."""
+    shortened = set()
+
+    def fmt(key, v):
+        s, cut = format_value(v, max_len)
+        if cut:
+            shortened.add(key)
+        return s
+
+    return fmt, shortened
 
 
 def write_csv(csv_file: str, runs: dict[str, dict], columns: Sequence[str],
-              max_len: int) -> set[str]:
-    """Write one row per TN; return the keys whose values were shortened."""
-    shortened = set()
+              fmt: Callable[[str, Any], str]):
+    """Write one row per TN, values formatted with fmt."""
     with open(csv_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['tn'] + list(columns))
-        for tn, params in runs.items():
-            row = [tn]
-            for k in columns:
-                s, cut = format_value(params.get(k, MISSING), max_len)
-                row.append(s)
-                if cut:
-                    shortened.add(k)
-            writer.writerow(row)
-    return shortened
+        writer.writerow(['tn', *columns])
+        writer.writerows([tn, *(fmt(k, p.get(k, MISSING)) for k in columns)]
+                         for tn, p in runs.items())
 
 
 def since_date(value: str) -> str:
@@ -234,6 +237,7 @@ def main(argv: Sequence[str] | None = None):
 
     csv_file = args.out if args.out is not None else os.path.join(args.root_dir, CSV_NAME)
     max_len = SHORT_VALUE_LEN if args.short else MAX_VALUE_LEN
+    fmt, shortened = make_formatter(max_len)
 
     runs, other_dirs, warnings = collect_runs(args.root_dir, keys=args.keys,
                                               ignore=args.ignore, since=args.since)
@@ -257,14 +261,6 @@ def main(argv: Sequence[str] | None = None):
             print(f'WARNING: no key matches {unmatched}\n')
 
     # Terminal: changes with respect to the previous TN
-    shortened = set()
-
-    def fmt(key, v):
-        s, cut = format_value(v, max_len)
-        if cut:
-            shortened.add(key)
-        return s
-
     prev = None
     for tn, cur in runs.items():
         if prev is None:
@@ -282,7 +278,7 @@ def main(argv: Sequence[str] | None = None):
 
     columns = select_columns(runs, all_keys=args.all_keys, selected=args.keys is not None)
     try:
-        shortened |= write_csv(csv_file, runs, columns, max_len)
+        write_csv(csv_file, runs, columns, fmt)
     except OSError as e:
         raise SystemExit(f'Cannot write {csv_file} ({e}). Use --out to write it elsewhere.')
     print(f'\n{len(columns)} parameters saved to {csv_file}')

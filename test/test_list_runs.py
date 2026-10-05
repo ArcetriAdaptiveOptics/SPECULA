@@ -10,7 +10,7 @@ import yaml
 
 from specula.scripts import list_runs
 from specula.scripts.list_runs import (
-    chrono_key, collect_runs, changed_keys, flatten, format_value, select_columns)
+    chrono_key, collect_runs, changed_keys, flatten_dict, format_value, select_columns)
 
 
 class TestListRuns(unittest.TestCase):
@@ -144,11 +144,11 @@ class TestListRuns(unittest.TestCase):
         self.assertEqual(runs['20260101_120000'],
                          {'wfs.magnitude': 8, 'seeing.constant': 0.6})
 
-    # ---- flatten ----
+    # ---- flatten_dict ----
 
     def test_flatten_nested_and_lists(self):
         d = {'a': {'b': {'c': 1}, 'd': [1, 2, 3]}, 'e': 'x'}
-        self.assertEqual(flatten(d), {'a.b.c': 1, 'a.d': [1, 2, 3], 'e': 'x'})
+        self.assertEqual(flatten_dict(d), {'a.b.c': 1, 'a.d': [1, 2, 3], 'e': 'x'})
 
     # ---- changed_keys / select_columns ----
 
