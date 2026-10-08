@@ -173,8 +173,9 @@ class ModulatedDoubleRoof(ModulatedPyramid):
             pyr_ef_roof1 = self.xp.fft.ifft2(u_fp_roof1, axes=(-2, -1), norm='forward')
             self.roof1_image += pyr1_abs2(pyr_ef_roof1, self.ifft_norm, self.ffv[i], xp=self.xp)
 
-            # Process second roof
-            u_fp_roof2 = pyr1_fused(u_fp, self.ffv[i], self.fpsf, self.shifted_masked_exp_roof2, xp=self.xp)
+            # Process second roof. The focal plane PSF is the same for the two roofs,
+            # so it is accumulated in fpsf only by the first one.
+            u_fp_roof2 = u_fp * self.shifted_masked_exp_roof2
             pyr_ef_roof2 = self.xp.fft.ifft2(u_fp_roof2, axes=(-2, -1), norm='forward')
             self.roof2_image += pyr1_abs2(pyr_ef_roof2, self.ifft_norm, self.ffv[i], xp=self.xp)
 

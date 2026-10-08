@@ -28,6 +28,7 @@
 
 ### Other
 
+- Fixed `ModulatedDoubleRoof` (#798): the focal plane PSF was accumulated once per roof, so `out_psf_bfm` and `out_psf_tot` were twice the ones of `ModulatedPyramid`. Pixels, slopes and `out_transmission` are unchanged.
 - `ModalrecExplicitPolc` and `ModalrecImplicitPolc` share the command inputs and the slopes update check in the new base class `BasePolcModalrec`.
 - `compute_zern_ifunc()` (Zernike `IFunc` and `ModalAnalysis`) no longer keeps all full-frame Zernike polynomials in memory, and normalizes the modes in place (480 pixels, 1000 modes: peak GPU memory 4.0 -> 2.3 GB).
 - Fixed `filt_modes` in `make_modal_base_from_ifs_fft()`, whose content was ignored: only their number was used, to drop the same number of the highest-order KL modes. They are now projected on the influence functions span and removed from the KL basis; modes outside the span, or duplicating piston, the Zernike modes or other `filt_modes`, are discarded with a warning.
