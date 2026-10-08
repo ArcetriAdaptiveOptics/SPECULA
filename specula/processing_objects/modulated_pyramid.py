@@ -594,8 +594,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
-        # Zero-padded field of a single modulation step, the input
-        # is written in its top-left corner
+        # Zero-padded input field of a single modulation step. Only the
+        # top-left corner is written, the padding remains zero.
         if self._u_pad is None:
             self._u_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
             self._u_in = self._u_pad[:self.fft_sampling, :self.fft_sampling]
@@ -679,15 +679,13 @@ class ModulatedPyramid(BaseProcessingObj):
         psf_bfm[:] = 0
         self.pup_pyr_tot[:] = 0
 
-        # One modulation step at a time, all in place in a single padded field
+        # One modulation step at a time, to keep a single padded field in memory
         for i in range(0, self.mod_steps):
-            # Input electric field with a sub-pixel shift and the tip-tilt of this step.
-            # The padding must be cleared, the in-place FFTs overwrite it.
-            self._u_pad.fill(0)
+            # Input electric field with a sub-pixel shift and the tip-tilt of this step
             pyr_input(self.ef, ey[i][:, None], ex[i][None, :], self._u_in, xp=self.xp)
 
             # Fourier Transform to propagate to the (centered) Focal Plane
-            u_fp = self._scipy_fft2(self._u_pad, overwrite_x=True)
+            u_fp = self.xp.fft.fft2(self._u_pad)
 
             # Accumulate the focal plane PSF and apply in place the phase
             # delay of the pyramid and field stop
@@ -699,6 +697,8 @@ class ModulatedPyramid(BaseProcessingObj):
 
             # Calculate intensity and apply weighted accumulation for flux correction
             pyr_abs2_acc(pyr_ef, self.ifft_norm, self.ffv[i], self.pup_pyr_tot, xp=self.xp)
+            # Release the FFT output before the next step allocates a new one
+            del u_fp, pyr_ef
 
         # Normalize by the integration time/total modulation weight
         psf_bfm *= self.factor

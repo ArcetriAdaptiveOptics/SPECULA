@@ -96,16 +96,16 @@ def _scipy_helpers(gpu):
     '''
     if gpu:  # pragma: gpu
         from cupyx.scipy.ndimage import rotate, shift, center_of_mass
-        from cupyx.scipy.fft import fft2, ifft2, idct, dct
+        from cupyx.scipy.fft import ifft2, idct, dct
         from cupyx.scipy.linalg import lu_factor, lu_solve
     else:
         from scipy.ndimage import rotate, shift, center_of_mass
-        from scipy.fft import fft2, ifft2
+        from scipy.fft import ifft2
         # The legacy fftpack versions, as before on CPU
         from scipy.fftpack import idct, dct
         from scipy.linalg import lu_factor, lu_solve
     return {'ndimage_rotate': rotate, 'ndimage_shift': shift,
-            'ndimage_center_of_mass': center_of_mass, 'fft2': fft2, 'ifft2': ifft2,
+            'ndimage_center_of_mass': center_of_mass, 'ifft2': ifft2,
             'dct': dct, 'idct': idct, 'lu_factor': lu_factor, 'lu_solve': lu_solve}
 
 
@@ -226,10 +226,6 @@ class BaseTimeObj:
     @property
     def _lu_solve(self):
         return _scipy_helpers(self.target_device_idx >= 0)['lu_solve']
-
-    @property
-    def _scipy_fft2(self):
-        return _scipy_helpers(self.target_device_idx >= 0)['fft2']
 
     @property
     def _scipy_ifft2(self):

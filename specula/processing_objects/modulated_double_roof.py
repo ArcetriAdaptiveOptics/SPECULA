@@ -162,9 +162,8 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         # Focal plane and roof masks are centered, and the masks re-center
         # the pupils (see ModulatedPyramid): no fftshift or roll is needed
         for i in range(0, self.mod_steps):
-            self._u_pad.fill(0)
             pyr_input(self.ef, ey[i][:, None], ex[i][None, :], self._u_in, xp=self.xp)
-            u_fp = self._scipy_fft2(self._u_pad, overwrite_x=True)
+            u_fp = self.xp.fft.fft2(self._u_pad)
 
             # Process first roof
             u_fp_roof1 = pyr1_fused(u_fp, self.ffv[i], psf_bfm, self.masked_exp, xp=self.xp)
@@ -176,6 +175,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
             u_fp_roof2 = u_fp * self.masked_exp_roof2
             pyr_ef_roof2 = self._scipy_ifft2(u_fp_roof2, overwrite_x=True, norm='forward')
             self.roof2_image += pyr1_abs2(pyr_ef_roof2, self.ifft_norm, self.ffv[i], xp=self.xp)
+            del u_fp, u_fp_roof1, pyr_ef_roof1, u_fp_roof2, pyr_ef_roof2
 
         # Combine the two roof images to create 4 sub-pupils
         self._combine_roof_images()
