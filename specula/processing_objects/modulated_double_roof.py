@@ -1,6 +1,6 @@
 from specula import fuse
 
-from specula.processing_objects.modulated_pyramid import ModulatedPyramid, pyr_input
+from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.lib.make_xy import make_xy
 from specula.data_objects.simul_params import SimulParams
 
@@ -162,8 +162,7 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         # Focal plane and roof masks are centered, and the masks re-center
         # the pupils (see ModulatedPyramid): no fftshift or roll is needed
         for i in range(0, self.mod_steps):
-            pyr_input(self.ef, ey[i][:, None], ex[i][None, :], self._u_in, xp=self.xp)
-            u_fp = self.xp.fft.fft2(self._u_pad)
+            u_fp = self.focal_plane_field(ey[i], ex[i])
 
             # Process first roof
             u_fp_roof1 = pyr1_fused(u_fp, self.ffv[i], psf_bfm, self.masked_exp, xp=self.xp)

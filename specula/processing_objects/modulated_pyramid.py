@@ -307,7 +307,8 @@ class ModulatedPyramid(BaseProcessingObj):
 
         self.ttexp_x = None
         self.ttexp_y = None
-        self._u_pad = None
+        self._u_t = None
+        self._u_y = None
         self.ifft_norm = 1.0 / (self.fft_totsize * self.fft_totsize)
         self.ef = self.xp.zeros((fft_sampling, fft_sampling), dtype=self.complex_dtype)
 
@@ -594,11 +595,12 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ffv = self.flux_factor_vector[:, self.xp.newaxis, self.xp.newaxis]
         self.factor = 1.0 / self.xp.sum(self.flux_factor_vector)
 
-        # Zero-padded input field of a single modulation step. Only the
-        # top-left corner is written, the padding remains zero.
-        if self._u_pad is None:
-            self._u_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.complex_dtype)
-            self._u_in = self._u_pad[:self.fft_sampling, :self.fft_sampling]
+        # Buffers of focal_plane_field(). Only their first fft_sampling
+        # columns are written, the padding remains zero.
+        if self._u_t is None:
+            p, n = self.fft_sampling, self.fft_totsize
+            self._u_t = self.xp.zeros((p, n), dtype=self.complex_dtype)
+            self._u_y = self.xp.zeros((n, n), dtype=self.complex_dtype)
 
     @property
     def ttexp(self):
@@ -673,6 +675,23 @@ class ModulatedPyramid(BaseProcessingObj):
             return self._ey[rotation_idx], self._ex[rotation_idx]
         return self._ey[0], self._ex[0]
 
+    def focal_plane_field(self, ey, ex):
+        '''
+        Focal plane field of a modulation step: 2D FFT of the input field
+        times the (ey, ex) phasors, zero-padded to fft_totsize.
+        It is computed as two passes of 1D FFTs, the first one only on the
+        fft_sampling non-zero lines of the padded field.
+        '''
+        p = self.fft_sampling
+        # Input field, transposed: one line for each x, along y
+        pyr_input(self.ef.T, ex[:, None], ey[None, :], self._u_t[:, :p], xp=self.xp)
+        # FFT along y, back to (ky, x) in the first p columns
+        u_ky = self.xp.fft.fft(self._u_t, axis=-1)
+        self._u_y[:, :p] = u_ky.T
+        del u_ky
+        # FFT along x
+        return self.xp.fft.fft(self._u_y, axis=-1)
+
     def trigger_code(self):
         ey, ex = self.step_phasors()
         psf_bfm = self.psf_bfm.value
@@ -681,11 +700,9 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # One modulation step at a time, to keep a single padded field in memory
         for i in range(0, self.mod_steps):
-            # Input electric field with a sub-pixel shift and the tip-tilt of this step
-            pyr_input(self.ef, ey[i][:, None], ex[i][None, :], self._u_in, xp=self.xp)
-
-            # Fourier Transform to propagate to the (centered) Focal Plane
-            u_fp = self.xp.fft.fft2(self._u_pad)
+            # Fourier Transform to propagate the input electric field, with a
+            # sub-pixel shift and the tip-tilt of this step, to the (centered) Focal Plane
+            u_fp = self.focal_plane_field(ey[i], ex[i])
 
             # Accumulate the focal plane PSF and apply in place the phase
             # delay of the pyramid and field stop
