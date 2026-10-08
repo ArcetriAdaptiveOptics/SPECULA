@@ -233,15 +233,16 @@ class TestModulatedPyramid(unittest.TestCase):
             output_resolution=120,
             target_device_idx=target_device_idx,
         )
+        pyr_tlt = pyramid.get_pyr_tlt(pyramid.fft_sampling, pyramid.fft_padding)
         self.assertEqual(
-            pyramid.pyr_tlt.shape,
+            pyr_tlt.shape,
             pyramid.fp_mask.shape,
-            f"Expected pyramid tilt map and focal plane mask to share shape, got {pyramid.pyr_tlt.shape} and {pyramid.fp_mask.shape}",
+            f"Expected pyramid tilt map and focal plane mask to share shape, got {pyr_tlt.shape} and {pyramid.fp_mask.shape}",
         )
         self.assertEqual(
-            pyramid.shifted_masked_exp.shape,
+            pyramid.masked_exp.shape,
             pyramid.fp_mask.shape,
-            f"Expected shifted masked exponential to match mask shape, got {pyramid.shifted_masked_exp.shape} and {pyramid.fp_mask.shape}",
+            f"Expected masked exponential to match mask shape, got {pyramid.masked_exp.shape} and {pyramid.fp_mask.shape}",
         )
 
         # Case B
@@ -257,15 +258,16 @@ class TestModulatedPyramid(unittest.TestCase):
             output_resolution=120,
             target_device_idx=target_device_idx,
         )
+        pyr_tlt = pyramid.get_pyr_tlt(pyramid.fft_sampling, pyramid.fft_padding)
         self.assertEqual(
-            pyramid.pyr_tlt.shape,
+            pyr_tlt.shape,
             pyramid.fp_mask.shape,
-            f"Expected pyramid tilt map and focal plane mask to share shape, got {pyramid.pyr_tlt.shape} and {pyramid.fp_mask.shape}",
+            f"Expected pyramid tilt map and focal plane mask to share shape, got {pyr_tlt.shape} and {pyramid.fp_mask.shape}",
         )
         self.assertEqual(
-            pyramid.shifted_masked_exp.shape,
+            pyramid.masked_exp.shape,
             pyramid.fp_mask.shape,
-            f"Expected shifted masked exponential to match mask shape, got {pyramid.shifted_masked_exp.shape} and {pyramid.fp_mask.shape}",
+            f"Expected masked exponential to match mask shape, got {pyramid.masked_exp.shape} and {pyramid.fp_mask.shape}",
         )
 
 
@@ -437,7 +439,7 @@ class TestModulatedPyramid(unittest.TestCase):
         self.assertTrue(xp.all(intensity.i >= 0), "Intensity values should be non-negative")
 
         # Test 3: Check ttexp dimensions
-        expected_ttexp_shape = (1, 1, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        expected_ttexp_shape = (1, 1, pyramid.fft_sampling, pyramid.fft_sampling)
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match"
                         f" expected {expected_ttexp_shape}")
@@ -519,7 +521,7 @@ class TestModulatedPyramid(unittest.TestCase):
         self.assertTrue(xp.all(intensity.i >= 0), "Intensity values should be non-negative")
 
         # Test 3: Check ttexp dimensions
-        expected_ttexp_shape = (1, 1, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        expected_ttexp_shape = (1, 1, pyramid.fft_sampling, pyramid.fft_sampling)
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match"
                         f" expected {expected_ttexp_shape}")
@@ -590,7 +592,7 @@ class TestModulatedPyramid(unittest.TestCase):
                         f"modulation, got {pyramid.mod_steps}")
 
         # Test 2: Check ttexp dimensions
-        expected_ttexp_shape = (1, pyramid.mod_steps, pyramid.tilt_x.shape[0], pyramid.tilt_x.shape[1])
+        expected_ttexp_shape = (1, pyramid.mod_steps, pyramid.fft_sampling, pyramid.fft_sampling)
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match"
                         f"expected {expected_ttexp_shape}")
@@ -693,8 +695,8 @@ class TestModulatedPyramid(unittest.TestCase):
             plt.show()
 
         # Test 1: Check ttexp shape
-        expected_ttexp_shape = (1, pyramid.mod_steps, pyramid.tilt_x.shape[0],
-                                pyramid.tilt_x.shape[1])
+        expected_ttexp_shape = (1, pyramid.mod_steps, pyramid.fft_sampling,
+                                pyramid.fft_sampling)
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match"
                         f"expected {expected_ttexp_shape}")
@@ -769,8 +771,8 @@ class TestModulatedPyramid(unittest.TestCase):
         pyramid.setup()
 
         # Test 1: Check ttexp shape
-        expected_ttexp_shape = (2, pyramid.mod_steps, pyramid.tilt_x.shape[0],
-                                pyramid.tilt_x.shape[1])
+        expected_ttexp_shape = (2, pyramid.mod_steps, pyramid.fft_sampling,
+                                pyramid.fft_sampling)
         self.assertEqual(pyramid.ttexp.shape, expected_ttexp_shape,
                         f"ttexp shape {pyramid.ttexp.shape} doesn't match expected"
                         f" {expected_ttexp_shape}")
@@ -1231,7 +1233,7 @@ class TestModulatedPyramid(unittest.TestCase):
             plt.title(f"Masked Intensity for pup_dist={pup_dist}")
             plt.colorbar()
             plt.figure(figsize=[4,4])
-            plt.imshow(pyramid.pyr_tlt)
+            plt.imshow(cpuArray(xp.angle(pyramid.masked_exp)))
             plt.title(f"Pyramid Prism")
             plt.colorbar()
             plt.show()
