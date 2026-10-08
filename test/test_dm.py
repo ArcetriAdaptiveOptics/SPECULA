@@ -707,3 +707,34 @@ class TestDM(unittest.TestCase):
         # 4 modes: rejected
         with self.assertRaises(ValueError):
             DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, stroke=[1.] * 4, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_dm_empty_selection_raises(self, target_device_idx, xp):
+        '''An empty mode selection raises ValueError, with and without m2c.'''
+        simul_params = SimulParams(time_step=1, pixel_pupil=16, pixel_pitch=1)
+        ifunc = IFunc(type_str='zernike', npixels=16, nmodes=6, target_device_idx=target_device_idx)
+        m2c = M2C(np.random.RandomState(0).randn(6, 4), target_device_idx=target_device_idx)
+
+        with self.assertRaises(ValueError):
+            DM(simul_params, height=0, ifunc=ifunc, nmodes=4, start_mode=4,
+               target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, start_mode=4,
+               target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            DM(simul_params, height=0, ifunc=ifunc, idx_modes=[], target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, idx_modes=[],
+               target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_dm_ifunc_setter_checks_shape(self, target_device_idx, xp):
+        '''Setting an ifunc with a different shape raises ValueError and leaves the DM unchanged.'''
+        simul_params = SimulParams(time_step=1, pixel_pupil=16, pixel_pitch=1)
+        dm = DM(simul_params, height=0, type_str='zernike', nmodes=6, target_device_idx=target_device_idx)
+        ifunc = dm.ifunc
+        with self.assertRaises(ValueError):
+            dm.ifunc = ifunc[:5]
+        with self.assertRaises(ValueError):
+            dm.ifunc = ifunc[:, :-1]
+        self.assertIs(dm.ifunc, ifunc)

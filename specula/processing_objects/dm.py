@@ -67,7 +67,7 @@ class DM(BaseProcessingObj):
         start_mode : int [1], optional
             Index of the first selected mode. The input command starts from this mode.
         idx_modes : list or array [1], optional
-            Specific mode indices to use for the DM. If provided, `start_mode` and `nmodes` are ignored.
+            Specific mode indices to use for the DM. Cannot be set together with `start_mode` or `nmodes`.
         npixels : int [pixels], optional
             Number of pixels for the DM layer. If None, defaults to pupil size.
         obsratio : float [1], optional
@@ -167,6 +167,9 @@ class DM(BaseProcessingObj):
 
         # Input command length (the input does not include the modes before start_mode)
         self.nmodes = self._m2c_sel.shape[1] if self.m2c is not None else self._ifunc_act.shape[0]
+        if self.nmodes == 0:
+            raise ValueError(f'The mode selection is empty (start_mode={start_mode}, nmodes={nmodes}, '
+                             f'idx_modes={idx_modes})')
         # Number of actuators, i.e. of applied influence function rows
         n_act = self._ifunc_act.shape[0]
         self._modes = self.xp.zeros(self.nmodes, dtype=self.dtype)
@@ -311,6 +314,10 @@ class DM(BaseProcessingObj):
 
     @ifunc.setter
     def ifunc(self, value):
+        # The selection, stroke, stiffness and outputs are sized on the current shape
+        if value.shape != self._ifunc.influence_function.shape:
+            raise ValueError(f'ifunc has shape {value.shape}, but '
+                             f'{self._ifunc.influence_function.shape} is expected')
         self._ifunc.influence_function = value
         self._apply_mode_selection()
 
