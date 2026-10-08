@@ -76,12 +76,16 @@ class RecCalibrator(BaseProcessingObj):
         # TODO add to RM the information about the first mode
         if self.mmse:
             diameter = self.dm.pixel_pitch * self.dm.pixel_pupil
-            modal_base = IFunc(ifunc=self.dm.ifunc, mask=self.dm.mask,
-                               target_device_idx=self.target_device_idx, precision=self.precision)
-            if self.dm.m2c is not None:
-                m2c = M2C(self.dm.m2c,
+            # The turbulence prior is computed on the modes of the DM input command,
+            # starting from first_mode as the interaction matrix columns
+            if self.dm.m2c_selected is not None:
+                modal_base = IFunc(ifunc=self.dm.ifunc_applied, mask=self.dm.mask,
+                                   target_device_idx=self.target_device_idx, precision=self.precision)
+                m2c = M2C(self.dm.m2c_selected[:, self.first_mode:],
                         target_device_idx=self.target_device_idx, precision=self.precision)
             else:
+                modal_base = IFunc(ifunc=self.dm.ifunc_applied[self.first_mode:], mask=self.dm.mask,
+                                   target_device_idx=self.target_device_idx, precision=self.precision)
                 m2c = None
             rec = im.generate_rec_mmse(self.r0, self.L0, diameter, modal_base,
                                        self.noise_cov, nmodes=self.nmodes, m2c=m2c)

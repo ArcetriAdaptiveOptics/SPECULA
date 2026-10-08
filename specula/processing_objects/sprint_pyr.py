@@ -121,9 +121,11 @@ class SprintPyr(BaseSprintEstimator):
         """Initialize with Pyramid-specific parameters and build internal pipeline"""
         super().setup()
 
-        # Build independent copies of DM data for internal pipeline
+        # Build independent copies of DM data for internal pipeline. The internal DM
+        # gets the applied influence functions and the selected m2c columns without
+        # any mode selection, so that its input command is the same as the main DM one.
         ifunc_obj = IFunc(
-            ifunc=self.dm.ifunc_obj.influence_function.copy(),
+            ifunc=self.dm.ifunc_applied.copy(),
             mask=self.dm.ifunc_obj.mask_inf_func.copy(),
             type_str=self.dm.ifunc_obj.type_str,
             target_device_idx=self.target_device_idx,
@@ -131,9 +133,9 @@ class SprintPyr(BaseSprintEstimator):
         )
 
         m2c_obj = None
-        if self.dm.m2c is not None:
+        if self.dm.m2c_selected is not None:
             m2c_obj = M2C(
-                m2c=self.dm.m2c.copy(),
+                m2c=self.dm.m2c_selected.copy(),
                 target_device_idx=self.target_device_idx,
                 precision=self.precision
             )

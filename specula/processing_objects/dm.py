@@ -309,6 +309,18 @@ class DM(BaseProcessingObj):
         """Return the IFunc object (not just the array)"""
         return self._ifunc
 
+    @property
+    def ifunc_applied(self):
+        """Influence function rows that are applied: all of them with m2c,
+        the selected modes without m2c"""
+        return self._ifunc_act
+
+    @property
+    def m2c_selected(self):
+        """m2c columns of the selected modes (None without m2c): column j is
+        driven by the input command element j"""
+        return self._m2c_sel
+
     @ifunc.setter
     def ifunc(self, value):
         self._ifunc.influence_function = value

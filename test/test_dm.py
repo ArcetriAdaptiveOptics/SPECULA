@@ -707,3 +707,29 @@ class TestDM(unittest.TestCase):
         # 4 modes: rejected
         with self.assertRaises(ValueError):
             DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, stroke=[1.] * 4, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_dm_m2c_selected_and_ifunc_applied(self, target_device_idx, xp):
+        '''m2c_selected and ifunc_applied expose the basis of the input command:
+        with m2c the selected m2c columns and the full ifunc, without m2c the selected ifunc rows.'''
+        simul_params = SimulParams(time_step=1, pixel_pupil=16, pixel_pitch=1)
+        ifunc = IFunc(type_str='zernike', npixels=16, nmodes=6, target_device_idx=target_device_idx)
+        ifunc_arr = cpuArray(ifunc.influence_function)
+
+        # With m2c and start_mode: input element j drives m2c column start_mode + j
+        m2c_arr = np.random.RandomState(0).randn(6, 4)
+        dm = DM(simul_params, height=0, ifunc=ifunc, m2c=M2C(m2c_arr, target_device_idx=target_device_idx),
+                start_mode=1, target_device_idx=target_device_idx)
+        self.assertEqual(dm.m2c_selected.shape, (6, 3))
+        self.assertEqual(dm.nmodes, 3)
+        assert_array_almost_equal(cpuArray(dm.m2c_selected), m2c_arr[:, 1:4])
+        assert_array_almost_equal(cpuArray(dm.ifunc_applied), ifunc_arr)
+
+        # Without m2c and idx_modes: only the selected ifunc rows are applied
+        idx_modes = [1, 3, 4]
+        dm2 = DM(simul_params, height=0, ifunc=ifunc, idx_modes=idx_modes,
+                 target_device_idx=target_device_idx)
+        self.assertIsNone(dm2.m2c_selected)
+        self.assertEqual(dm2.nmodes, 3)
+        assert_array_almost_equal(cpuArray(dm2.ifunc_applied), ifunc_arr[idx_modes])
+
