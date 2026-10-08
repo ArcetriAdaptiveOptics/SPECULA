@@ -5,7 +5,7 @@
 
 ### New processing and data objects
 
-- ...
+- `IntensitySum`: sums a list of `Intensity` inputs (`in_i_list`) pixel by pixel into `out_i`. The output shape is taken from the first input; all inputs must have the same shape.
 
 ### Interface changes
 
