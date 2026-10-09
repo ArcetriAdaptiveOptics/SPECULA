@@ -681,9 +681,9 @@ class TestRecCalibratorMMSE(unittest.TestCase):
         self.assertEqual(rec.recmat.shape, (nmodes_to_use, self.nslopes))
 
     def test_mmse_zernike_missing_modal_base_raises(self):
-        """Test that missing modal_base raises error for MMSE with Zernike"""
-        with self.assertRaises(AttributeError):
-            calibrator = RecCalibrator(
+        """Test that a missing dm raises ValueError at init for MMSE, before the calibration"""
+        with self.assertRaises(ValueError):
+            RecCalibrator(
                 nmodes=self.nmodes,
                 data_dir=self.test_dir,
                 rec_tag='test_error',
@@ -693,10 +693,6 @@ class TestRecCalibratorMMSE(unittest.TestCase):
                 dm=None,  # Missing!
                 noise_cov=0.1
             )
-
-            intmat = Intmat(self.test_intmat_data, target_device_idx=-1)
-            calibrator.local_inputs['in_intmat'] = intmat
-            calibrator.finalize()
 
     @cpu_and_gpu
     def test_mmse_zernike_low_order_vs_high_order(self, target_device_idx, xp):

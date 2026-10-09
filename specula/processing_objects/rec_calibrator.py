@@ -42,6 +42,8 @@ class RecCalibrator(BaseProcessingObj):
         self.r0 = r0
         self.L0 = L0
         self.dm = dm
+        if self.mmse and dm is None:
+            raise ValueError('dm must be provided for MMSE reconstruction')
         if noise_cov is None:
             if self.mmse:
                 raise ValueError('noise_cov must be provided for MMSE reconstruction')
