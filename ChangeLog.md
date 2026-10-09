@@ -5,6 +5,7 @@
 
 ### New processing and data objects
 
+- `GreyFilter`: grey (neutral density) filter for an `Intensity`: `out_i` is `in_i` times a transmission in [0, 1], the `transmission` parameter or, if connected, the optional `in_transmission` input (e.g. from a generator). Placed between a wavefront sensor and its detector, it emulates a fainter source, also varying in time (a transmission of 10**(-0.4 dm) for dm magnitudes).
 - `IntensitySum`: sums a list of `Intensity` inputs (`in_i_list`) pixel by pixel into `out_i`. The output shape is taken from the first input; all inputs must have the same shape.
 
 ### Interface changes
