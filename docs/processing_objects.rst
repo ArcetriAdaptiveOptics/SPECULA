@@ -260,7 +260,11 @@ A closed loop is a cycle in the connections, and a cycle has no valid trigger or
 The cycle is broken by a delayed connection (for example ``'dm.out_layer:-1'``), which refers to the output
 of the previous iteration and is ignored when looking for leaves. With at least one delayed connection
 in each loop, the dependency graph becomes acyclic and the trigger order can be computed.
-If a cycle without delayed connections is present, no leaf can be found and an exception is raised.
+If a cycle without delayed connections is present, its objects (and all the objects depending on them)
+never become leaves: they are never triggered, and only a warning listing them is logged.
+An exception is raised instead when the remaining leaves all produce outputs that are read with a delay
+by each other (for example, two objects each reading the other's output with ``:-1``),
+because no order satisfies all the delays.
 
 The one-step delay is obtained from the trigger order, not from a copy of the data: the input refers to the same
 data object as the output. The object producing a delayed output is therefore placed after all the objects that
