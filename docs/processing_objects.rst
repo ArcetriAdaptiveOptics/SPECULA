@@ -256,11 +256,15 @@ from the input/output connections in the configuration file. The algorithm is:
    Objects whose inputs were all connected to the removed objects become leaves
 #. Repeat from step 1 with the next group, until no objects are left
 
-Connections with a delay (for example ``'control.out_comm:-1'``) refer to the output of the previous iteration
-and are ignored when looking for leaves. Moreover, an object whose output is used with a delay is placed
-after the objects that read that delayed output, so that they read the value of the previous iteration.
-This is how feedback loops are closed. If no leaf can be found because of a circular dependency
-without delays, an exception is raised.
+A closed loop is a cycle in the connections, and a cycle has no valid trigger order.
+The cycle is broken by a delayed connection (for example ``'dm.out_layer:-1'``), which refers to the output
+of the previous iteration and is ignored when looking for leaves. With at least one delayed connection
+in each loop, the dependency graph becomes acyclic and the trigger order can be computed.
+If a cycle without delayed connections is present, no leaf can be found and an exception is raised.
+
+The one-step delay is obtained from the trigger order, not from a copy of the data: the input refers to the same
+data object as the output. The object producing a delayed output is therefore placed after all the objects that
+read it, so that they read the value of the previous iteration before it is overwritten.
 
 Objects in the same group can be triggered at the same time.
 
