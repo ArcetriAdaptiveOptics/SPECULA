@@ -111,19 +111,19 @@ def demodulate_signal(signal_data, carrier_freq, sampling_freq,
               - pphi0[xp.newaxis, :])  # Shape: (nt, nsignals)
 
     if cumulated:
-        # Cumulated demodulation with progressive windows
-        qa = xp.zeros((nt, nsignals), dtype=dtype)
-        pa = xp.zeros((nt, nsignals), dtype=dtype)
+        # Cumulated demodulation with progressive windows [0, j], all at once.
+        # In each window the mean cancels out: the detrended data is
+        # (data - data[0]) - window_tilt[j] * t, so the window sums are cumsums.
+        window_data = data - data[0:1, :]
+        t_window = xp.arange(nt, dtype=dtype)[:, xp.newaxis]
+        window_tilt = window_data / xp.maximum(t_window, 1)
 
-        for j in range(2, nt):
-            # Window from start to j (all signals at once)
-            window_data = data[:j+1, :] - xp.mean(data[:j+1, :], axis=0, keepdims=True)
-            window_tilt = (window_data[j:j+1, :] - window_data[0:1, :]) / j
-            t_window = xp.arange(j+1, dtype=dtype)[:, xp.newaxis]
-            window_data = window_data - window_tilt * t_window - window_data[0:1, :]
-
-            qa[j, :] = xp.sum(window_data * dem_sin[:j+1, :], axis=0) / (j + 1)
-            pa[j, :] = xp.sum(window_data * dem_cos[:j+1, :], axis=0) / (j + 1)
+        qa = (xp.cumsum(window_data * dem_sin, axis=0)
+              - window_tilt * xp.cumsum(t_window * dem_sin, axis=0)) / (t_window + 1)
+        pa = (xp.cumsum(window_data * dem_cos, axis=0)
+              - window_tilt * xp.cumsum(t_window * dem_cos, axis=0)) / (t_window + 1)
+        qa[:2, :] = 0
+        pa[:2, :] = 0
 
         # Compute amplitude and phase time series
         data_dem_temp = 2.0 * xp.sqrt(qa[2:, :]**2 + pa[2:, :]**2)
