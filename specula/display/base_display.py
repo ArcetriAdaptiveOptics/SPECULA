@@ -168,7 +168,7 @@ class BaseDisplay(BaseProcessingObj):
             self.colorbar_added = False
 
         if not self.colorbar_added and image_obj is not None:
-            cbar = plt.colorbar(image_obj, ax=self.ax, **kwargs)
+            cbar = self.fig.colorbar(image_obj, ax=self.ax, **kwargs)
             if unit:
                 cbar.ax.set_title(unit)
             self.colorbar_added = True
