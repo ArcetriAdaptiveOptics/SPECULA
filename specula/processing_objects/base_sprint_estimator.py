@@ -433,11 +433,18 @@ class BaseSprintEstimator(BaseProcessingObj):
             self.misreg_params = (self.misreg_params * self.forgetting_factor +
                                  delta_misreg * self.integration_gain)
 
-            # Compute weighted relative error
-            # If gains are close to 1.0, this reduces to standard relative error
+            # Convergence metric (unchanged): im_diff is in model units
+            # (measured / G), so it is rescaled by the mean gain
             error_abs = float(self.xp.sqrt(self.xp.mean(im_diff**2)))
-            error_rel = error_abs / im_measured_norm
-            error_weighted = error_rel * G_mean  # Weight by mean gain
+            error_weighted = error_abs / im_measured_norm * G_mean
+
+            # Reported error: least-squares residual relative to the
+            # measurement, in measurement units, so it does not depend on
+            # the probe amplitude: rms(meas - nominal * G) / rms(meas)
+            # (in [0, 1] for a single mode, where G is the least-squares gain).
+            # For a single mode it equals error_weighted.
+            residual = im_measured - im_nominal * G_opt[self.xp.newaxis, :]
+            error_rel = float(self.xp.sqrt(self.xp.mean(residual**2))) / im_measured_norm
             self.current_error = error_rel
 
             self.logger.debug(f"    Iteration {iteration+1}: error_rel={error_rel:.3e}, "
