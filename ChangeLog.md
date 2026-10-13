@@ -31,6 +31,7 @@
 
 ### Other
 
+- Fixed the circular loop error of `Simul.build_trigger_order()` (#807): the message printed the literal text `{leaves}` instead of the names of the objects involved.
 - Fixed `ModulatedDoubleRoof` (#798): the focal plane PSF was accumulated once per roof, so `out_psf_bfm` and `out_psf_tot` were twice the ones of `ModulatedPyramid`. Pixels, slopes and `out_transmission` are unchanged.
 - `ModalrecExplicitPolc` and `ModalrecImplicitPolc` share the command inputs and the slopes update check in the new base class `BasePolcModalrec`.
 - `compute_zern_ifunc()` (Zernike `IFunc` and `ModalAnalysis`) no longer keeps all full-frame Zernike polynomials in memory, and normalizes the modes in place (480 pixels, 1000 modes: peak GPU memory 4.0 -> 2.3 GB).
