@@ -1,11 +1,6 @@
 # Each job of the CI matrix (.github/workflows/specula.yml) uploads its own
-# coverage report. The 15 MPI jobs run only "pytest -k mpi" and finish first:
-# without this setting Codecov comments/notifies after the first upload, with
-# a partial report. Waiting for 16 uploads (number of MPI jobs + 1) ensures
-# that at least one full test-suite run is included.
+# coverage report. Notifications are sent only when the codecov-notify job,
+# which runs after the whole matrix, triggers them.
 codecov:
   notify:
-    after_n_builds: 16
-
-comment:
-  after_n_builds: 16
+    manual_trigger: true
