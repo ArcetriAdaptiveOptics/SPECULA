@@ -196,7 +196,8 @@ class ImShSynimGenerator(BaseProcessingObj):
 
         # Basis of the DM input command (on the CPU, as SynIM needs it), not
         # normalized: the IM is in slopes per DM command unit
-        self.ifunc_3d = self.dm.modal_ifunc(target_device_idx=-1).ifunc_2d_to_3d(normalize=False)
+        modal_ifunc = self.dm.modal_ifunc(target_device_idx=-1, precision=self.precision)
+        self.ifunc_3d = modal_ifunc.ifunc_2d_to_3d(normalize=False)
         nmodes = self.ifunc_3d.shape[2]
 
         self.pup_mask = cpuArray(self.dm.mask)
@@ -317,7 +318,8 @@ class ImShSynimGenerator(BaseProcessingObj):
             # MMSE reconstruction (same as RecCalibrator), with the
             # turbulence prior on the same basis as the IM columns
             diameter = self.pup_diam_m
-            modal_base = self.dm.modal_ifunc(target_device_idx=self.target_device_idx)
+            modal_base = self.dm.modal_ifunc(target_device_idx=self.target_device_idx,
+                                             precision=self.precision)
             rec = self.output_intmat.generate_rec_mmse(
                 self.r0, self.L0, diameter, modal_base,
                 self.noise_cov, nmodes=self.rec_nmodes

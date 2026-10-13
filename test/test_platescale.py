@@ -60,6 +60,10 @@ class TestPlateScale(unittest.TestCase):
         with self.assertRaises(ValueError):
             platescale_coeff([self._zern_dm(64, 10), self._zern_dm(128, 4)], 64)
 
+    def test_platescale_modes_must_be_driven(self):
+        with self.assertRaises(ValueError):
+            platescale_coeff([self._zern_dm(64, 10), self._zern_dm(128, 10, start_mode=3)], 64)
+
     def test_linear_combination_start_modes_deprecated(self):
         simul_params = SimulParams(time_step=1, pixel_pupil=64, pixel_pitch=0.015625)
         dm1 = self._zern_dm(64, 10)

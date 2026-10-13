@@ -134,7 +134,8 @@ class SprintShSynim(BaseSprintEstimator):
 
         # Modes of the DM input command selected by modes_index, on the CPU as SynIM
         # needs them, not normalized: the IM is in slopes per DM command unit
-        modal_ifunc = self.dm.modal_ifunc(idx_modes=self.modes_index, target_device_idx=-1)
+        modal_ifunc = self.dm.modal_ifunc(idx_modes=self.modes_index, target_device_idx=-1,
+                                          precision=self.precision)
         self.ifunc_3d = modal_ifunc.ifunc_2d_to_3d(normalize=False)
         self.logger.debug(f"  Size of DM modes cube: {self.ifunc_3d.shape}")
 

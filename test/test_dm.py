@@ -764,8 +764,21 @@ class TestDM(unittest.TestCase):
         self.assertIsInstance(modes_cpu.influence_function, np.ndarray)
         assert_array_almost_equal(modes_cpu.influence_function, cpuArray(modes.influence_function))
 
+        # Caller precision, with and without m2c
+        for d in (dm, dm2):
+            self.assertEqual(d.modal_ifunc(precision=0).influence_function.dtype, np.float64)
+            self.assertEqual(d.modal_ifunc(precision=1, target_device_idx=-1).influence_function.dtype,
+                             np.float32)
+
+        # Full basis modes driven by the input command
+        self.assertEqual(dm.selected_modes, [1, 2, 3])
+        self.assertEqual(dm2.selected_modes, idx_modes)
+        self.assertEqual(dm3.selected_modes, list(range(6)))
+
         with self.assertRaises(ValueError):
             dm.modal_ifunc(start_mode=3)
+        with self.assertRaises(ValueError):
+            dm.modal_ifunc(idx_modes=[])
 
     @cpu_and_gpu
     def test_dm_empty_selection_raises(self, target_device_idx, xp):

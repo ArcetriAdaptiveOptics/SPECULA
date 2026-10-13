@@ -39,6 +39,9 @@ def platescale_coeff(dm_list, pixel_pupil):
         if n_basis < idx0 + n_modes_ps:
             raise ValueError(f'The DM basis has {n_basis} modes, at least '
                              f'{idx0 + n_modes_ps} are needed for the plate scale modes')
+        missing = [m for m in range(idx0, idx0+n_modes_ps) if m not in dm.selected_modes]
+        if missing:
+            raise ValueError(f'The plate scale modes {missing} are not driven by the DM input command')
         if dm.m2c is not None:
             return np.dot(cpuArray(dm.m2c[:, idx0:idx0+n_modes_ps]).T, cpuArray(dm.ifunc))
         return cpuArray(dm.ifunc[idx0:idx0+n_modes_ps, :])

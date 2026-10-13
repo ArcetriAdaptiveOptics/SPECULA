@@ -438,7 +438,9 @@ class TestImShSynimGenerator(unittest.TestCase):
             if self.verbose: # pragma: no cover
                 print(f"  Relative difference: {rel_diff*100:.3f}%")
 
-            self.assertLess(rel_diff, 1e-10, f"generate_im()"
+            # The DM modes are built with the generator precision (float32),
+            # the reference uses the float64 influence functions
+            self.assertLess(rel_diff, 1e-6, f"generate_im()"
                             f" should match reference for {description}")
 
     @cpu_and_gpu

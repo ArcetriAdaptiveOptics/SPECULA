@@ -124,7 +124,8 @@ class SprintPyr(BaseSprintEstimator):
         self.internal_dm = DM(
             simul_params=self.simul_params,
             height=getattr(self.dm, 'height', 0.0),
-            ifunc=self.dm.modal_ifunc(target_device_idx=self.target_device_idx),
+            ifunc=self.dm.modal_ifunc(target_device_idx=self.target_device_idx,
+                                       precision=self.precision),
             pupilstop=self.pupilstop,
             target_device_idx=self.target_device_idx,
             precision=self.precision

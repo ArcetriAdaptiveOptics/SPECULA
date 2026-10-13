@@ -80,7 +80,8 @@ class RecCalibrator(BaseProcessingObj):
             # The turbulence prior is computed on the modes of the DM input command,
             # starting from first_mode as the interaction matrix columns
             modal_base = self.dm.modal_ifunc(start_mode=self.first_mode,
-                                             target_device_idx=self.target_device_idx)
+                                             target_device_idx=self.target_device_idx,
+                                             precision=self.precision)
             rec = im.generate_rec_mmse(self.r0, self.L0, diameter, modal_base,
                                        self.noise_cov, nmodes=self.nmodes)
         else:
