@@ -186,7 +186,7 @@ class Simul():
                 self.remove_inputs(params, leaf, log=False)
             end = len(params)
             if start == end:
-                raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
+                raise ValueError(f'Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
             self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index

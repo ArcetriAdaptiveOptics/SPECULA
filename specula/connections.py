@@ -38,6 +38,12 @@ def split_output(output_name, use_inputs=False, detect_types=False):
             except ValueError:
                 raise ValueError(f"Invalid output specification '{original}': "
                                   f"expected an integer delay after ':', got '{suffix}'") from None
+            # The delay comes from the trigger order (the producer is triggered after its
+            # delayed readers), so only a one-step delay can be represented
+            if delay not in (0, -1):
+                raise ValueError(f"Invalid output specification '{original}': only delays 0 and -1 "
+                                  "are supported. Longer delays must be implemented inside the "
+                                  "processing objects (e.g. the 'delay' parameter of the filters)")
             typ_ = None
     else:
         delay = 0

@@ -39,8 +39,23 @@ class TestSplitOutput(unittest.TestCase):
         self.assertEqual(output.output_key, 'out_slopes')
 
     def test_delay_suffix(self):
-        output = split_output('control.out_comm:1')
-        self.assertEqual(output.delay, 1)
+        output = split_output('control.out_comm:-1')
+        self.assertEqual(output.delay, -1)
+        output = split_output('control.out_comm:0')
+        self.assertEqual(output.delay, 0)
+
+    def test_unsupported_delay_raises(self):
+        '''Only one-step delays can be represented by the trigger order (#808)'''
+        for suffix in ('-2', '-10', '1'):
+            with self.subTest(suffix=suffix):
+                with self.assertRaises(ValueError):
+                    split_output(f'control.out_comm:{suffix}')
+
+    def test_type_suffix_not_checked_as_delay(self):
+        '''With detect_types the suffix is a type (SpeculaInput), not a delay'''
+        output = split_output('gain:float', detect_types=True)
+        self.assertEqual(output.type, 'float')
+        self.assertEqual(output.delay, 0)
 
     def test_object_name_with_dot_raises(self):
         with self.assertRaises(ValueError):
