@@ -269,7 +269,7 @@ because no order satisfies all the delays.
 The one-step delay is obtained from the trigger order, not from a copy of the data: the input refers to the same
 data object as the output. The object producing a delayed output is therefore placed after all the objects that
 read it, so that they read the value of the previous iteration before it is overwritten.
-As a consequence, only one-step delays are supported: any negative delay (e.g. ``:-2``) is treated as ``:-1``.
+As a consequence, only one-step delays are supported: delays other than ``0`` and ``-1`` (e.g. ``:-2``) raise an error.
 Longer delays must be implemented inside the processing objects (for example with the *delay* parameter of the filters).
 
 Objects in the same group can be triggered at the same time.
