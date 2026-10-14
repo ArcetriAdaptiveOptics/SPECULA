@@ -12,7 +12,7 @@ _CHUNK_BYTES = 64 << 20
 
 
 @functools.cache
-def _swap_kernel():
+def _swap_kernel():  # pragma: no cover (GPU only, not run in CI)
     '''Big-endian values of type S (read as raw bytes) to native values of type O'''
     return specula.cp.ElementwiseKernel('S x', 'O y', '''
         S v;
@@ -71,16 +71,16 @@ def load_fits_array(filename, ext=1, target_device_idx=None, precision=None):
             data = hdu.data
             if target_device_idx < 0:
                 return np.array(data, dtype=target_dtype(data.dtype))
-            with specula.cp.cuda.Device(target_device_idx):
+            with specula.cp.cuda.Device(target_device_idx):  # pragma: no cover
                 return specula.cp.asarray(np.asarray(data, dtype=target_dtype(data.dtype)))
-        src_dtype = np.dtype(_BITPIX2DTYPE[hdr['BITPIX']])
-        shape = hdu.shape
-        offset = info['datLoc']
+        src_dtype = np.dtype(_BITPIX2DTYPE[hdr['BITPIX']])  # pragma: no cover
+        shape = hdu.shape  # pragma: no cover
+        offset = info['datLoc']  # pragma: no cover
 
-    cp = specula.cp
-    size = int(np.prod(shape))
-    chunk = max(1, min(_CHUNK_BYTES // src_dtype.itemsize, size))
-    with cp.cuda.Device(target_device_idx), cp.cuda.Stream(non_blocking=True) as stream:
+    cp = specula.cp  # pragma: no cover
+    size = int(np.prod(shape))  # pragma: no cover
+    chunk = max(1, min(_CHUNK_BYTES // src_dtype.itemsize, size))  # pragma: no cover
+    with cp.cuda.Device(target_device_idx), cp.cuda.Stream(non_blocking=True) as stream:  # pragma: no cover
         out = cp.empty(shape, dtype=target_dtype(src_dtype))
         out_flat = out.reshape(-1)
         # Double buffering: a chunk is read while the previous one is uploaded and converted
@@ -100,4 +100,4 @@ def load_fits_array(filename, ext=1, target_device_idx=None, precision=None):
                 _swap_kernel()(dev[k][:n], out_flat[start:start + n])
                 done[k].record(stream)
         stream.synchronize()
-    return out
+    return out  # pragma: no cover
