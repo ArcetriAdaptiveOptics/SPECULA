@@ -59,6 +59,19 @@ class TestLoadFitsArray(unittest.TestCase):
         self.assertEqual(out64.dtype, np.float64)
 
     @cpu_and_gpu
+    def test_integer_data_with_precision(self, target_device_idx, xp):
+        # Plain int16 (fast path on GPU) and uint16 (BZERO-scaled, astropy path)
+        for data in (np.arange(6, dtype=np.int16).reshape(2, 3),
+                     np.arange(6, dtype=np.uint16).reshape(2, 3)):
+            self._write(data)
+            for precision in (0, 1):
+                with self.assertRaises(ValueError):
+                    load_fits_array(self.filename, 1, target_device_idx, precision=precision)
+            out = load_fits_array(self.filename, 1, target_device_idx, precision=None)
+            self.assertEqual(out.dtype, data.dtype)
+            np.testing.assert_array_equal(cpuArray(out), data)
+
+    @cpu_and_gpu
     def test_scaled_data(self, target_device_idx, xp):
         # astropy stores uint16 as int16 with BZERO=32768
         data = np.array([[0, 1, 40000, 65535]], dtype=np.uint16)

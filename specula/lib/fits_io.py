@@ -31,8 +31,9 @@ def load_fits_array(filename, exten=1, target_device_idx=None, precision=None):
     -1 for the CPU).
 
     Floating point data is converted to the float dtype of
-    *precision* (None for the global precision), other data types
-    are kept, always in native byte order.
+    *precision* (None for the global precision). Integer data is
+    kept as it is if *precision* is None, otherwise a ValueError
+    is raised. The result is always in native byte order.
 
     On GPU, the file is read in chunks into two pinned host buffers,
     which are uploaded asynchronously while the next chunk is read,
@@ -46,7 +47,12 @@ def load_fits_array(filename, exten=1, target_device_idx=None, precision=None):
         specula.global_precision if precision is None else precision])
 
     def target_dtype(dtype):
-        return float_dtype if dtype.kind == 'f' else dtype.newbyteorder('=')
+        if dtype.kind == 'f':
+            return float_dtype
+        if precision is not None:
+            raise ValueError(f'{filename} extension {exten} contains integer data ({dtype}), '
+                             f'but precision={precision} was requested')
+        return dtype.newbyteorder('=')
 
     with fits.open(filename) as hdul:
         hdu = hdul[exten]
