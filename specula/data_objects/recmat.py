@@ -97,7 +97,7 @@ class Recmat(BaseDataObj):
                 mode2reLayer = hdul[2].data.copy()
             else:
                 mode2reLayer = None
-        recmat = load_fits_array(filename, 1, target_device_idx)
+        recmat = load_fits_array(filename, ext=1, target_device_idx=target_device_idx)
         return Recmat(recmat, mode2reLayer, norm_factor, target_device_idx=target_device_idx)
 
 

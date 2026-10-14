@@ -39,7 +39,7 @@ class TestLoadFitsArray(unittest.TestCase):
                  (rng.integers(0, 255, (37, 53)).astype(np.uint8), np.uint8)]
         for data, dtype in cases:
             self._write(data)
-            out = load_fits_array(self.filename, 1, target_device_idx)
+            out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx)
             self.assertIsInstance(out, xp.ndarray)
             self.assertEqual(out.dtype, dtype)
             self.assertTrue(out.dtype.isnative)
@@ -52,8 +52,8 @@ class TestLoadFitsArray(unittest.TestCase):
         self._write(data, data64)
         # Chunks much smaller than the array, with a partial last chunk
         with patch.object(fits_io, '_CHUNK_BYTES', 4096):
-            out = load_fits_array(self.filename, 1, target_device_idx, precision=1)
-            out64 = load_fits_array(self.filename, 2, target_device_idx, precision=0)
+            out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx, precision=1)
+            out64 = load_fits_array(self.filename, ext=2, target_device_idx=target_device_idx, precision=0)
         np.testing.assert_array_equal(cpuArray(out), data)
         np.testing.assert_array_equal(cpuArray(out64), data64)
         self.assertEqual(out64.dtype, np.float64)
@@ -66,8 +66,8 @@ class TestLoadFitsArray(unittest.TestCase):
             self._write(data)
             for precision in (0, 1):
                 with self.assertRaises(ValueError):
-                    load_fits_array(self.filename, 1, target_device_idx, precision=precision)
-            out = load_fits_array(self.filename, 1, target_device_idx, precision=None)
+                    load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx, precision=precision)
+            out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx, precision=None)
             self.assertEqual(out.dtype, data.dtype)
             np.testing.assert_array_equal(cpuArray(out), data)
 
@@ -77,10 +77,10 @@ class TestLoadFitsArray(unittest.TestCase):
         hdus = [fits.PrimaryHDU(), fits.ImageHDU(), fits.ImageHDU(np.ones((2, 2), dtype=np.float32)),
                 fits.ImageHDU()]
         fits.HDUList(hdus).writeto(self.filename, overwrite=True)
-        self.assertIsNone(load_fits_array(self.filename, 0, target_device_idx))
-        self.assertIsNone(load_fits_array(self.filename, 1, target_device_idx))
-        self.assertIsNone(load_fits_array(self.filename, 3, target_device_idx))
-        np.testing.assert_array_equal(cpuArray(load_fits_array(self.filename, 2, target_device_idx)),
+        self.assertIsNone(load_fits_array(self.filename, ext=0, target_device_idx=target_device_idx))
+        self.assertIsNone(load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx))
+        self.assertIsNone(load_fits_array(self.filename, ext=3, target_device_idx=target_device_idx))
+        np.testing.assert_array_equal(cpuArray(load_fits_array(self.filename, ext=2, target_device_idx=target_device_idx)),
                                       np.ones((2, 2)))
 
     @cpu_and_gpu
@@ -88,7 +88,7 @@ class TestLoadFitsArray(unittest.TestCase):
         # astropy stores uint16 as int16 with BZERO=32768
         data = np.array([[0, 1, 40000, 65535]], dtype=np.uint16)
         self._write(data)
-        out = load_fits_array(self.filename, 1, target_device_idx)
+        out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx)
         self.assertIsInstance(out, xp.ndarray)
         np.testing.assert_array_equal(cpuArray(out), data)
 

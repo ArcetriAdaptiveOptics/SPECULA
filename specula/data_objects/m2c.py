@@ -80,5 +80,5 @@ class M2C(BaseDataObj):
             version = hdr.get('VERSION')
             if version != 1:
                 raise ValueError(f"Unknown version {version} in file {filename}")
-        m2c = load_fits_array(filename, 1, target_device_idx)
+        m2c = load_fits_array(filename, ext=1, target_device_idx=target_device_idx)
         return M2C(m2c=m2c, target_device_idx=target_device_idx)

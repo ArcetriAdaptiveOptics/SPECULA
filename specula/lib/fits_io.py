@@ -23,7 +23,7 @@ def _swap_kernel():
         ''', 'specula_fits_swap')
 
 
-def load_fits_array(filename, exten=1, target_device_idx=None, precision=None):
+def load_fits_array(filename, ext=1, target_device_idx=None, precision=None):
     '''
     Read the data of an image extension of a FITS file into a
     numpy or cupy array allocated on *target_device_idx*
@@ -51,12 +51,12 @@ def load_fits_array(filename, exten=1, target_device_idx=None, precision=None):
         if dtype.kind == 'f':
             return float_dtype
         if precision is not None:
-            raise ValueError(f'{filename} extension {exten} contains integer data ({dtype}), '
+            raise ValueError(f'{filename} extension {ext} contains integer data ({dtype}), '
                              f'but precision={precision} was requested')
         return dtype.newbyteorder('=')
 
     with fits.open(filename) as hdul:
-        hdu = hdul[exten]
+        hdu = hdul[ext]
         hdr = hdu.header
         if hdr.get('NAXIS', 0) == 0:
             return None     # No data, like astropy

@@ -104,7 +104,8 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             kernel_obj.oversampling = hdr['OVERSAMP']
             kernel_obj.positive_shift_tt = hdr['POSTT']
 
-        kernel_obj.real_kernels = load_fits_array(filename, 1, kernel_obj.target_device_idx,
-                                                  kernel_obj.precision)
+        kernel_obj.real_kernels = load_fits_array(filename, ext=1,
+                                                  target_device_idx=kernel_obj.target_device_idx,
+                                                  precision=kernel_obj.precision)
         kernel_obj.process_kernels(return_fft=return_fft)
         return kernel_obj
