@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List
 from specula.processing_objects.base_generator import BaseGenerator
 import numpy as np
 
@@ -11,7 +11,7 @@ class ScheduleGenerator(BaseGenerator):
     def __init__(self,
                  scheduled_values: list,
                  scheduled_times: list,
-                 modes_per_group: Union[int, List[int]],
+                 modes_per_group: int | List[int],
                  target_device_idx: int = None,
                  precision: int = None):
 

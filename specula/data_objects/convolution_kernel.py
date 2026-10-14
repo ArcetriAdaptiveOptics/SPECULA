@@ -1,6 +1,7 @@
 import os
 import json
 import hashlib
+import weakref
 
 import numpy as np
 from astropy.io import fits
@@ -108,6 +109,11 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     return ccd
 
 
+# Kernels already loaded or computed, shared by all the objects with the same kernel.
+# Weak values: the kernels are freed when no object uses them anymore.
+_kernels_cache = weakref.WeakValueDictionary()
+
+
 class ConvolutionKernel(BaseDataObj):
     """
     Convolution Kernel data object.
@@ -161,14 +167,11 @@ class ConvolutionKernel(BaseDataObj):
         self.last_zlayer = -1
         self.last_zprofile = -1
         self.positive_shift_tt = positive_shift_tt
-        if self.return_fft:
-            dtype = self.complex_dtype
-        else:
-            dtype = self.dtype
         # Real space kernels: only allocated when the kernels are computed, restored
         # from a file or set with set_value(), and freed again by prepare_for_sh()
         self.real_kernels = None
-        self.kernels = self.xp.zeros(self._kernels_shape(self.return_fft), dtype=dtype)
+        # Allocated by process_kernels(), or shared with other objects by prepare_for_sh()
+        self.kernels = None
         self._kernel_fn = None
 
     def _kernels_shape(self, return_fft):
@@ -292,26 +295,32 @@ class ConvolutionKernel(BaseDataObj):
         if self.xp.any(~self.xp.isfinite(self.real_kernels)):
             raise ValueError("Kernel contains non-finite values!")
 
-        # Reallocate only if the requested layout is different from the current one,
-        # since users may keep references to self.kernels (e.g. in CUDA graphs)
+        # Kernels in the cache can be shared with other objects (see prepare_for_sh()):
+        # they are never overwritten, the new ones are stored in a new array.
+        # Other kernels are reused if the layout is the same. Users like SH, that keep
+        # references to self.kernels (e.g. in CUDA graphs), must check if it has changed.
         shape = self._kernels_shape(return_fft)
         dtype = self.complex_dtype if return_fft else self.dtype
-        if self.kernels is None or self.kernels.shape != shape or self.kernels.dtype != dtype:
+        cached = any(k is self.kernels for k in _kernels_cache.values())
+        if cached or self.kernels is None or self.kernels.shape != shape \
+                or self.kernels.dtype != dtype:
             self.kernels = self.xp.zeros(shape, dtype=dtype)
 
-        # Process the kernels - apply FFT if needed
-        for i in range(self.dimx):
-            for j in range(self.dimy):
-                subap_kern = self.to_xp(self.real_kernels[i * self.dimx + j, :, :])
-                total = self.xp.sum(subap_kern)
-                if total > 0:  # Avoid division by zero
-                    subap_kern /= total
-                if return_fft:
-                    # Non-redundant half of the FFT, see _kernels_shape()
-                    subap_kern_fft = self.xp.fft.ifft2(subap_kern)[:, :self.dimension // 2 + 1]
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern_fft
-                else:
-                    self.kernels[j * self.dimx + i, :, :] = subap_kern
+        # Process the kernels - apply FFT if needed.
+        # One row of subapertures at a time: real_kernels is x-major
+        # (see lgs_map_sh()), so real_kernels[i * dimy + j] goes to
+        # kernels[j * dimx + i] for all i, and the strided slice is a view,
+        # so that real_kernels is normalized in place.
+        for j in range(self.dimy):
+            subap_kern = self.to_xp(self.real_kernels[j::self.dimy])
+            total = self.xp.sum(subap_kern, axis=(1, 2), keepdims=True)
+            subap_kern /= self.xp.where(total > 0, total, 1)  # Avoid division by zero
+            dst = slice(j * self.dimx, (j + 1) * self.dimx)
+            if return_fft:
+                # Non-redundant half of the FFT, see _kernels_shape()
+                self.kernels[dst] = self.xp.fft.ifft2(subap_kern)[:, :, :self.dimension // 2 + 1]
+            else:
+                self.kernels[dst] = subap_kern
 
     def get_fits_header(self):
         hdr = fits.Header()
@@ -366,9 +375,20 @@ class ConvolutionKernel(BaseDataObj):
 
         kernel_fn = self.build()
 
+        if current_time is not None:
+            self.generation_time = current_time
+
         # Only reload or recalculate if the kernel has changed
         if kernel_fn != self._kernel_fn:
             self._kernel_fn = kernel_fn  # Update the stored kernel filename
+
+            # Objects with the same kernel (e.g. LGS WFSs with the same launcher) share it.
+            key = (kernel_fn, self.target_device_idx, self.return_fft)
+            cached = _kernels_cache.get(key)
+            if cached is not None:
+                self.kernels = cached
+                self.logger.info(f"Sharing kernel {kernel_fn} with another object")
+                return
 
             # Build full path using data_dir
             if self.data_dir:
@@ -393,8 +413,7 @@ class ConvolutionKernel(BaseDataObj):
             # free memory
             self.real_kernels = None
 
-        if current_time is not None:
-            self.generation_time = current_time
+            _kernels_cache[key] = self.kernels
 
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):

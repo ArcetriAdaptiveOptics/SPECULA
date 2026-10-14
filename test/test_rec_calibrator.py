@@ -16,6 +16,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.dm import DM
 from specula.processing_objects.rec_calibrator import RecCalibrator
 
+from specula import cpuArray
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -680,9 +681,9 @@ class TestRecCalibratorMMSE(unittest.TestCase):
         self.assertEqual(rec.recmat.shape, (nmodes_to_use, self.nslopes))
 
     def test_mmse_zernike_missing_modal_base_raises(self):
-        """Test that missing modal_base raises error for MMSE with Zernike"""
-        with self.assertRaises(AttributeError):
-            calibrator = RecCalibrator(
+        """Test that a missing dm raises ValueError at init for MMSE, before the calibration"""
+        with self.assertRaises(ValueError):
+            RecCalibrator(
                 nmodes=self.nmodes,
                 data_dir=self.test_dir,
                 rec_tag='test_error',
@@ -692,10 +693,6 @@ class TestRecCalibratorMMSE(unittest.TestCase):
                 dm=None,  # Missing!
                 noise_cov=0.1
             )
-
-            intmat = Intmat(self.test_intmat_data, target_device_idx=-1)
-            calibrator.local_inputs['in_intmat'] = intmat
-            calibrator.finalize()
 
     @cpu_and_gpu
     def test_mmse_zernike_low_order_vs_high_order(self, target_device_idx, xp):
@@ -748,3 +745,107 @@ class TestRecCalibratorMMSE(unittest.TestCase):
 
         self.assertEqual(rec_low.recmat.shape, (4, self.nslopes))
         self.assertEqual(rec_all.recmat.shape, (self.nmodes, self.nslopes))
+
+
+class TestRecCalibratorMMSESelection(unittest.TestCase):
+    """The MMSE prior must be computed on the modes of the DM input command
+    (after start_mode/idx_modes), starting from the calibrator first_mode."""
+
+    npix = 16
+    n_ifunc = 6
+    n_m2c = 5
+    r0 = 0.15
+    L0 = 25.0
+    noise = 100.0  # large enough for the turbulence prior to matter in the MMSE solution
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+        self.simul_params = SimulParams(pixel_pupil=self.npix, pixel_pitch=0.5)
+        rng = np.random.RandomState(7)
+        self.m2c_arr = rng.randn(self.n_ifunc, self.n_m2c).astype(np.float32)
+        self.intmat_arr = rng.randn(30, self.n_ifunc).astype(np.float32)
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def _ifunc(self, target_device_idx):
+        return IFunc(type_str='zernike', npixels=self.npix, nmodes=self.n_ifunc,
+                     target_device_idx=target_device_idx)
+
+    def _rec(self, dm, ncols, first_mode, target_device_idx):
+        """Recmat produced by RecCalibrator for a seeded intmat with ncols columns"""
+        intmat = Intmat(self.intmat_arr[:, :ncols].copy(), target_device_idx=target_device_idx)
+        calibrator = RecCalibrator(nmodes=ncols, data_dir=self.test_dir, rec_tag='rec',
+                                   first_mode=first_mode, mmse=True, r0=self.r0, L0=self.L0,
+                                   dm=dm, noise_cov=self.noise, overwrite=True,
+                                   target_device_idx=target_device_idx)
+        calibrator.local_inputs['in_intmat'] = intmat
+        calibrator.finalize()
+        rec = Recmat.restore(calibrator.rec_path, target_device_idx=target_device_idx)
+        return cpuArray(rec.recmat), intmat
+
+    def _expected(self, intmat, dm, ifunc_arr, m2c_arr, ncols, target_device_idx):
+        """Recmat from generate_rec_mmse called directly with an explicit basis"""
+        modal_base = IFunc(ifunc=ifunc_arr, mask=dm.mask, target_device_idx=target_device_idx)
+        m2c = None if m2c_arr is None else M2C(m2c_arr, target_device_idx=target_device_idx)
+        diameter = dm.pixel_pitch * dm.pixel_pupil
+        rec = intmat.generate_rec_mmse(self.r0, self.L0, diameter, modal_base, self.noise,
+                                       nmodes=ncols, m2c=m2c)
+        return cpuArray(rec.recmat)
+
+    @cpu_and_gpu
+    def test_mmse_prior_with_m2c_and_start_mode(self, target_device_idx, xp):
+        """With m2c and start_mode=s the prior is on m2c[:, s:], not on m2c[:, :n]"""
+        start_mode = 1
+        ifunc = self._ifunc(target_device_idx)
+        ifunc_arr = cpuArray(ifunc.influence_function)
+        dm = DM(self.simul_params, height=0, ifunc=ifunc,
+                m2c=M2C(self.m2c_arr, target_device_idx=target_device_idx),
+                start_mode=start_mode, target_device_idx=target_device_idx)
+        ncols = dm.nmodes
+        self.assertEqual(ncols, self.n_m2c - start_mode)
+
+        got, intmat = self._rec(dm, ncols, 0, target_device_idx)
+        want = self._expected(intmat, dm, ifunc_arr, self.m2c_arr[:, start_mode:], ncols,
+                              target_device_idx)
+        old = self._expected(intmat, dm, ifunc_arr, self.m2c_arr, ncols, target_device_idx)
+
+        np.testing.assert_allclose(got, want, rtol=1e-4, atol=1e-6)
+        self.assertFalse(np.allclose(got, old, rtol=1e-3, atol=1e-6))
+
+    @cpu_and_gpu
+    def test_mmse_prior_without_m2c_and_idx_modes(self, target_device_idx, xp):
+        """Without m2c and with idx_modes the prior is on the selected ifunc rows"""
+        idx_modes = [1, 3, 4]
+        ifunc = self._ifunc(target_device_idx)
+        ifunc_arr = cpuArray(ifunc.influence_function)
+        dm = DM(self.simul_params, height=0, ifunc=ifunc, idx_modes=idx_modes,
+                target_device_idx=target_device_idx)
+        ncols = len(idx_modes)
+
+        got, intmat = self._rec(dm, ncols, 0, target_device_idx)
+        want = self._expected(intmat, dm, ifunc_arr[idx_modes], None, ncols, target_device_idx)
+        old = self._expected(intmat, dm, ifunc_arr, None, ncols, target_device_idx)
+
+        np.testing.assert_allclose(got, want, rtol=1e-4, atol=1e-6)
+        self.assertFalse(np.allclose(got, old, rtol=1e-3, atol=1e-6))
+
+    @cpu_and_gpu
+    def test_mmse_prior_with_m2c_and_first_mode(self, target_device_idx, xp):
+        """With m2c and calibrator first_mode=f the prior is on m2c[:, f:]"""
+        first_mode = 2
+        ifunc = self._ifunc(target_device_idx)
+        ifunc_arr = cpuArray(ifunc.influence_function)
+        dm = DM(self.simul_params, height=0, ifunc=ifunc,
+                m2c=M2C(self.m2c_arr, target_device_idx=target_device_idx),
+                target_device_idx=target_device_idx)
+        ncols = dm.nmodes - first_mode  # IM column j <-> DM input first_mode + j
+
+        got, intmat = self._rec(dm, ncols, first_mode, target_device_idx)
+        want = self._expected(intmat, dm, ifunc_arr, self.m2c_arr[:, first_mode:], ncols,
+                              target_device_idx)
+        old = self._expected(intmat, dm, ifunc_arr, self.m2c_arr, ncols, target_device_idx)
+
+        np.testing.assert_allclose(got, want, rtol=1e-4, atol=1e-6)
+        self.assertFalse(np.allclose(got, old, rtol=1e-3, atol=1e-6))
+

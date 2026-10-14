@@ -1,16 +1,14 @@
-from typing import List, Union
+from typing import List
 
 from specula.processing_objects.iir_filter import IirFilter
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.iir_filter_data import IirFilterData
 
 
 class Integrator(IirFilter):
     def __init__(self,
                  int_gain: list,
-                 ff: Union[float, List[float]]=None,
-                 n_modes: Union[int, List[int]]=None,
+                 ff: float | List[float]=None,
+                 n_modes: int | List[int]=None,
                  delay: float=0,
                  integration: bool=True,
                  target_device_idx: int=None,

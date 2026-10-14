@@ -37,6 +37,8 @@ class PlotVectorDisplay(BaseDisplay):
         Maximum number of elements to plot. Default 20. Set to None for no limit.
     """
 
+    skip_updates = False   # keep every point of the history
+
     def __init__(self,
                  title='Vector Plot',
                  figsize=(8, 6),

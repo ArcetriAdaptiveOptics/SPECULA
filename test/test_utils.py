@@ -3,9 +3,7 @@ specula.init(0)  # Default target device
 
 import time
 import unittest
-import sys
-import types
-from typing import Union, Dict, List
+from typing import Dict, List
 
 from specula import np
 from specula import cpuArray
@@ -151,7 +149,7 @@ class TestResolveType(unittest.TestCase):
         self.assertEqual(resolve_type(List[float]), float)
 
     def test_union_type(self):
-        self.assertEqual(resolve_type(Union[float, None]), float)
+        self.assertEqual(resolve_type(float | None), float)
 
     def test_plain_type(self):
         self.assertEqual(resolve_type(float), float)
@@ -168,12 +166,6 @@ class TestResolveType(unittest.TestCase):
         self.assertEqual(resolve_type(List[Recmat]), Recmat)
 
     def test_union_custom(self):
-        self.assertEqual(resolve_type(Union[Recmat, None]), Recmat)
-
-    # --- PEP 604 unions (Python 3.10+) ---
-
-    @unittest.skipIf(sys.version_info < (3, 10), "Requires Python 3.10+")
-    def test_pep604_union(self):
         self.assertEqual(resolve_type(Recmat | None), Recmat)
 
     # --- require_list flag ---
@@ -211,11 +203,11 @@ class TestResolveType(unittest.TestCase):
 
     def test_require_list_with_union_fails(self):
         with self.assertRaises(TypeError):
-            resolve_type(Union[int, None], require_list=True)
+            resolve_type(int | None, require_list=True)
 
     def test_require_dict_with_union_fails(self):
         with self.assertRaises(TypeError):
-            resolve_type(Union[int, None], require_dict=True)
+            resolve_type(int | None, require_dict=True)
 
     # --- Nested structures (documented behavior: one level only) ---
 
@@ -228,7 +220,7 @@ class TestResolveType(unittest.TestCase):
     # --- Union ordering behavior ---
 
     def test_union_multiple_types(self):
-        self.assertEqual(resolve_type(Union[int, float, None]), int)
+        self.assertEqual(resolve_type(int | float | None), int)
 
 
 

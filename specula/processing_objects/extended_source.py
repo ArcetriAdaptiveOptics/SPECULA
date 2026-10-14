@@ -1,4 +1,4 @@
-from typing import Optional, Union, List
+from typing import Optional, List
 
 from scipy.interpolate import RectBivariateSpline
 
@@ -651,7 +651,7 @@ class ExtendedSource(BaseProcessingObj):
             'coeff_flux': np.array(coeff_flux_all)
         }
 
-    def _angle_to_tip(self, angle_arcsec: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
+    def _angle_to_tip(self, angle_arcsec: float | np.ndarray) -> float | np.ndarray:
         """Convert angle in arcsec to tip/tilt coefficient in rad RMS @ wavelength"""
         # From IDL: angle2tip function
         angle_rad = angle_arcsec * ASEC2RAD

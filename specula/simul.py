@@ -5,6 +5,7 @@ import inspect
 import itertools
 from copy import deepcopy
 from pathlib import Path
+import specula
 from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
@@ -16,6 +17,7 @@ from specula.calib_manager import CalibManager
 from specula.processing_objects.data_store import DataStore
 from specula.connections import InputList, InputValue, split_output
 from specula.simul_diagram import SimulDiagram
+from specula.display import display_process
 
 import yaml
 import hashlib
@@ -36,6 +38,7 @@ class Simul():
                  simul_idx=0,
                  overrides: str | None = None,
                  stepping=False,
+                 async_displays=False,
                  diagram=False,
                  diagram_title=None,
                  diagram_filename=None,
@@ -59,6 +62,7 @@ class Simul():
         else:
             self.overrides = overrides
         self.stepping = stepping
+        self.async_displays = async_displays
         self.speed_report = speed_report
         self.logger = get_specula_logger(__name__)
         self.logger.setLevel(log_level.upper())
@@ -182,7 +186,7 @@ class Simul():
                 self.remove_inputs(params, leaf, log=False)
             end = len(params)
             if start == end:
-                raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
+                raise ValueError(f'Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
             self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
@@ -940,6 +944,10 @@ class Simul():
                     raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
     
     def run(self, start_time=0, end_time=None):
+        # Forget the display windows of a previous simulation in the same process
+        from specula.display.base_display import BaseDisplay
+        BaseDisplay.reset_windows()
+
         params = {}
         # Read YAML file(s)
         self.logger.info('Reading parameters from ' + self.param_files[0])
@@ -968,6 +976,7 @@ class Simul():
             self.inject_recorded_seeds(params, recorded_seeds)
             replay_params = None
 
+        display_process.init(self.async_displays)
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
@@ -1020,11 +1029,15 @@ class Simul():
         # Run simulation loop
         total_time = self.mainParams['total_time']
         run_time = (end_time if end_time is not None else total_time) - start_time
-        self.loop.run(run_time=run_time,
-                      dt=self.mainParams['time_step'],
-                      t0=start_time,
-                      speed_report=self.speed_report,
-                      preroll_objs=preroll_objs)
+        display_process.start(specula.global_precision, self.logger.getEffectiveLevel())
+        try:
+            self.loop.run(run_time=run_time,
+                          dt=self.mainParams['time_step'],
+                          t0=start_time,
+                          speed_report=self.speed_report,
+                          preroll_objs=preroll_objs)
+        finally:
+            display_process.stop(self.logger)
 
         self.logger.debug(f'Simulation finished')
 #        if data_store.has_key('sr'):

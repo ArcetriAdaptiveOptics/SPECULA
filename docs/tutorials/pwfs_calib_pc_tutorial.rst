@@ -42,6 +42,10 @@ Starting from the basic SCAO tutorial configuration (``params_scao_pyr_basic.yml
 2. Compute **interaction matrix** in partial correction
 3. Compare results with linear calibration
 
+.. warning::
+  The level of partial correction here is set to 90% (10% residual turbulence), which should be adjusted according to the expected AO system performance.
+  Typically this is not uniform on all modes, showing better correction for low-order modes and less for high-order modes: this requires a vector as ``constant_mul`` to scale each mode appropriately.
+
 Part 1: Slope Null Calibration
 ------------------------------
 
@@ -86,6 +90,7 @@ Create ``params_scao_pyr_calib_sn.yml``:
      class: 'ModalAnalysis'
      type_str: 'zernike'
      nmodes: 54
+     npixels: 160                           # equal to the pixel_pupil parameter in the main section
      obsratio: 0.0
      inputs:
        in_ef: 'atmo_random.out_on_axis_source_ef'
@@ -95,7 +100,7 @@ Create ``params_scao_pyr_calib_sn.yml``:
    # Note: In practice, this should be a mode-dependent vector
    scale_random:
      class:  'BaseOperation'
-     constant_mul: 0.90                    # 90% correction level
+     constant_mul: 0.90                    # 90% correction level (it may be necessary to adjust it based on actual AO performance)
      inputs:
        in_value1: 'modal_analysis_random.out_modes'
      outputs: ['out_value']
@@ -128,6 +133,10 @@ Create ``params_scao_pyr_calib_sn.yml``:
    pyramid_override:
      inputs:
        in_ef: 'ef_combinator.out_ef'
+
+   # Disable slope null correction, if present in the original file
+   slopec_override:
+     sn_object: null
 
    # Remove closed-loop components (not needed for slope null)
    remove: ['atmo', 'prop', 'rec', 'control', 'dm', 'psf', 'data_store']
@@ -229,6 +238,7 @@ Create ``params_scao_pyr_calib_rec_pc.yml``:
      class: 'ModalAnalysis'
      type_str: 'zernike'
      nmodes: 54
+     npixels: 160                           # equal to the pixel_pupil parameter in the main section
      obsratio: 0.0
      inputs:
        in_ef: 'atmo_random.out_on_axis_source_ef'

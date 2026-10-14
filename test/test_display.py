@@ -4,6 +4,9 @@ specula.init(0)  # Default target device
 import pytest
 import unittest
 import inspect
+import time
+import queue
+import threading
 from types import SimpleNamespace
 from unittest import mock
 
@@ -17,6 +20,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.psf import PSF
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
+from specula.display import display_process
 from specula.display.base_display import BaseDisplay
 from specula.display.phase_display import PhaseDisplay
 from specula.display.pixels_display import PixelsDisplay
@@ -27,6 +31,7 @@ from specula.display.plot_display import PlotDisplay
 from specula.display.modes_display import ModesDisplay
 from specula.display.plot_vector_display import PlotVectorDisplay
 from specula.display.double_phase_display import DoublePhaseDisplay
+from specula.display.display_recorder import DisplayRecorder
 from specula.base_value import BaseValue
 from test.specula_testlib import cpu_and_gpu
 
@@ -39,6 +44,22 @@ DISPLAY_CLASSES_WITH_WINDOW_XY = [
 
 
 matplotlib.use('Agg')  # Use non-interactive backend for GitHub CI
+
+
+class _RecordingPhaseDisplay(PhaseDisplay):
+    '''PhaseDisplay that records the calls made by the display loop'''
+    calls = []
+
+    def setup(self):
+        super().setup()
+        self.calls.append('setup')
+
+    def _update_display(self, phase):
+        super()._update_display(phase)
+        self.calls.append('update')
+
+    def finalize(self):
+        self.calls.append('finalize')
 
 
 class TestDisplays(unittest.TestCase):
@@ -97,6 +118,75 @@ class TestDisplays(unittest.TestCase):
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_displays_grouped_in_one_window(self):
+        saved_plot_completed = dict(BaseDisplay._BaseDisplay__plot_completed)
+        BaseDisplay._BaseDisplay__plot_completed = {}
+
+        try:
+            d1 = PhaseDisplay(title='Left', window=3, subplot=121)
+            d2 = PlotDisplay(title='Right', window=3, subplot=122)
+            with self.assertRaises(ValueError):
+                PhaseDisplay(title='Same subplot', window=3, subplot=122)
+            d4 = PhaseDisplay(title='Next free window')
+
+            self.assertIs(d1.fig, d2.fig)
+            self.assertIsNot(d1.ax, d2.ax)
+            self.assertEqual(len(d1.fig.axes), 2)
+            self.assertEqual(d4.window, 4)
+        finally:
+            BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
+            matplotlib.pyplot.close('all')
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_reset_windows(self):
+        saved_plot_completed = dict(BaseDisplay._BaseDisplay__plot_completed)
+        BaseDisplay._BaseDisplay__plot_completed = {}
+
+        try:
+            d1 = PhaseDisplay(title='First simulation', window=3)
+            BaseDisplay.reset_windows()
+            self.assertFalse(matplotlib.pyplot.fignum_exists(d1.fig.number))
+
+            # A new simulation can use the same window
+            d2 = PhaseDisplay(title='Second simulation', window=3)
+            self.assertEqual(d2.window, 3)
+            self.assertEqual(len(d2.fig.axes), 1)
+        finally:
+            BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
+            matplotlib.pyplot.close('all')
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    @cpu_and_gpu
+    def test_double_phase_display_trigger(self, target_device_idx, xp):
+        """DoublePhaseDisplay draws both phases and accumulates the PSD"""
+        ef1 = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                            S0=self.S0, target_device_idx=target_device_idx)
+        ef2 = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                            S0=self.S0, target_device_idx=target_device_idx)
+        ef1.phaseInNm[:] = xp.arange(self.pixel_pupil)[None, :]
+        ef2.phaseInNm[:] = xp.arange(self.pixel_pupil)[:, None]
+        ef1.generation_time = ef1.seconds_to_t(1)
+        ef2.generation_time = ef2.seconds_to_t(1)
+
+        display = DoublePhaseDisplay()
+        display.inputs['phase1'].set(ef1)
+        display.inputs['phase2'].set(ef2)
+
+        loop = LoopControl()
+        loop.add(display, idx=0)
+        loop.run(run_time=1, dt=1)
+
+        self.assertEqual(display.nframes, 1)
+        self.assertIsNotNone(display.img1)
+        self.assertIsNotNone(display.img2)
+        self.assertEqual(display.ax4.get_title(), 'PSD Average (n=1)')
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu
     def test_phase_display_init_and_trigger(self, target_device_idx, xp):
         """Test PhaseDisplay initialization and trigger"""
@@ -118,6 +208,126 @@ class TestDisplays(unittest.TestCase):
         self.assertIsNotNone(display.fig)
 
         matplotlib.pyplot.close(display.fig)
+
+    @cpu_and_gpu
+    def test_phase_display_in_display_process(self, target_device_idx, xp):
+        """With async displays, drawing happens in the display process"""
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                          S0=self.S0, target_device_idx=target_device_idx)
+        ef.generation_time = ef.seconds_to_t(1)
+
+        value = BaseValue(value=xp.array(1.0), target_device_idx=target_device_idx)
+        value.generation_time = value.seconds_to_t(1)
+
+        display_process.init(True)
+        try:
+            display = PhaseDisplay(title='Async Phase Display')
+            display.inputs['phase'].set(ef)
+            self.assertIsNone(display.fig)
+            plot = PlotDisplay(title='Async Plot Display')
+            plot.inputs['value_list'].set([value])   # 'value' input left unset
+
+            # The display process inherits the environment: no GUI windows
+            with mock.patch.dict('os.environ', {'MPLBACKEND': 'Agg'}):
+                display_process.start(precision=specula.global_precision, log_level='INFO')
+            process = display_process._process
+
+            loop = LoopControl()
+            loop.add(display, idx=0)
+            loop.add(plot, idx=0)
+            loop.run(run_time=1, dt=1)
+            self.assertEqual(display.outputs['out_window_id'].value, display.window)
+
+            # More updates than the queue can hold: phase updates are skipped,
+            # history plot updates never
+            for _ in range(10):
+                display_process.send(display)
+                display_process.send(plot)
+            self.assertGreater(display_process._dropped, 0)
+            self.assertLessEqual(display_process._dropped, 10)
+        finally:
+            display_process.stop(display.logger)
+            display_process.init(False)
+
+        self.assertEqual(process.exitcode, 0)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_display_worker_loop(self):
+        """Display loop of the display process, run here to check the display calls"""
+        saved_plot_completed = dict(BaseDisplay._BaseDisplay__plot_completed)
+        BaseDisplay._BaseDisplay__plot_completed = {}
+        _RecordingPhaseDisplay.calls = []
+
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                           S0=self.S0, target_device_idx=-1)
+        value = BaseValue(value=np.array(1.0), target_device_idx=-1)
+        specs = display_process._dumps([('phase_disp', _RecordingPhaseDisplay, (), {'title': 'Phase'}),
+                                        ('plot_disp', PlotDisplay, (), {'title': 'Plot'})])
+        q = queue.Queue()
+        slots = threading.Semaphore(0)
+        for t in [1, 2]:
+            q.put((True, display_process._dumps(('phase_disp', t, {'phase': ef}))))
+            q.put((False, display_process._dumps(('plot_disp', t, {'value': value, 'value_list': None}))))
+
+        # The terminator arrives later: the loop also waits on an empty queue
+        timer = threading.Timer(0.1, lambda: q.put(None))
+        timer.start()
+        try:
+            display_process._worker_loop(q, slots, specs, log_level='INFO')
+        finally:
+            timer.join()
+            BaseDisplay._BaseDisplay__plot_completed = saved_plot_completed
+            matplotlib.pyplot.close('all')
+
+        self.assertEqual(_RecordingPhaseDisplay.calls, ['setup', 'update', 'update', 'finalize'])
+        # A queue slot is freed for each phase update, not for the history plot updates
+        self.assertTrue(slots.acquire(blocking=False))
+        self.assertTrue(slots.acquire(blocking=False))
+        self.assertFalse(slots.acquire(blocking=False))
+
+    def test_display_process_not_started_without_displays(self):
+        display_process.init(True)
+        try:
+            display_process.start(precision=specula.global_precision, log_level='INFO')
+            self.assertIsNone(display_process._process)
+            self.assertFalse(display_process.enabled)
+        finally:
+            display_process.stop(None)
+            display_process.init(False)
+
+    def test_display_recorder_with_async_displays(self):
+        display_process.init(True)
+        try:
+            with self.assertRaises(ValueError):
+                DisplayRecorder(filename='unused.mp4')
+        finally:
+            display_process.init(False)
+
+    def test_display_process_dead(self):
+        """If the display process dies, the simulation goes on and stop() does not wait"""
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch,
+                          S0=self.S0, target_device_idx=-1)
+        ef.generation_time = ef.seconds_to_t(1)
+
+        display_process.init(True)
+        try:
+            display = PhaseDisplay(title='Async Phase Display')
+            display.inputs['phase'].set(ef)
+            with mock.patch.dict('os.environ', {'MPLBACKEND': 'Agg'}):
+                display_process.start(precision=specula.global_precision, log_level='INFO')
+            display_process._process.kill()
+            display_process._process.join()
+
+            loop = LoopControl()
+            loop.add(display, idx=0)
+            loop.run(run_time=3, dt=1)
+        finally:
+            t0 = time.time()
+            display_process.stop(display.logger, timeout=30)
+            display_process.init(False)
+
+        self.assertLess(time.time() - t0, 5)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')

@@ -269,7 +269,7 @@ class TestShSimulation(unittest.TestCase):
         ]
         print('running ', cmd)
         os.chdir(os.path.dirname(__file__))
-        ret = subprocess.run(cmd)
+        ret = run_mpi_command(cmd)
         assert ret.returncode != 0
 
 

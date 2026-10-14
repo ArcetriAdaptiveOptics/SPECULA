@@ -1,14 +1,13 @@
 
 import warnings
 from copy import copy
-from functools import lru_cache
+from functools import cache
 
 from specula import cp, np, array_types
 from specula.base_time_obj import BaseTimeObj
 
 
-# We use lru_cache() instead of cache() for python 3.8 compatibility
-@lru_cache(maxsize=None)
+@cache
 def get_properties(cls):
     result = []
     classlist = cls.__mro__

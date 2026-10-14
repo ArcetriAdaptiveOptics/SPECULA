@@ -617,3 +617,70 @@ class Test(unittest.TestCase):
         phase1 = cpuArray(prop1.outputs['out_src_ef'].phaseInNm)
         rel = np.sqrt(np.mean((phase1 - phase0) ** 2)) / np.max(np.abs(phase0))
         self.assertLess(rel, 1e-5)
+
+    @cpu_and_gpu
+    def test_fresnel_beam_drift_same_direction_up_down(self, target_device_idx, xp):
+        '''
+        A tilted layer deflects the beam towards +grad(phase) in both propagation
+        directions (reciprocity). Regression test: upwards propagation used to
+        conjugate the field, which drifted the beam towards -grad(phase).
+        '''
+        pixel_pupil = 120
+        pixel_pitch = 0.008333
+        wavelengthInNm = 1550
+        layer_height = 2000.0
+        source_height = 4000.0
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch, zenithAngleInDeg=0.0)
+        x = (np.arange(pixel_pupil) - (pixel_pupil - 1) / 2) * pixel_pitch
+
+        def propagate(upwards, tilt):
+            # Flat layer at 0 m (the pupil plane) and tilted layer above it, so that there
+            # are layer_height meters of propagation after the tilt in both directions
+            ground = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=0.0,
+                           target_device_idx=target_device_idx)
+            tilted = Layer(pixel_pupil, pixel_pupil, pixel_pitch, height=layer_height,
+                           target_device_idx=target_device_idx)
+            for layer in (ground, tilted):
+                layer.A[:] = 1.0
+                layer.generation_time = 1
+            ground.phaseInNm[:] = 0.0
+            tilted.phaseInNm[:] = xp.asarray(np.tile(tilt * x * 1e9, (pixel_pupil, 1)))
+
+            source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=source_height,
+                            wavelengthInNm=wavelengthInNm)
+            prop = AtmoPropagation(simul_params, source_dict={'src': source}, doFresnel=True,
+                                   upwards=upwards, wavelengthInNm=wavelengthInNm, padding_factor=3,
+                                   target_device_idx=target_device_idx)
+            prop.inputs['common_layer_list'].set([ground, tilted])
+            prop.setup()
+            prop.check_ready(1)
+            prop.trigger()
+            prop.post_trigger()
+            return prop
+
+        def centroid(prop):
+            intensity = np.abs(cpuArray(prop.ef_fresnel)) ** 2
+            coords = (np.arange(intensity.shape[1]) - (intensity.shape[1] - 1) / 2) * pixel_pitch
+            return np.array([(intensity.sum(axis=0) * coords).sum(),
+                             (intensity.sum(axis=1) * coords).sum()]) / intensity.sum()
+
+        drift = {}
+        for upwards in (False, True):
+            prop = propagate(upwards, tilt=2e-5)
+            # Relative to the same propagation without tilt, to remove the small
+            # offset of the padded grid
+            dx, dy = centroid(prop) - centroid(propagate(upwards, tilt=0.0))
+            self.assertLess(abs(dy), 1e-3 * abs(dx))
+
+            # Expected drift: output phase tilt (the layer tilt seen in the pupil,
+            # scaled by the cone) times the propagation distance after the layer
+            ef = prop.outputs['out_src_ef']
+            field = cpuArray(ef.A) * np.exp(1j * 2 * np.pi * cpuArray(ef.phaseInNm) / wavelengthInNm)
+            out_tilt = np.angle((field[:, 1:] * np.conj(field[:, :-1])).sum()) \
+                       / (2 * np.pi / (wavelengthInNm * 1e-9)) / pixel_pitch
+            np.testing.assert_allclose(dx, out_tilt * layer_height, rtol=0.1)
+            drift[upwards] = dx
+
+        self.assertGreater(drift[False], 0)
+        self.assertGreater(drift[True], 0)
+        np.testing.assert_allclose(drift[True], drift[False], rtol=0.1)

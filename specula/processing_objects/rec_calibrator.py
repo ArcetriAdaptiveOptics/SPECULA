@@ -1,5 +1,4 @@
 import os
-from typing import Union
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
@@ -27,7 +26,7 @@ class RecCalibrator(BaseProcessingObj):
                  r0: float = 0.15,
                  L0: float = 25.0,
                  dm: DM = None,
-                 noise_cov: Union[float, np.ndarray, list] = None,
+                 noise_cov: float | np.ndarray | list = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -43,9 +42,12 @@ class RecCalibrator(BaseProcessingObj):
         self.r0 = r0
         self.L0 = L0
         self.dm = dm
-        if noise_cov is None:
-            if self.mmse:
+        if self.mmse:
+            if dm is None:
+                raise ValueError('dm must be provided for MMSE reconstruction')
+            if noise_cov is None:
                 raise ValueError('noise_cov must be provided for MMSE reconstruction')
+        if noise_cov is None:
             self.noise_cov = None
         elif isinstance(noise_cov, list):
             self.noise_cov = [self.to_xp(noise_cov_i) for noise_cov_i in noise_cov]
@@ -77,12 +79,16 @@ class RecCalibrator(BaseProcessingObj):
         # TODO add to RM the information about the first mode
         if self.mmse:
             diameter = self.dm.pixel_pitch * self.dm.pixel_pupil
-            modal_base = IFunc(ifunc=self.dm.ifunc, mask=self.dm.mask,
-                               target_device_idx=self.target_device_idx, precision=self.precision)
-            if self.dm.m2c is not None:
-                m2c = M2C(self.dm.m2c,
+            # The turbulence prior is computed on the modes of the DM input command,
+            # starting from first_mode as the interaction matrix columns
+            if self.dm.m2c_selected is not None:
+                modal_base = IFunc(ifunc=self.dm.ifunc_applied, mask=self.dm.mask,
+                                   target_device_idx=self.target_device_idx, precision=self.precision)
+                m2c = M2C(self.dm.m2c_selected[:, self.first_mode:],
                         target_device_idx=self.target_device_idx, precision=self.precision)
             else:
+                modal_base = IFunc(ifunc=self.dm.ifunc_applied[self.first_mode:], mask=self.dm.mask,
+                                   target_device_idx=self.target_device_idx, precision=self.precision)
                 m2c = None
             rec = im.generate_rec_mmse(self.r0, self.L0, diameter, modal_base,
                                        self.noise_cov, nmodes=self.nmodes, m2c=m2c)

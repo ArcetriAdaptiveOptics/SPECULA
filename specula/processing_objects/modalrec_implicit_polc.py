@@ -1,12 +1,9 @@
-from specula.processing_objects.base_modalrec import BaseModalrec
-from specula.base_value import BaseValue
-from specula.connections import InputList, InputValue
-from specula.base_processing_obj import InputDesc
+from specula.processing_objects.base_modalrec import BasePolcModalrec
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 
 
-class ModalrecImplicitPolc(BaseModalrec):
+class ModalrecImplicitPolc(BasePolcModalrec):
     """
     POLC modal reconstructor processing object.
     Uses implicit Pseudo Open Loop Control (POLC) to reduce computational cost.
@@ -34,54 +31,8 @@ class ModalrecImplicitPolc(BaseModalrec):
         nmodes = self.recmat.recmat.shape[0]
         self.modes.value = self.xp.zeros(nmodes, dtype=self.dtype)
 
-        self.commands = None  # to be allocated in setup()
-
-        self.inputs['in_commands'] = InputValue(type=BaseValue, optional=True)
-        self.inputs['in_commands_list'] = InputList(type=BaseValue, optional=True)
-
-    @classmethod
-    def input_names(cls):
-        # Merge base inputs with the new command inputs
-        inputs = super().input_names()
-        inputs.update({
-            'in_commands': InputDesc(BaseValue,
-                           'Current output command vector for implicit POLC (optional)'),
-            'in_commands_list': InputDesc(BaseValue,
-                                'List of current command vectors for implicit POLC (optional)')
-        })
-        return inputs
-
-    def setup(self):
-        super().setup()
-
-        commands = self.local_inputs['in_commands']
-        commands_list = self.local_inputs['in_commands_list']
-
-        if not commands and (not commands_list or not all(commands_list)):
-            raise ValueError("Either 'in_commands' or 'in_commands_list' must be given as an input")
-
-        self.commands = self.xp.zeros(self.in_commands_size, dtype=self.dtype)
-
-    def prepare_trigger(self, t):
-        super().prepare_trigger(t)
-
-        commands = self.local_inputs['in_commands']
-        commands_list = self.local_inputs['in_commands_list']
-
-        if commands is None:
-            self.commands[:] = self.xp.hstack([x.value for x in commands_list])
-        else:
-            if commands.value is None:
-                self.commands[:] = 0.0
-            else:
-                self.commands[:] = commands.value
-
     def trigger_code(self):
-        slopes = self.local_inputs['in_slopes']
-        slopes_list = self.local_inputs['in_slopes_list']
-        slopes_time = slopes.generation_time if slopes is not None else slopes_list[0].generation_time
-
-        if slopes_time != self.current_time:
+        if not self.slopes_updated():
             return
 
         # Memory pre-allocation optimization with self.recmat hosting C
