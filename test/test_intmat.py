@@ -1,7 +1,9 @@
 import specula
 specula.init(0)  # Default target device
 
+import gc
 import os
+import weakref
 import unittest
 from unittest.mock import patch
 
@@ -350,6 +352,21 @@ class TestIntmatViews(unittest.TestCase):
                 # Empty slice
                 result = view[slice(0, 0)]
                 self.assertEqual(result.size, 0)
+
+    @cpu_and_gpu
+    def test_freed_without_garbage_collector(self, target_device_idx, xp):
+        """The views must not make a reference cycle, which would keep the
+        intmat array allocated until the garbage collector runs."""
+        intmat_obj = Intmat(intmat=xp.arange(1, 13).reshape(3, 4), target_device_idx=target_device_idx)
+        intmat_obj.modes[1] += 1
+        np.testing.assert_array_equal(cpuArray(intmat_obj.intmat[:, 1]), [3, 7, 11])
+        ref = weakref.ref(intmat_obj)
+        gc.disable()
+        try:
+            del intmat_obj
+            self.assertIsNone(ref())
+        finally:
+            gc.enable()
 
     # ========================================================
     # TEST set_nmodes

@@ -72,8 +72,15 @@ class Intmat(BaseDataObj):
         self.subapdata_tag = subapdata_tag
         self.norm_factor = norm_factor
 
-        self.modes = _ColsView(self)
-        self.slopes = _RowsView(self)
+    # Views created on demand: stored in an attribute, they would make a reference
+    # cycle, and the intmat array would be freed only by the garbage collector.
+    @property
+    def modes(self):
+        return _ColsView(self)
+
+    @property
+    def slopes(self):
+        return _RowsView(self)
 
     def get_value(self):
         '''
