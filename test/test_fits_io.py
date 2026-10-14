@@ -72,6 +72,18 @@ class TestLoadFitsArray(unittest.TestCase):
             np.testing.assert_array_equal(cpuArray(out), data)
 
     @cpu_and_gpu
+    def test_no_data(self, target_device_idx, xp):
+        # Empty extension followed by another one, and as the last one
+        hdus = [fits.PrimaryHDU(), fits.ImageHDU(), fits.ImageHDU(np.ones((2, 2), dtype=np.float32)),
+                fits.ImageHDU()]
+        fits.HDUList(hdus).writeto(self.filename, overwrite=True)
+        self.assertIsNone(load_fits_array(self.filename, 0, target_device_idx))
+        self.assertIsNone(load_fits_array(self.filename, 1, target_device_idx))
+        self.assertIsNone(load_fits_array(self.filename, 3, target_device_idx))
+        np.testing.assert_array_equal(cpuArray(load_fits_array(self.filename, 2, target_device_idx)),
+                                      np.ones((2, 2)))
+
+    @cpu_and_gpu
     def test_scaled_data(self, target_device_idx, xp):
         # astropy stores uint16 as int16 with BZERO=32768
         data = np.array([[0, 1, 40000, 65535]], dtype=np.uint16)

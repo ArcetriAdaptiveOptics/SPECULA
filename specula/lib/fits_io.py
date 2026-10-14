@@ -34,6 +34,7 @@ def load_fits_array(filename, exten=1, target_device_idx=None, precision=None):
     *precision* (None for the global precision). Integer data is
     kept as it is if *precision* is None, otherwise a ValueError
     is raised. The result is always in native byte order.
+    Returns None if the extension has no data (NAXIS=0).
 
     On GPU, the file is read in chunks into two pinned host buffers,
     which are uploaded asynchronously while the next chunk is read,
@@ -57,6 +58,8 @@ def load_fits_array(filename, exten=1, target_device_idx=None, precision=None):
     with fits.open(filename) as hdul:
         hdu = hdul[exten]
         hdr = hdu.header
+        if hdr.get('NAXIS', 0) == 0:
+            return None     # No data, like astropy
         info = hdu.fileinfo()
         fast = (target_device_idx >= 0
                 and type(hdu) in (fits.PrimaryHDU, fits.ImageHDU)
