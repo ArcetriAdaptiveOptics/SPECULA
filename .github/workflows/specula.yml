@@ -15,8 +15,6 @@ jobs:
   build:
 
     runs-on: ${{ matrix.os }}
-    # A hung job would otherwise delay the Codecov notification by hours
-    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -119,7 +117,7 @@ jobs:
         coverage xml
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
@@ -129,20 +127,3 @@ jobs:
         verbose: true
 
  
-
-  # Codecov notifies (PR comment, status checks) only when triggered here,
-  # i.e. after all matrix jobs have uploaded (see codecov.yml).
-  codecov-notify:
-    needs: build
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Send Codecov notifications
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        run_command: send-notifications
-        fail_ci_if_error: false
-        verbose: true
