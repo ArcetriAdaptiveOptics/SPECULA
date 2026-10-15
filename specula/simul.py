@@ -287,7 +287,6 @@ class Simul():
         if name is not None:
             obj.name = name
         obj.init_logging(self.logger.getEffectiveLevel())
-        obj.printMemUsage()
         obj.tag = tag
         return obj
 
