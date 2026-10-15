@@ -129,20 +129,21 @@ class ModalAnalysis(BaseProcessingObj):
 
         # One row per input: all inputs are projected with a single matrix product,
         # reading the (possibly very large) inverse matrix only once.
-        # The output values are views on rows of these buffers.
+        # The values of the list outputs are views on rows of these buffers.
         n_rows = max(n_inputs, 1)
         self._ph = self.xp.zeros((n_rows, self.phase2modes.npoints()), dtype=self.dtype)
         self._modes = self.xp.zeros((n_rows, self._n_modes), dtype=self.dtype)
         self._rms = self.xp.zeros(n_rows, dtype=self.dtype)
 
+        # Single input outputs, only updated for in_ef
         self.out_modes = BaseValue('output modes from modal analysis',
                                    target_device_idx=target_device_idx,
                                    precision=precision)
-        self.out_modes.value = self._modes[0]
+        self.out_modes.value = self.xp.zeros(self._n_modes, dtype=self.dtype)
         self.rms = BaseValue('output RMS of phase from modal reconstructor',
                              target_device_idx=target_device_idx,
                              precision=precision)
-        self.rms.value = self._rms[0:1]
+        self.rms.value = self.xp.zeros(1, dtype=self.dtype)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField, optional=True)
         self.inputs['in_ef_list'] = InputList(type=ElectricField, optional=True)
@@ -171,8 +172,8 @@ class ModalAnalysis(BaseProcessingObj):
 
     @classmethod
     def output_names(cls):
-        return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients from the combined/single input electric field'),
-                'rms': OutputDesc(BaseValue, 'RMS of the wavefront of the single input electric field'),
+        return {'out_modes': OutputDesc(BaseValue, 'Modal coefficients of the single input electric field (in_ef only, not updated with in_ef_list)'),
+                'rms': OutputDesc(BaseValue, 'RMS of the wavefront of the single input electric field (in_ef only, not updated with in_ef_list)'),
                 'out_modes_list': OutputDesc(list, 'Per-input modal coefficient vectors (list, one per connected input)'),
                 'rms_list': OutputDesc(list, 'Per-input wavefront RMS (list, one per connected input)'),
                 'out_modes_{input_idx}': OutputDesc(BaseValue, 'Modal coefficients of input [input_idx], same as out_modes_list[input_idx]')}
@@ -223,11 +224,14 @@ class ModalAnalysis(BaseProcessingObj):
                 raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
 
     def trigger_code(self):
+        # Each input mode only updates its own outputs
         if self.in_ef:
             ef_list = [self.in_ef]
+            modes, rms = self.out_modes.value[None, :], self.rms.value
             outputs = [self.out_modes, self.rms]
         else:
             ef_list = self.in_ef_list
+            modes, rms = self._modes[:len(ef_list)], self._rms[:len(ef_list)]
             outputs = self.out_modes_list + self.rms_list
 
         idx = self.phase2modes.idx_inf_func
@@ -239,9 +243,9 @@ class ModalAnalysis(BaseProcessingObj):
             else:
                 ph[i] = current_ef.phaseInNm[idx]
 
-        # This also sets the output values, which are views on these buffers
-        self._modes[:len(ef_list)] = ph @ self.phase2modes.ifunc_inv
-        self._rms[:len(ef_list)] = self.xp.std(ph, axis=1)
+        # modes and rms are views on the output values
+        modes[:] = ph @ self.phase2modes.ifunc_inv
+        rms[:] = self.xp.std(ph, axis=1)
         for output in outputs:
             output.generation_time = self.current_time
 

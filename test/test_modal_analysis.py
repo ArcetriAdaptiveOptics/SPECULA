@@ -340,6 +340,41 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                              target_device_idx=target_device_idx, precision=precision)
 
     @cpu_and_gpu
+    def test_modal_analysis_single_and_list_outputs_are_separate(self, target_device_idx, xp):
+        """in_ef only updates out_modes/rms, in_ef_list only the list outputs."""
+        npixels, nmodes = 20, 4
+        coeffs = xp.array([1.0, -2.0, 3.0, 0.5])
+        ifunc, idx = self._zern_basis(npixels, nmodes, xp)
+
+        single = self._make_ma(npixels, nmodes, target_device_idx)
+        ef = ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+        self._set_phase(ef, coeffs, ifunc, idx, t=1)
+        single.inputs['in_ef'].set(ef)
+        list_time = single.outputs['out_modes_list'][0].generation_time
+        self._run_once(single, 1)
+
+        self.assertEqual(single.outputs['out_modes'].generation_time, 1)
+        self.assertGreater(float(xp.abs(single.outputs['out_modes'].value).max()), 0)
+        self.assertEqual(single.outputs['out_modes_list'][0].generation_time, list_time)
+        self.assertEqual(float(xp.abs(single.outputs['out_modes_list'][0].value).max()), 0)
+        self.assertEqual(float(xp.abs(single.outputs['rms_list'][0].value).max()), 0)
+
+        multi = self._make_ma(npixels, nmodes, target_device_idx, n_inputs=2)
+        ef_list = [ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+                   for _ in range(2)]
+        for e in ef_list:
+            self._set_phase(e, coeffs, ifunc, idx, t=1)
+        multi.inputs['in_ef_list'].set(ef_list)
+        single_time = multi.outputs['out_modes'].generation_time
+        self._run_once(multi, 1)
+
+        self.assertEqual(multi.outputs['out_modes_list'][0].generation_time, 1)
+        self.assertGreater(float(xp.abs(multi.outputs['out_modes_list'][0].value).max()), 0)
+        self.assertEqual(multi.outputs['out_modes'].generation_time, single_time)
+        self.assertEqual(float(xp.abs(multi.outputs['out_modes'].value).max()), 0)
+        self.assertEqual(float(xp.abs(multi.outputs['rms'].value).max()), 0)
+
+    @cpu_and_gpu
     def test_modal_analysis_precision_dtypes(self, target_device_idx, xp):
         """precision=0/1 must propagate to all outputs and to unwrap_ls()."""
         npixels, nmodes = 20, 4
