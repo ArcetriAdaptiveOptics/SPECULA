@@ -10,6 +10,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula.processing_objects.modulated_double_roof import ModulatedDoubleRoof
+from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -142,4 +143,39 @@ class TestModulatedDoubleRoof(unittest.TestCase):
 
         print(f"Quadrant intensities: Q1={cpuArray(q1_intensity):.1f}, "
               f"Q2={cpuArray(q2_intensity):.1f}, Q3={cpuArray(q3_intensity):.1f}, "
-              f"Q4={cpuArray(q4_intensity):.1f}") 
+              f"Q4={cpuArray(q4_intensity):.1f}")
+
+    @cpu_and_gpu
+    def test_psf_same_as_modulated_pyramid(self, target_device_idx, xp):
+        """The PSF before the focal plane mask does not depend on the mask, so for
+        the same electric field and modulation it must be the same as the one of
+        ModulatedPyramid (it was counted twice, once per roof)."""
+        t = 1
+        pixel_pupil = 120
+        pixel_pitch = 0.05
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+        params = dict(simul_params=simul_params, wavelengthInNm=500, fov=2.0, pup_diam=30,
+                      pup_dist=36, output_resolution=80, mod_amp=3.0,
+                      target_device_idx=target_device_idx)
+
+        # Tilted wavefront, so that the PSF is not centered
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=100,
+                           target_device_idx=target_device_idx)
+        ef.A = make_mask(pixel_pupil)
+        x = xp.arange(pixel_pupil, dtype=ef.phaseInNm.dtype)
+        ef.phaseInNm[:] = 20.0 * (x[None, :] - pixel_pupil / 2) * ef.A
+        ef.generation_time = t
+
+        psf = {}
+        for name, cls in (('roof', ModulatedDoubleRoof), ('pyr', ModulatedPyramid)):
+            wfs = cls(**params)
+            wfs.inputs['in_ef'].set(ef)
+            wfs.setup()
+            wfs.check_ready(t)
+            wfs.trigger()
+            wfs.post_trigger()
+            psf[name] = cpuArray(wfs.outputs['out_psf_bfm'].value)
+
+        self.assertGreater(psf['pyr'].max(), 0)
+        np.testing.assert_allclose(psf['roof'], psf['pyr'], rtol=1e-5,
+                                   atol=1e-6 * psf['pyr'].max())

@@ -9,6 +9,7 @@ import specula
 from specula import process_rank
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_data_obj import BaseDataObj
+from specula.base_time_obj import gpu_mem_report, mem_registry_mark, top_level_objs
 
 from specula.log import get_specula_logger
 from specula.loop_control import LoopControl
@@ -186,7 +187,7 @@ class Simul():
                 self.remove_inputs(params, leaf, log=False)
             end = len(params)
             if start == end:
-                raise ValueError('Cannot determine trigger order: circular loop detected in {leaves}')
+                raise ValueError(f'Cannot determine trigger order: circular loop detected in {leaves}')
         if len(params) > 0:
             self.logger.warning(f'the following objects will not be triggered: {params.keys()}')
         return order, order_index
@@ -383,7 +384,6 @@ class Simul():
                 self.objs[key] = klass.restore(filename, target_device_idx=target_device_idx)
                 self.objs[key].name = key
                 self.objs[key].init_logging(self.logger.getEffectiveLevel())
-                self.objs[key].printMemUsage()
                 self.objs[key].tag = pars['tag']
                 continue
 
@@ -443,7 +443,6 @@ class Simul():
                             filename = cm.filename(partype.__name__, tag)
                             self.logger.info(f'Restoring: {filename}')
                             obj = partype.restore(filename, target_device_idx=target_device_idx)
-                            obj.printMemUsage()
                             obj.tag = tag
                             loaded.append(obj)
 
@@ -468,7 +467,6 @@ class Simul():
                             filename = cm.filename(partype.__name__, tag)
                             self.logger.info(f'Restoring: {filename}')
                             obj = partype.restore(filename, target_device_idx=target_device_idx)
-                            obj.printMemUsage()
                             obj.tag = tag
                             loaded[dict_key] = obj
 
@@ -504,7 +502,6 @@ class Simul():
                         self.logger.info(f'Restoring: {filename}')
                         parobj = partype.restore(filename, target_device_idx=target_device_idx)
                         parobj.init_logging(self.logger.getEffectiveLevel())
-                        parobj.printMemUsage()
 
                         # Set data_tag
                         parobj.tag = value
@@ -545,9 +542,6 @@ class Simul():
             except Exception:
                 self.logger.error(f'Exception building {key}')
                 raise
-            if classname != 'SimulParams':
-                self.objs[key].stopMemUsageCount()
-
             # TODO this could be more general like the getters above
             if type(self.objs[key]) is DataStore:
                 self.objs[key].setParams(params)
@@ -1027,6 +1021,7 @@ class Simul():
             self.inject_recorded_seeds(params, recorded_seeds)
             replay_params = None
 
+        self._mem_mark = mem_registry_mark()
         display_process.init(self.async_displays)
         self.build_objects(params)
         self.create_input_list_inputs(params)
@@ -1053,6 +1048,7 @@ class Simul():
 
         # Initialize housekeeping objects
         self.loop = LoopControl(stepping=self.stepping)
+        self.loop.mem_report = self.gpu_mem_report
 
         # Build loop
         for name, idx in zip(self.trigger_order, self.trigger_order_idx):
@@ -1097,8 +1093,26 @@ class Simul():
             display_process.stop(self.logger)
 
         self.logger.debug(f'Simulation finished')
-#        if data_store.has_key('sr'):
-#            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+
+    def gpu_mem_report(self, title):
+        '''Log the GPU memory used by the objects of this simulation.'''
+        names = {id(obj): name for name, obj in self.objs.items()}
+        objs = sorted(top_level_objs(since=self._mem_mark), key=lambda obj: id(obj) not in names)
+        report = gpu_mem_report(objs, names)
+        if report:
+            self.logger.info(f'GPU memory {title}:\n{report}')
+
+    #        if data_store.has_key('sr'):
+    #            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+
+    def gpu_mem_report(self, title):
+        '''Log the GPU memory used by the objects of this simulation'''
+        names = {id(obj): name for name, obj in self.objs.items()}
+        # Simulation objects first, then the ones restored for their parameters
+        objs = sorted(top_level_objs(since=self._mem_mark), key=lambda obj: id(obj) not in names)
+        report = gpu_mem_report(objs, names)
+        if report:
+            self.logger.info(f'GPU memory {title}:\n{report}')
 
     def _check_preroll_is_local(self, preroll_objs):
         '''

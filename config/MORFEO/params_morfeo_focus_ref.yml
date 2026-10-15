@@ -426,7 +426,6 @@ modal_combination:
   plate_scale_idx: 5540 # 4519+1021
   dm1_ref: 'dm1'
   dm3_ref: 'dm3'
-  start_modes: [0,0]
   inputs:
     in_vectors_list: ['iir_lgs.out_comm', 'iir_focus.out_comm', 'iir_ngs.out_comm']
   outputs: ['out_vector']

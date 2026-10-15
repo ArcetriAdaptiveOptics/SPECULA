@@ -2,8 +2,6 @@ import os
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
-from specula.data_objects.ifunc import IFunc
-from specula.data_objects.m2c import M2C
 from specula.processing_objects.dm import DM
 from specula.connections import InputValue
 from specula import np
@@ -42,9 +40,12 @@ class RecCalibrator(BaseProcessingObj):
         self.r0 = r0
         self.L0 = L0
         self.dm = dm
-        if noise_cov is None:
-            if self.mmse:
+        if self.mmse:
+            if dm is None:
+                raise ValueError('dm must be provided for MMSE reconstruction')
+            if noise_cov is None:
                 raise ValueError('noise_cov must be provided for MMSE reconstruction')
+        if noise_cov is None:
             self.noise_cov = None
         elif isinstance(noise_cov, list):
             self.noise_cov = [self.to_xp(noise_cov_i) for noise_cov_i in noise_cov]
@@ -76,15 +77,13 @@ class RecCalibrator(BaseProcessingObj):
         # TODO add to RM the information about the first mode
         if self.mmse:
             diameter = self.dm.pixel_pitch * self.dm.pixel_pupil
-            modal_base = IFunc(ifunc=self.dm.ifunc, mask=self.dm.mask,
-                               target_device_idx=self.target_device_idx, precision=self.precision)
-            if self.dm.m2c is not None:
-                m2c = M2C(self.dm.m2c,
-                        target_device_idx=self.target_device_idx, precision=self.precision)
-            else:
-                m2c = None
+            # The turbulence prior is computed on the modes of the DM input command,
+            # starting from first_mode as the interaction matrix columns
+            modal_base = self.dm.modal_ifunc(start_mode=self.first_mode,
+                                             target_device_idx=self.target_device_idx,
+                                             precision=self.precision)
             rec = im.generate_rec_mmse(self.r0, self.L0, diameter, modal_base,
-                                       self.noise_cov, nmodes=self.nmodes, m2c=m2c)
+                                       self.noise_cov, nmodes=self.nmodes)
         else:
             rec = im.generate_rec(self.nmodes)
         rec.save(self.rec_path, overwrite=self.overwrite)
