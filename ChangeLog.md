@@ -32,6 +32,7 @@
 - MORFEO configurations: the LGS (and reference) tomographic reconstructors now use `ModalrecImplicitPolc` instead of `ModalrecExplicitPolc`, since the pseudo open-loop modes were not used. The `out_pseudo_ol_modes` output is not available anymore for these objects: use `ModalrecExplicitPolc` again if needed.
 - `Modalrec`: the `nmodes` parameter, which was ignored, is deprecated (a `FutureWarning` is issued if it is set): the number of modes is set by the recmat, use `ncutmodes` to discard the last modes. Removed it from the ANDES configurations.
 - Added `cache` to `ZernikeGenerator.getZernike()` (default True, unchanged behavior): if False, the polynomial is not cached.
+- `Simul` (#822): data objects of `xxx_object` parameters are restored from the calibration subdirectory of their class (from the constructor type hint), as `tag`, `xxx_list_object` and `xxx_dict_object` already did, instead of the one of the parameter name. `Slopes` objects are now read from `slopenulls/` (was `slopes/`), so `sn_object` is unchanged. Parameters with no subdirectory for their name, which raised a `KeyError` (`pupil_mask`, `source`, `filt_intmat`, `filt_recmat`, `laser_launch_tel`, `cube`), now work.
 - `TerminalInput` now keeps the input prompt on the last line of the terminal while log output scrolls above it (using `prompt_toolkit`, new dependency). `SpeculaInput` now reads input in a background thread instead of a separate process: `set_input_task()` is replaced by the thread-safe `put_input()`, which validates values immediately.
 
 ### Other
