@@ -1,11 +1,11 @@
 """
 Analytic closed-loop plant model for AVC calibration.
 
-Single-mode AO loop, evaluated at ``z = exp(2j*pi*f*T)``::
+Single-mode discrete-time AO loop, evaluated at ``z = exp(2j*pi*f*T)``::
 
-    HOL   = WFS * RTC * CTR * DAC * DM * LPF
+    HOL   = RTC * CTR * DM * LPF
     S     = 1 / (1 + HOL)
-    P_avc = -WFS * RTC * delAVC * DAC * DM * LPF * S
+    P_avc = -RTC * delAVC * DM * LPF * S
 
 ``P_avc`` is the response from an AVC command to the measured residual,
 i.e. the plant calibration (``plant_re``, ``plant_im``) of
@@ -13,8 +13,15 @@ i.e. the plant calibration (``plant_re``, ``plant_im``) of
 of the loop's negative feedback: the AVC command is summed to the
 integrator one, which the DM subtracts from the disturbance.
 
+In a SPECULA loop with an ``Integrator`` of ``delay`` steps and the DM
+layer read with ``:-1``, the loop delay is ``(delay + 1) * T`` and an AVC
+command summed to the integrator output skips the integrator delay, so
+``avc_extra_delay = -delay * T``.
+
 Ported from ESO's ``generateAVCInitConditions.m``, which has the opposite
-sign for ``P_avc``.
+sign for ``P_avc``. The ESO model also includes the zero-order holds of
+the WFS integration and of the DAC, which describe a real system but not
+a SPECULA loop, which is purely discrete: they are not included here.
 """
 import numpy as np
 
@@ -24,12 +31,6 @@ def _as_freq_array(f):
     if np.any(f <= 0):
         raise ValueError("frequencies must be > 0 Hz")
     return f
-
-
-def _zoh(f, T):
-    """Zero-order hold over one sample period T (WFS integration, DAC)."""
-    w = 2 * np.pi * f
-    return (1 - np.exp(-1j * w * T)) / (1j * w * T)
 
 
 def _dm_response(f, dm_dc_gain, dm_f0, dm_csi):
@@ -64,12 +65,12 @@ def open_loop_transfer_function(f, T, loop_gain, loop_delay,
     loop_gain : float
         Integrator gain of the mode.
     loop_delay : float [s]
-        RTC delay (``Integrator.delay * T``).
+        Total loop delay, ``(Integrator.delay + 1) * T`` in a SPECULA loop.
     dm_dc_gain : float, optional
         DM DC gain. Default 1.0.
     dm_f0, dm_csi : float, optional
         Natural frequency [Hz] and damping ratio of a 2nd-order DM
-        resonance. Default: no DM dynamics.
+        resonance. Default: no DM dynamics, as SPECULA's ``DM``.
     lpf_fc : float [Hz], optional
         Cutoff of a first-order low-pass in the command path. Default: none.
 
@@ -79,13 +80,11 @@ def open_loop_transfer_function(f, T, loop_gain, loop_delay,
     """
     f = _as_freq_array(f)
     w = 2 * np.pi * f
-    wfs = _zoh(f, T)
-    dac = _zoh(f, T)
     ctr = loop_gain / (1 - np.exp(-1j * w * T))
     rtc = np.exp(-1j * w * loop_delay)
     dm = _dm_response(f, dm_dc_gain, dm_f0, dm_csi)
     lpf = 1.0 if lpf_fc is None else _lpf_response(f, lpf_fc, T)
-    return wfs * rtc * ctr * dac * dm * lpf
+    return rtc * ctr * dm * lpf
 
 
 def closed_loop_sensitivity(f, T, loop_gain, loop_delay,
@@ -109,8 +108,8 @@ def avc_command_to_residual_tf(f, T, loop_gain, loop_delay,
     ----------
     avc_extra_delay : float [s], optional
         Delay of the AVC command path in excess of ``loop_delay``.
-        Negative if the AVC command skips part of it, e.g. when it is
-        summed downstream of a delayed integrator. Default 0.0.
+        Negative if the AVC command skips part of it: ``-Integrator.delay * T``
+        when it is summed to the integrator output. Default 0.0.
 
     Other parameters as in :py:func:`open_loop_transfer_function`.
 
@@ -120,15 +119,13 @@ def avc_command_to_residual_tf(f, T, loop_gain, loop_delay,
     """
     f = _as_freq_array(f)
     w = 2 * np.pi * f
-    wfs = _zoh(f, T)
-    dac = _zoh(f, T)
     rtc = np.exp(-1j * w * loop_delay)
     del_avc = np.exp(-1j * w * avc_extra_delay)
     dm = _dm_response(f, dm_dc_gain, dm_f0, dm_csi)
     lpf = 1.0 if lpf_fc is None else _lpf_response(f, lpf_fc, T)
     s = closed_loop_sensitivity(f, T, loop_gain, loop_delay,
                                 dm_dc_gain, dm_f0, dm_csi, lpf_fc)
-    return -wfs * rtc * del_avc * dac * dm * lpf * s
+    return -rtc * del_avc * dm * lpf * s
 
 
 def generate_avc_init_conditions(freq_avc, T, loop_gain, loop_delay,

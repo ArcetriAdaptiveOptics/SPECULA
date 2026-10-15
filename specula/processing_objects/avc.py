@@ -1,3 +1,5 @@
+from typing import List
+
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -20,8 +22,8 @@ class AVC(BaseProcessingObj):
         y  = in_measurement                   # residual of the mode
         x3 += mu * c * y                      # integrate, in the rotating
         x4 += mu * s * y                      #   frame (a lock-in)
-        omega -= 2 * gomega * Ts * s * y      # frequency tracking (PLL)
         alpha += Ts * omega - 2 * k * gomega * Ts * s * y
+        omega -= 2 * gomega * Ts * s * y      # frequency tracking (PLL)
 
     Multiplying the residual by ``(cos alpha, sin alpha)`` demodulates it into the frame
     rotating at the vibration frequency, and accumulating integrates it
@@ -53,7 +55,7 @@ class AVC(BaseProcessingObj):
         Number of independent instances (vibrations). ``in_measurement``
         and ``out_comm`` have this length. Several instances may be fed the
         same measurement, and their corrections summed downstream (e.g.
-        with :py:class:`~specula.processing_objects.linear_combination.LinearCombination`).
+        with :py:class:`~specula.processing_objects.base_operation.BaseOperation` and ``sum=True``).
     freq : float or array-like [Hz], length n_avc
         Initial guess of the vibration frequency. The PLL will pull it to
         the true value provided the tone dominates the residual near it.
@@ -103,17 +105,17 @@ class AVC(BaseProcessingObj):
     def __init__(self,
                  simul_params: SimulParams,
                  n_avc: int,
-                 freq,
-                 gx,
-                 gomega,
-                 k,
-                 plant_re=None,
-                 plant_im=None,
-                 plant_gain=None,
-                 plant_phase=None,
-                 alpha0=0.0,
-                 target_device_idx=None,
-                 precision=None):
+                 freq: float | List[float],
+                 gx: float | List[float],
+                 gomega: float | List[float],
+                 k: float | List[float],
+                 plant_re: float | List[float] = None,
+                 plant_im: float | List[float] = None,
+                 plant_gain: float | List[float] = None,
+                 plant_phase: float | List[float] = None,
+                 alpha0: float | List[float] = 0.0,
+                 target_device_idx: int = None,
+                 precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         if n_avc < 1:
