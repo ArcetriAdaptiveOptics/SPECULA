@@ -27,6 +27,7 @@ dynamic = ["version", "dependencies"]
 specula_frontend_start = "specula.scripts.web_frontend:start"
 specula_frontend_stop = "specula.scripts.web_frontend:stop"
 specula = "specula.scripts.specula_main:main"
+specula_list_runs = "specula.scripts.list_runs:main"
 
 [tool.setuptools]
 packages = [

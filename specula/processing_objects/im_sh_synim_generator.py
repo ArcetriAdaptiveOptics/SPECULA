@@ -13,8 +13,6 @@ from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.source import Source
-from specula.data_objects.ifunc import IFunc
-from specula.data_objects.m2c import M2C
 from specula.base_value import BaseValue
 from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
@@ -70,7 +68,8 @@ class ImShSynimGenerator(BaseProcessingObj):
     Outputs
     -------
     out_intmat : Intmat
-        Generated interaction matrix
+        Generated interaction matrix, one column per DM input command element,
+        in slopes per DM command unit
     out_recmat : Recmat
         Generated reconstruction matrix (if compute_rec=True)
     
@@ -195,10 +194,11 @@ class ImShSynimGenerator(BaseProcessingObj):
         """Initialize and extract parameters"""
         super().setup()
 
-        # Extract DM parameters
-        ifunc_3d_full = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
-        self.ifunc_3d = ifunc_3d_full
-        nmodes = ifunc_3d_full.shape[2]
+        # Basis of the DM input command (on the CPU, as SynIM needs it), not
+        # normalized: the IM is in slopes per DM command unit
+        modal_ifunc = self.dm.modal_ifunc(target_device_idx=-1, precision=self.precision)
+        self.ifunc_3d = modal_ifunc.ifunc_2d_to_3d(normalize=False)
+        nmodes = self.ifunc_3d.shape[2]
 
         self.pup_mask = cpuArray(self.dm.mask)
 
@@ -315,27 +315,14 @@ class ImShSynimGenerator(BaseProcessingObj):
             Reconstruction matrix
         """
         if self.mmse:
-            # MMSE reconstruction (same as RecCalibrator)
+            # MMSE reconstruction (same as RecCalibrator), with the
+            # turbulence prior on the same basis as the IM columns
             diameter = self.pup_diam_m
-            modal_base = IFunc(
-                ifunc=self.dm.ifunc_obj.ifunc,
-                mask=self.dm.mask,
-                target_device_idx=self.target_device_idx,
-                precision=self.precision
-            )
-
-            if self.dm.m2c is not None:
-                m2c = M2C(
-                    self.dm.m2c,
-                    target_device_idx=self.target_device_idx,
-                    precision=self.precision
-                )
-            else:
-                m2c = None
-
+            modal_base = self.dm.modal_ifunc(target_device_idx=self.target_device_idx,
+                                             precision=self.precision)
             rec = self.output_intmat.generate_rec_mmse(
                 self.r0, self.L0, diameter, modal_base,
-                self.noise_cov, nmodes=self.rec_nmodes, m2c=m2c
+                self.noise_cov, nmodes=self.rec_nmodes
             )
         else:
             # Simple pseudo-inverse
