@@ -75,8 +75,12 @@ class TestAvcSanityCheck(unittest.TestCase):
 
     @cpu_and_gpu
     def test_sanity_check(self, target_device_idx, xp):
+        from specula.data_objects.simul_params import SimulParams
         from specula.processing_objects.avc import AVC
-        obj = AVC(target_device_idx=target_device_idx)
+        sp = SimulParams(time_step=0.001)
+        obj = AVC(simul_params=sp, n_avc=2, freq=[30.0, 60.0],
+                  gx=0.05, gomega=0.001, k=1.0,
+                  target_device_idx=target_device_idx)
         obj.sanity_check()
 
 
