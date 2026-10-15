@@ -188,7 +188,7 @@ class TestIntmat(unittest.TestCase):
         from specula.data_objects.ifunc import IFunc
         modal_base = IFunc(type_str='zernike', nmodes=mat.shape[1], npixels=64, target_device_idx=target_device_idx)
         c_noise = 1
-        rec = intmat.generate_rec_mmse(r0, L0, diameter, modal_base, c_noise, nmodes=None, m2c=None)
+        rec = intmat.generate_rec_mmse(r0, L0, diameter, modal_base, c_noise, nmodes=None)
         assert isinstance(rec, Recmat)
 
 

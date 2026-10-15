@@ -166,7 +166,7 @@ def generate_reference_im(simul_params, source, dm, wfs, slopec):
     pup_mask = np.array(dm.mask)
 
     # Get 3D influence functions
-    ifunc_3d = np.array(dm._ifunc.ifunc_2d_to_3d(normalize=True))
+    ifunc_3d = np.array(dm._ifunc.ifunc_2d_to_3d(normalize=False))
 
     # Get valid subapertures from slopec
     subapdata = slopec.subapdata
@@ -214,7 +214,7 @@ def generate_misregistered_im(simul_params, source, dm, wfs, slopec,
     # Extract parameters (same as generate_reference_im)
     pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
     pup_mask = np.array(dm.mask)
-    ifunc_3d = np.array(dm._ifunc.ifunc_2d_to_3d(normalize=True))
+    ifunc_3d = np.array(dm._ifunc.ifunc_2d_to_3d(normalize=False))
 
     subapdata = slopec.subapdata
     display_map = np.array(subapdata.display_map)

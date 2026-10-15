@@ -13,20 +13,19 @@ def compute_zern_ifunc(dim, nzern, xp, dtype, obsratio=0.0, diaratio=1.0, start_
 
     mask = mask.astype(dtype)
 
+    # Fill the masked pixels one mode at a time, without
+    # keeping all full-frame Zernike polynomials in memory
     zg = ZernikeGenerator(dim, xp=xp, dtype=dtype)
-    zern_phase_3d = xp.stack([zg.getZernike(z) for z in range(2, nzern + 2)])
-    zern_phase_3d = zern_phase_3d[start_mode:]
     nzern -= start_mode
-
-    zern_phase_2d = xp.array([zern_phase_3d[i][idx] for i in range(nzern)], dtype=dtype)
-    # Free memory
+    zern_phase_2d = xp.empty((nzern, len(idx[0])), dtype=dtype)
+    for i in range(nzern):
+        zern_phase_2d[i] = zg.getZernike(i + start_mode + 2, cache=False)[idx]
     zg = None
-    zern_phase_3d = None
 
     # Orthonormalize Zernike modes
     zern_phase_2d = make_orto_modes(zern_phase_2d, xp=xp, dtype=dtype)
     # Remove the average phase (piston) from each Zernike mode and normalize them
-    zern_phase_2d = zern_phase_2d - xp.mean(zern_phase_2d, axis=1, keepdims=True)
-    zern_phase_2d = zern_phase_2d / xp.std(zern_phase_2d, axis=1, keepdims=True)
+    zern_phase_2d -= xp.mean(zern_phase_2d, axis=1, keepdims=True)
+    zern_phase_2d /= xp.std(zern_phase_2d, axis=1, keepdims=True)
 
     return zern_phase_2d, mask

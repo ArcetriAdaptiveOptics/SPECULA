@@ -72,6 +72,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/api/
 
 # PyBuilder
 target/
@@ -132,6 +133,8 @@ dmypy.json
 /.project
 /.pydevproject
 .DS_Store
+*.swp
+*.swo
 .settings/org.eclipse.core.resources.prefs
 .vscode/settings.json
 *.code-workspace

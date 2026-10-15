@@ -4,6 +4,7 @@ from astropy.io import fits
 from specula import cpuArray
 from specula.data_objects.ifunc_inv import cut_modes
 from specula.base_data_obj import BaseDataObj
+from specula.lib.fits_io import load_fits_array
 
 
 class M2C(BaseDataObj):
@@ -79,5 +80,5 @@ class M2C(BaseDataObj):
             version = hdr.get('VERSION')
             if version != 1:
                 raise ValueError(f"Unknown version {version} in file {filename}")
-            m2c = hdul[1].data.copy()
+        m2c = load_fits_array(filename, ext=1, target_device_idx=target_device_idx)
         return M2C(m2c=m2c, target_device_idx=target_device_idx)

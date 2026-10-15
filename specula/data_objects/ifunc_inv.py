@@ -1,5 +1,6 @@
 from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
+from specula.lib.fits_io import load_fits_array
 from astropy.io import fits
 
 
@@ -98,8 +99,8 @@ class IFuncInv(BaseDataObj):
     @staticmethod
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:
-            ifunc_inv = hdul[exten].data.T
             mask = hdul[exten+1].data
+        ifunc_inv = load_fits_array(filename, ext=exten, target_device_idx=target_device_idx).T
         return IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
 
     def get_value(self):

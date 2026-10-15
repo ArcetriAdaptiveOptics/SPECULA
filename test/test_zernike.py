@@ -111,3 +111,17 @@ class TestZernikeGenerator(unittest.TestCase):
 
             norm = float(np.sqrt(np.sum(z_np[in_disk]**2) / np.sum(in_disk)))
             self.assertAlmostEqual(norm, 1, places=2)
+    @cpu_and_gpu
+    def test_get_zernike_no_cache(self, target_device_idx, xp):
+        zg = ZernikeGenerator(self.size, xp=xp, dtype=xp.float32)
+        idx = 5
+
+        z_nocache = zg.getZernike(idx, cache=False)
+        self.assertNotIn(idx, zg._dictCache)
+
+        z_cached = zg.getZernike(idx)
+        self.assertIn(idx, zg._dictCache)
+        np.testing.assert_array_equal(cpuArray(z_nocache), cpuArray(z_cached))
+
+        # An already cached polynomial is returned from the cache
+        self.assertIs(zg.getZernike(idx, cache=False), z_cached)

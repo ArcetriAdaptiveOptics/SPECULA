@@ -360,14 +360,14 @@ lift:
 # -----------------------------
 
 tomo_polc_lgs:
-  class:              'ModalrecExplicitPolc'
+  class:              'ModalrecImplicitPolc'
   recmat_object:      '20240606_200110.0/recmat'
   projmat_object:     'p20250519_195705.0/projmatAll.fits'
   intmat_object:      '20250911_000003.0/intmat.fits'
   inputs:
     in_slopes_list:        ['slopec_lgs1.out_slopes','slopec_lgs2.out_slopes','slopec_lgs3.out_slopes','slopec_lgs4.out_slopes','slopec_lgs5.out_slopes','slopec_lgs6.out_slopes']
     in_commands:            'iir_lgs.out_comm_no_delay:-1'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 subtract_ref:
   class:            'BaseOperation'
@@ -402,6 +402,8 @@ iir_lgs:
   outputs:  ['out_comm']
 
 
+# Note: out_pseudo_ol_modes requires tomo_polc_lgs to be a ModalrecExplicitPolc.
+# The DM-space pseudo open-loop modes are also available as out_modes + commands.
 # avc_lgs:
 #   class:             'AVC'
 #   inputs:
@@ -499,12 +501,11 @@ dm3:
 # ----------------
 
 tomo_ngs:
-  class:              'ModalreExplicitPolc'
+  class:              'Modalrec'
   recmat_object:      '20240614_073541.0/recmat'
-  projmat_object:     'p20230222_104426.0/projmatAll'
   inputs:
     in_slopes_list:        ['slopec_ngs1.out_slopes','slopec_ngs2.out_slopes','slopec_ngs3.out_slopes']
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 iir_ngs:
   class:             'IirFilter'
@@ -514,6 +515,7 @@ iir_ngs:
       delta_comm: 'tomo_ngs.out_modes'     
   outputs:  ['out_comm']
 
+# Note: tomo_ngs is not a POLC reconstructor and has no out_pseudo_ol_modes.
 # avc_ngs:
 #   class:             'AVC'
 #   inputs:
@@ -553,14 +555,14 @@ iir_focus:
 # --------------
 
 tomo_polc_ref:
-  class:              'ModalrecExplicitPolc'
+  class:              'ModalrecImplicitPolc'
   recmat_object:      '20240614_194901.0/recmat'
   projmat_object:     'p20240526_141118.0/projmatAll'
   intmat_object:      '20250326_000001.0/intmat'
   inputs:
     in_slopes_list:        ['slopec_ref1.out_slopes','slopec_ref2.out_slopes','slopec_ref3.out_slopes']
     in_commands:            'control_ref.out_comm:-1'
-  outputs:  ['out_modes', 'out_pseudo_ol_modes']
+  outputs:  ['out_modes']
 
 # Commenting since this is not used.
 # iir_ref:

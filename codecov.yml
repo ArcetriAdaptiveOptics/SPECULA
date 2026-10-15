@@ -1,0 +1,11 @@
+# Each job of the CI matrix (.github/workflows/specula.yml) uploads its own
+# coverage report. 15 of the 30 jobs run only the MPI tests ("pytest -k mpi").
+# Waiting for 16 uploads (number of MPI jobs + 1) ensures that at least one
+# full test-suite run is included in the first notification; later uploads
+# update it.
+codecov:
+  notify:
+    after_n_builds: 16
+
+comment:
+  after_n_builds: 16
