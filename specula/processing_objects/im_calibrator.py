@@ -1,4 +1,5 @@
 import os
+import warnings
 import numpy as np
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
@@ -23,7 +24,7 @@ class ImCalibrator(BaseProcessingObj):
                  nmodes: int,
                  data_dir: str,    # Set by main simul object
                  im_tag: str='',
-                 first_mode: int = 0,
+                 first_mode: int = None,
                  overwrite: bool = False,
                  compute_single_im: bool = True,
                  pupilstop: Pupilstop = None,
@@ -46,16 +47,27 @@ class ImCalibrator(BaseProcessingObj):
             downstream consumes 'out_single_im' (only 'out_intmat' is used
             by RecCalibrator and by every other project currently in this
             codebase, verified 2026-08-31).
+        first_mode : int
+            Deprecated, must be 0: IM column j is always DM input j. To calibrate
+            a subset of modes, use the first_mode of PushPullGenerator (the other
+            IM columns stay zero).
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        if first_mode is not None:
+            if first_mode != 0:
+                raise ValueError('ImCalibrator: first_mode is deprecated and must be 0: '
+                                 'IM column j is DM input j')
+            warnings.warn('ImCalibrator: first_mode is deprecated and ignored',
+                          FutureWarning, stacklevel=2)
+
         self.nmodes = nmodes
-        self.first_mode = first_mode
         self.data_dir = data_dir
         self.compute_single_im = compute_single_im
 
         if im_tag is None or im_tag == 'auto':
             im_tag = ImCalibrator.generate_im_tag(pupilstop, source, dm, sensor,
-                                                  slopec, self.nmodes, self.first_mode)
+                                                  slopec, self.nmodes)
         self.im_tag = im_tag
 
         self.overwrite = overwrite
@@ -93,7 +105,7 @@ class ImCalibrator(BaseProcessingObj):
                 'out_single_im': OutputDesc(list, 'Per-mode interaction matrix contributions (list)')}
 
     @staticmethod
-    def generate_im_tag(pupilstop, source, dm, sensor, slopec, nmodes, first_mode=0):
+    def generate_im_tag(pupilstop, source, dm, sensor, slopec, nmodes):
         """Generate automatic im_tag based on configuration parameters."""
 
         if pupilstop is None:
@@ -154,8 +166,6 @@ class ImCalibrator(BaseProcessingObj):
             im_tag += '_'+dm.tag
         nmodes_dm = dm.ifunc.shape[0]
         im_tag += f'_{min(nmodes_dm,nmodes)}mds'
-        if first_mode != 0:
-            im_tag += f'_firstm{first_mode}'
 
         # Pupilstop
         im_tag += '_stop'
@@ -196,7 +206,7 @@ class ImCalibrator(BaseProcessingObj):
         idx = self.xp.nonzero(commands)[0]
 
         if len(idx)>0:
-            mode = int(idx[0]) - self.first_mode
+            mode = int(idx[0])
             if mode < self.nmodes:
                 self.intmat.modes[mode] += slopes / commands[idx]
                 self.count_commands[mode] += 1
@@ -222,5 +232,4 @@ class ImCalibrator(BaseProcessingObj):
 
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # TODO add to IM the information about the first mode
         self.intmat.save(self.im_path, overwrite=self.overwrite)

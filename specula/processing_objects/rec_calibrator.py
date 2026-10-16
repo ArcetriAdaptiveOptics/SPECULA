@@ -1,4 +1,5 @@
 import os
+import warnings
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intmat import Intmat
@@ -17,7 +18,7 @@ class RecCalibrator(BaseProcessingObj):
                  nmodes: int,
                  data_dir: str,     # Set by main simul object
                  rec_tag: str,
-                 first_mode: int = 0,
+                 first_mode: int = None,
                  pupdata_tag: str = None,
                  overwrite: bool = False,
                  mmse: bool = False,
@@ -29,8 +30,16 @@ class RecCalibrator(BaseProcessingObj):
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        # Deprecated: the interaction matrix always covers the whole DM input
+        if first_mode is not None:
+            if first_mode != 0:
+                raise ValueError('RecCalibrator: first_mode is deprecated and must be 0: '
+                                 'IM column j is DM input j')
+            warnings.warn('RecCalibrator: first_mode is deprecated and ignored',
+                          FutureWarning, stacklevel=2)
+
         self.nmodes = nmodes
-        self.first_mode = first_mode
         self.data_dir = data_dir
         self.pupdata_tag = pupdata_tag
         self.overwrite = overwrite
@@ -74,13 +83,11 @@ class RecCalibrator(BaseProcessingObj):
 
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # TODO add to RM the information about the first mode
         if self.mmse:
             diameter = self.dm.pixel_pitch * self.dm.pixel_pupil
             # The turbulence prior is computed on the modes of the DM input command,
-            # starting from first_mode as the interaction matrix columns
-            modal_base = self.dm.modal_ifunc(start_mode=self.first_mode,
-                                             target_device_idx=self.target_device_idx,
+            # as the interaction matrix columns
+            modal_base = self.dm.modal_ifunc(target_device_idx=self.target_device_idx,
                                              precision=self.precision)
             rec = im.generate_rec_mmse(self.r0, self.L0, diameter, modal_base,
                                        self.noise_cov, nmodes=self.nmodes)

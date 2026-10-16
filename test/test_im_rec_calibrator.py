@@ -384,6 +384,44 @@ class TestImRecCalibrator(unittest.TestCase):
         im_path = os.path.join(self.test_dir, f'{im_tag}.fits')
         self.assertTrue(os.path.exists(im_path))
 
+    def test_imcalibrator_first_mode_nonzero_raises(self):
+        """first_mode is deprecated: a value other than 0 raises a ValueError"""
+        with self.assertRaises(ValueError):
+            ImCalibrator(nmodes=4, data_dir=self.test_dir, im_tag='test_first_mode',
+                         first_mode=2, overwrite=True)
+
+    def test_imcalibrator_first_mode_zero_warns(self):
+        """first_mode=0 is accepted with a FutureWarning"""
+        with self.assertWarns(FutureWarning):
+            ImCalibrator(nmodes=4, data_dir=self.test_dir, im_tag='test_first_mode',
+                         first_mode=0, overwrite=True)
+
+    @cpu_and_gpu
+    def test_imcalibrator_column_is_dm_input(self, target_device_idx, xp):
+        """A push on DM input j goes to IM column j, also when the lower modes
+        are not pushed (e.g. PushPullGenerator with first_mode > 0)"""
+        nmodes = 4
+        calibrator = ImCalibrator(nmodes=nmodes, data_dir=self.test_dir, im_tag='test_im_col',
+                                  overwrite=True, compute_single_im=False,
+                                  target_device_idx=target_device_idx)
+        slopes = Slopes(6, target_device_idx=target_device_idx)
+        slopes.slopes[:] = xp.arange(6, dtype=slopes.slopes.dtype)
+        slopes.generation_time = 1
+        cmd = BaseValue(value=xp.zeros(nmodes), target_device_idx=target_device_idx)
+        cmd.value[2] = 0.5
+        cmd.generation_time = 1
+        calibrator.inputs['in_slopes'].set(slopes)
+        calibrator.inputs['in_commands'].set(cmd)
+        calibrator.setup()
+        calibrator.check_ready(t=1)
+        calibrator.trigger()
+        calibrator.post_trigger()
+
+        modes = calibrator.intmat.modes
+        xp.testing.assert_allclose(modes[2], xp.arange(6) / 0.5)
+        for mode in (0, 1, 3):
+            xp.testing.assert_array_equal(modes[mode], 0)
+
     @cpu_and_gpu
     def test_imcalibrator_overwrite_false(self, target_device_idx, xp):
         """Test that ImCalibrator does not overwrite existing file if overwrite=False"""

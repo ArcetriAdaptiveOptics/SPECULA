@@ -46,7 +46,6 @@ detector_lgs6_override:
 im_calibrator1:  &IM_CALIBRATOR
   class: 'ImCalibrator'
   nmodes: 100
-  first_mode: 0
   im_tag:     'morfeo1_im_lgs'
   overwrite: True
   inputs:
