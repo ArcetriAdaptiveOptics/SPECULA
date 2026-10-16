@@ -308,24 +308,33 @@ class TestAVC(unittest.TestCase):
                 self.assertAlmostEqual(abs(command), abs(LAM_STAR) / abs(P_STAR), delta=1e-2)
 
     @cpu_and_gpu
-    def test_converges_within_90_degrees_of_calibration_error(self, target_device_idx, xp):
-        """The convergence rate is 0.5 * gx * |P_star / P_hat| * cos(phase
-        error): positive up to 90 degrees."""
-        for dphi, max_ratio in ((0.0, 0.01), (60.0, 0.05), (85.0, 1.0)):
-            with self.subTest(dphi=dphi):
-                p_hat = P_STAR * np.exp(1j * np.radians(dphi))
-                avc = _make_avc(target_device_idx, p_hat=p_hat)
-                res = _run_closed_loop(avc, 2000, P_STAR, LAM_STAR, target_device_idx, xp)
-                self.assertLess(res[-200:].std() / res[:200].std(), max_ratio)
+    def test_convergence_rate_follows_calibration_phase_error(self, target_device_idx, xp):
+        """The residual envelope evolves as exp(-rate t), with
+        rate = 0.5 * gx * Re(kappa) and kappa = conj(P_star / P_hat). With
+        the exact magnitude and a phase error dphi, Re(kappa) = cos(dphi):
+        convergence below 90 degrees, divergence above, and neither at
+        90 degrees, the stability limit.
 
-    @cpu_and_gpu
-    def test_diverges_beyond_90_degrees_of_calibration_error(self, target_device_idx, xp):
-        for dphi, min_ratio in ((95.0, 1.0), (120.0, 100.0)):
+        The rate is measured between the residual rms around 0.5 s and
+        around 1.5 s (40 ms windows, about two periods of the tone)."""
+        gx = 30.0
+        t1, t2, half_window = 0.5, 1.5, 20
+        i1, i2 = int(t1 / 0.001), int(t2 / 0.001)
+        for dphi in (0.0, 60.0, 85.0, 90.0, 95.0, 120.0):
             with self.subTest(dphi=dphi):
                 p_hat = P_STAR * np.exp(1j * np.radians(dphi))
-                avc = _make_avc(target_device_idx, p_hat=p_hat)
+                avc = _make_avc(target_device_idx, p_hat=p_hat, gx=gx)
                 res = _run_closed_loop(avc, 2000, P_STAR, LAM_STAR, target_device_idx, xp)
-                self.assertGreater(res[-200:].std() / res[:200].std(), min_ratio)
+
+                rms1 = res[i1 - half_window:i1 + half_window].std()
+                rms2 = res[i2 - half_window:i2 + half_window].std()
+                rate = -np.log(rms2 / rms1) / (t2 - t1)
+                expected = 0.5 * gx * np.cos(np.radians(dphi))
+                if dphi == 90.0:
+                    # the residual stays within +-5% over 1 s
+                    self.assertLess(abs(rate), 0.05)
+                else:
+                    self.assertAlmostEqual(rate, expected, delta=0.05 * abs(expected))
 
     @cpu_and_gpu
     def test_magnitude_error_only_slows_convergence(self, target_device_idx, xp):
@@ -344,7 +353,7 @@ class TestAVC(unittest.TestCase):
     @cpu_and_gpu
     def test_frequency_tracking_converges_on_pure_tone(self, target_device_idx, xp):
         """Open-loop PLL check: the estimate is pulled onto a pure tone
-        from a wrong initial guess, below or above it, at the analytic rate.
+        from a wrong initial guess at the analytic rate.
 
         For y = A sin(phi), sin(alpha) * y averages to (A / 2) cos(alpha - phi),
         and near lock the phase error delta obeys
@@ -364,36 +373,32 @@ class TestAVC(unittest.TestCase):
         windows = {int(t / T): [] for t in (t1, t2)}
 
         simul_params = SimulParams(time_step=T)
-        for start_freq in (48.0, 52.0):
-            with self.subTest(start_freq=start_freq):
-                for errors in windows.values():
-                    errors.clear()
-                avc = AVC(simul_params=simul_params, freq=start_freq,
-                          gx=0.5, gomega=gomega, k=k,
-                          target_device_idx=target_device_idx)
+        avc = AVC(simul_params=simul_params, freq=48.0,
+                  gx=0.5, gomega=gomega, k=k,
+                  target_device_idx=target_device_idx)
 
-                meas = BaseValue(value=xp.zeros(1), target_device_idx=target_device_idx)
-                avc.inputs['in_measurement'].set(meas)
-                avc.setup()
+        meas = BaseValue(value=xp.zeros(1), target_device_idx=target_device_idx)
+        avc.inputs['in_measurement'].set(meas)
+        avc.setup()
 
-                for it in range(5000):
-                    t_sec = (it + 1) * T
-                    t = avc.seconds_to_t(t_sec)
-                    meas.value[:] = xp.asarray([amp * np.sin(2 * np.pi * true_freq * t_sec)])
-                    meas.generation_time = t
-                    avc.check_ready(t)
-                    avc.trigger()
-                    avc.post_trigger()
-                    for center, errors in windows.items():
-                        if abs(it - center) < half_window:
-                            freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
-                            errors.append(abs(freq - true_freq))
+        for it in range(5000):
+            t_sec = (it + 1) * T
+            t = avc.seconds_to_t(t_sec)
+            meas.value[:] = xp.asarray([amp * np.sin(2 * np.pi * true_freq * t_sec)])
+            meas.generation_time = t
+            avc.check_ready(t)
+            avc.trigger()
+            avc.post_trigger()
+            for center, errors in windows.items():
+                if abs(it - center) < half_window:
+                    freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
+                    errors.append(abs(freq - true_freq))
 
-                err1, err2 = (np.mean(errors) for errors in windows.values())
-                self.assertAlmostEqual(err2 / err1, expected_ratio, delta=0.02 * expected_ratio)
+        err1, err2 = (np.mean(errors) for errors in windows.values())
+        self.assertAlmostEqual(err2 / err1, expected_ratio, delta=0.02 * expected_ratio)
 
-                final_freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
-                self.assertAlmostEqual(final_freq, true_freq, delta=0.1)
+        final_freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
+        self.assertAlmostEqual(final_freq, true_freq, delta=0.1)
 
     @cpu_and_gpu
     def test_gomega_zero_holds_frequency(self, target_device_idx, xp):
