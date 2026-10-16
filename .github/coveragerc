@@ -1,0 +1,10 @@
+# Coverage settings used only by the GitHub CI (COVERAGE_RCFILE in
+# .github/workflows/specula.yml). The CI runners have no GPU and do not
+# install cupy, so GPU code is excluded from the coverage reports:
+# - GPU-only tests: excluding the decorator excludes the whole function
+# - GPU-only code blocks, marked with "# pragma: gpu" on their first line
+[report]
+exclude_also =
+    @unittest\.skipIf\((specula\.)?cp is None
+    @unittest\.skipUnless\(CUPY_AVAILABLE
+    pragma: gpu

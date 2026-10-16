@@ -15,6 +15,10 @@ jobs:
   build:
 
     runs-on: ${{ matrix.os }}
+    env:
+      # CI-only coverage settings: exclude the GPU code, which cannot run here.
+      # Absolute path, since some tests run coverage from the test directory
+      COVERAGE_RCFILE: ${{ github.workspace }}/.github/coveragerc
     strategy:
       fail-fast: false
       matrix:
