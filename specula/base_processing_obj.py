@@ -251,7 +251,7 @@ class BaseProcessingObj(BaseTimeObj):
         # Taken from the default memory pool, that memory could be given to other
         # arrays (overwritten by the graph) or freed (illegal address at launch).
         # It is taken instead from a pool used only for this graph.
-        if cp is not None:
+        if cp is not None:  # pragma: gpu
             if self._graph_mempool is None:
                 self._graph_mempool = cp.cuda.MemoryPool()
                 # A deleted MemoryPool does not release its memory to the device,
