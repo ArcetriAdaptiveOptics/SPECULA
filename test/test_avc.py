@@ -19,7 +19,7 @@ LAM_STAR = 120.0 * np.exp(0.7j)
 
 
 def _make_avc(target_device_idx, p_hat=P_STAR, gx=30.0, gomega=0.0, **kwargs):
-    return AVC(simul_params=SimulParams(time_step=0.001), n_avc=1, freq=47.0,
+    return AVC(simul_params=SimulParams(time_step=0.001), freq=47.0,
                gx=gx, gomega=gomega, k=1.0,
                plant_re=p_hat.real, plant_im=p_hat.imag,
                target_device_idx=target_device_idx, **kwargs)
@@ -77,33 +77,54 @@ class TestAVC(unittest.TestCase):
 
     @cpu_and_gpu
     def test_construction_and_shapes(self, target_device_idx, xp):
+        """One output per channel for out_comm, one per instance for
+        out_freq and out_state."""
         simul_params = SimulParams(time_step=0.001)
-        n_avc = 3
-        avc = AVC(simul_params=simul_params, n_avc=n_avc,
-                  freq=[10.0, 20.0, 30.0], gx=0.05, gomega=0.001, k=1.0,
-                  plant_re=[1.0, 2.0, 3.0], plant_im=[0.0, 1.0, -1.0],
-                  target_device_idx=target_device_idx)
+        for freq, n_channels, n_instances in [(47.0, 1, 1),
+                                              ([10.0, 20.0, 30.0], 3, 3),
+                                              ([[47.0, 113.0]], 1, 2),
+                                              ([[47.0, 113.0], [30.0]], 2, 3)]:
+            with self.subTest(freq=freq):
+                avc = AVC(simul_params=simul_params, freq=freq, gx=0.05, gomega=0.001, k=1.0,
+                          target_device_idx=target_device_idx)
 
-        self.assertEqual(avc.outputs['out_comm'].value.shape, (n_avc,))
-        self.assertEqual(avc.outputs['out_freq'].value.shape, (n_avc,))
-        self.assertEqual(avc.outputs['out_state'].value.shape, (n_avc, 4))
-        np.testing.assert_allclose(cpuArray(avc.outputs['out_comm'].value), np.zeros(n_avc))
-
-    @cpu_and_gpu
-    def test_invalid_n_avc_raises(self, target_device_idx, xp):
-        simul_params = SimulParams(time_step=0.001)
-        with self.assertRaises(ValueError):
-            AVC(simul_params=simul_params, n_avc=0,
-                freq=10.0, gx=0.05, gomega=0.001, k=1.0,
-                target_device_idx=target_device_idx)
+                self.assertEqual(avc.outputs['out_comm'].value.shape, (n_channels,))
+                self.assertEqual(avc.outputs['out_freq'].value.shape, (n_instances,))
+                self.assertEqual(avc.outputs['out_state'].value.shape, (n_instances, 4))
+                np.testing.assert_allclose(cpuArray(avc.outputs['out_comm'].value), np.zeros(n_channels))
 
     @cpu_and_gpu
-    def test_mismatched_parameter_length_raises(self, target_device_idx, xp):
+    def test_empty_channel_raises(self, target_device_idx, xp):
         simul_params = SimulParams(time_step=0.001)
-        with self.assertRaises(ValueError):
-            AVC(simul_params=simul_params, n_avc=3,
-                freq=[10.0, 20.0], gx=0.05, gomega=0.001, k=1.0,
-                target_device_idx=target_device_idx)
+        for freq in ([], [[47.0], []]):
+            with self.subTest(freq=freq):
+                with self.assertRaises(ValueError):
+                    AVC(simul_params=simul_params, freq=freq, gx=0.05, gomega=0.001, k=1.0,
+                        target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_parameter_forms_agree(self, target_device_idx, xp):
+        """A per-instance parameter can be a flat list in the order of freq
+        or a list of lists shaped like freq; a scalar applies to all."""
+        simul_params = SimulParams(time_step=0.001)
+        freq = [[47.0, 113.0], [30.0]]
+        for gx, expected in [([1.0, 2.0, 3.0], [1.0, 2.0, 3.0]),
+                             ([[1.0, 2.0], [3.0]], [1.0, 2.0, 3.0]),
+                             (2.0, [2.0, 2.0, 2.0])]:
+            with self.subTest(gx=gx):
+                avc = AVC(simul_params=simul_params, freq=freq, gx=gx, gomega=0.001, k=1.0,
+                          target_device_idx=target_device_idx)
+                np.testing.assert_allclose(cpuArray(avc.gx), expected)
+
+    @cpu_and_gpu
+    def test_mismatched_parameter_shape_raises(self, target_device_idx, xp):
+        simul_params = SimulParams(time_step=0.001)
+        for gx in ([1.0, 2.0], [[1.0], [2.0, 3.0]]):
+            with self.subTest(gx=gx):
+                with self.assertRaises(ValueError):
+                    AVC(simul_params=simul_params, freq=[[47.0, 113.0], [30.0]],
+                        gx=gx, gomega=0.001, k=1.0,
+                        target_device_idx=target_device_idx)
 
     @cpu_and_gpu
     def test_zero_plant_raises(self, target_device_idx, xp):
@@ -115,7 +136,7 @@ class TestAVC(unittest.TestCase):
     def test_both_calibration_forms_raises(self, target_device_idx, xp):
         simul_params = SimulParams(time_step=0.001)
         with self.assertRaises(ValueError):
-            AVC(simul_params=simul_params, n_avc=1, freq=47.0,
+            AVC(simul_params=simul_params, freq=47.0,
                 gx=3.0, gomega=0.2, k=1.0,
                 plant_re=1.0, plant_gain=1.0,
                 target_device_idx=target_device_idx)
@@ -123,7 +144,7 @@ class TestAVC(unittest.TestCase):
     @cpu_and_gpu
     def test_wrong_input_length_raises(self, target_device_idx, xp):
         simul_params = SimulParams(time_step=0.001)
-        avc = AVC(simul_params=simul_params, n_avc=2, freq=[25.0, 55.0],
+        avc = AVC(simul_params=simul_params, freq=[25.0, 55.0],
                   gx=0.05, gomega=0.001, k=1.0,
                   target_device_idx=target_device_idx)
         measurement = BaseValue(value=xp.zeros(3), target_device_idx=target_device_idx)
@@ -136,6 +157,40 @@ class TestAVC(unittest.TestCase):
             avc.check_ready(t)
 
     @cpu_and_gpu
+    def test_channels_feed_and_sum_their_instances(self, target_device_idx, xp):
+        """freq = [[f1, f2], [f3]]: instances 1 and 2 are fed channel 0,
+        instance 3 channel 1, and out_comm sums the corrections per channel.
+
+        With the default plant 1 + 0j and gomega = 0, the first step gives
+        x3 = gx * T * y, x4 = 0, alpha = 2 pi f T, and the correction
+        u = -cos(alpha) * x3, emitted at the second step."""
+        T = 0.001
+        freq = np.array([47.0, 113.0, 30.0])
+        gx = np.array([1.0, 2.0, 3.0])
+        y = np.array([0.3, -0.2])
+        avc = AVC(simul_params=SimulParams(time_step=T), freq=[[47.0, 113.0], [30.0]],
+                  gx=gx.tolist(), gomega=0.0, k=1.0,
+                  target_device_idx=target_device_idx)
+        measurement = BaseValue(value=xp.asarray(y), target_device_idx=target_device_idx)
+        avc.inputs['in_measurement'].set(measurement)
+        avc.setup()
+
+        for step in (1, 2):
+            t = avc.seconds_to_t(step * T)
+            measurement.generation_time = t
+            avc.check_ready(t)
+            avc.trigger()
+            avc.post_trigger()
+            if step == 1:
+                x3_first = cpuArray(avc.outputs['out_state'].value)[:, 2].copy()
+
+        y_instances = y[[0, 0, 1]]
+        np.testing.assert_allclose(x3_first, gx * T * y_instances, rtol=1e-6)
+        u = -np.cos(2 * np.pi * freq * T) * x3_first
+        np.testing.assert_allclose(cpuArray(avc.outputs['out_comm'].value),
+                                   [u[0] + u[1], u[2]], rtol=1e-5)
+
+    @cpu_and_gpu
     def test_cartesian_and_polar_calibration_give_the_same_map(self, target_device_idx, xp):
         """theta = -Lambda_hat / conj(P_hat): with P_hat = rho exp(i psi), the
         map (x3, x4) -> (thetac, thetas) is a rotation by psi scaled by -1/rho."""
@@ -144,11 +199,11 @@ class TestAVC(unittest.TestCase):
         expected = {'m11': -np.cos(psi) / rho, 'm12': np.sin(psi) / rho,
                     'm21': -np.sin(psi) / rho, 'm22': -np.cos(psi) / rho}
 
-        cartesian = AVC(simul_params=simul_params, n_avc=1, freq=47.0,
+        cartesian = AVC(simul_params=simul_params, freq=47.0,
                         gx=3.0, gomega=0.2, k=1.0,
                         plant_re=rho * np.cos(psi), plant_im=rho * np.sin(psi),
                         target_device_idx=target_device_idx)
-        polar = AVC(simul_params=simul_params, n_avc=1, freq=47.0,
+        polar = AVC(simul_params=simul_params, freq=47.0,
                     gx=3.0, gomega=0.2, k=1.0,
                     plant_gain=rho, plant_phase=np.degrees(psi),
                     target_device_idx=target_device_idx)
@@ -160,8 +215,8 @@ class TestAVC(unittest.TestCase):
     @cpu_and_gpu
     def test_first_trigger_outputs_zero_correction(self, target_device_idx, xp):
         simul_params = SimulParams(time_step=0.001)
-        n_avc = 2
-        avc = AVC(simul_params=simul_params, n_avc=n_avc, freq=[25.0, 55.0],
+        n_channels = 2
+        avc = AVC(simul_params=simul_params, freq=[25.0, 55.0],
                   gx=0.05, gomega=0.001, k=1.0,
                   target_device_idx=target_device_idx)
 
@@ -175,7 +230,7 @@ class TestAVC(unittest.TestCase):
         avc.trigger()
         avc.post_trigger()
 
-        np.testing.assert_allclose(cpuArray(avc.outputs['out_comm'].value), np.zeros(n_avc))
+        np.testing.assert_allclose(cpuArray(avc.outputs['out_comm'].value), np.zeros(n_channels))
 
     @cpu_and_gpu
     def test_output_precision(self, target_device_idx, xp):
@@ -289,29 +344,56 @@ class TestAVC(unittest.TestCase):
     @cpu_and_gpu
     def test_frequency_tracking_converges_on_pure_tone(self, target_device_idx, xp):
         """Open-loop PLL check: the estimate is pulled onto a pure tone
-        from a wrong initial guess."""
+        from a wrong initial guess, below or above it, at the analytic rate.
+
+        For y = A sin(phi), sin(alpha) * y averages to (A / 2) cos(alpha - phi),
+        and near lock the phase error delta obeys
+        delta'' + k a delta' + a delta = 0, with a = gomega * A. The
+        frequency error decays as exp(lambda t), lambda being the slow root
+        of lambda**2 + k a lambda + a = 0: -1.08 1/s here, so it shrinks
+        by exp(1.5 lambda) = 0.197 between 1.0 s and 2.5 s.
+        """
         T = 0.001
-        true_freq = 50.0
+        true_freq, amp, gomega, k = 50.0, 0.7, 20.0, 1.0
+        a = gomega * amp
+        slow_root = (-k * a + np.sqrt((k * a)**2 - 4 * a)) / 2
+        t1, t2 = 1.0, 2.5
+        expected_ratio = np.exp(slow_root * (t2 - t1))
+        # error averaged over 40 ms, i.e. 4 periods of the ripple at 2 * true_freq
+        half_window = 20
+        windows = {int(t / T): [] for t in (t1, t2)}
+
         simul_params = SimulParams(time_step=T)
-        avc = AVC(simul_params=simul_params, n_avc=1, freq=48.0,
-                  gx=0.5, gomega=5.0, k=1.0,
-                  target_device_idx=target_device_idx)
+        for start_freq in (48.0, 52.0):
+            with self.subTest(start_freq=start_freq):
+                for errors in windows.values():
+                    errors.clear()
+                avc = AVC(simul_params=simul_params, freq=start_freq,
+                          gx=0.5, gomega=gomega, k=k,
+                          target_device_idx=target_device_idx)
 
-        meas = BaseValue(value=xp.zeros(1), target_device_idx=target_device_idx)
-        avc.inputs['in_measurement'].set(meas)
-        avc.setup()
+                meas = BaseValue(value=xp.zeros(1), target_device_idx=target_device_idx)
+                avc.inputs['in_measurement'].set(meas)
+                avc.setup()
 
-        for it in range(20000):
-            t_sec = (it + 1) * T
-            t = avc.seconds_to_t(t_sec)
-            meas.value[:] = xp.asarray([0.7 * np.sin(2 * np.pi * true_freq * t_sec)])
-            meas.generation_time = t
-            avc.check_ready(t)
-            avc.trigger()
-            avc.post_trigger()
+                for it in range(5000):
+                    t_sec = (it + 1) * T
+                    t = avc.seconds_to_t(t_sec)
+                    meas.value[:] = xp.asarray([amp * np.sin(2 * np.pi * true_freq * t_sec)])
+                    meas.generation_time = t
+                    avc.check_ready(t)
+                    avc.trigger()
+                    avc.post_trigger()
+                    for center, errors in windows.items():
+                        if abs(it - center) < half_window:
+                            freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
+                            errors.append(abs(freq - true_freq))
 
-        final_freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
-        self.assertAlmostEqual(final_freq, true_freq, delta=1.0)
+                err1, err2 = (np.mean(errors) for errors in windows.values())
+                self.assertAlmostEqual(err2 / err1, expected_ratio, delta=0.02 * expected_ratio)
+
+                final_freq = float(cpuArray(avc.outputs['out_freq'].value)[0])
+                self.assertAlmostEqual(final_freq, true_freq, delta=0.1)
 
     @cpu_and_gpu
     def test_gomega_zero_holds_frequency(self, target_device_idx, xp):

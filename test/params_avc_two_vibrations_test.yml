@@ -1,0 +1,91 @@
+main:
+  class:             'SimulParams'
+  # ---------------------
+  # not used in this example
+  root_dir:          './calib'              # Root directory for calibration manager
+  pixel_pupil:       160                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.05                   # [m] Pitch of the pupil phase array
+  # ---------------------
+  total_time:        2.000                  # [s] Total simulation running time
+  time_step:         0.001                  # [s] Simulation time step
+
+# Same loop as params_avc_test.yml, with two vibrations (47 and 113 Hz) on
+# the same mode: one AVC channel with two instances, fed the measured
+# residual, with their corrections summed into the channel output.
+
+vib1:
+  class:             'WaveGenerator'
+  wave_type:         'SIN'
+  amp:               [100.0]
+  freq:              [47.0]
+
+vib2:
+  class:             'WaveGenerator'
+  wave_type:         'SIN'
+  amp:               [60.0]
+  freq:              [113.0]
+
+disturbance:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'vib1.output'
+    in_value2:      'vib2.output'
+  outputs:  ['out_value']
+
+diff:
+  class:             'BaseOperation'
+  sub:               True
+  inputs:
+      in_value1: 'disturbance.out_value'
+      in_value2: 'comm.out_value:-1'
+  outputs: ['out_value']
+
+noise:
+  class:            'RandomGenerator'
+  amp:              [5.0]
+  seed:             42
+  outputs: ['output']
+
+meas:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'diff.out_value'
+    in_value2:      'noise.output'
+  outputs:  ['out_value']
+
+control:
+  class:             'Integrator'
+  delay:             1.0
+  int_gain:          [0.4]
+  n_modes:           [1]
+  inputs:
+      delta_comm:  'meas.out_value'
+
+avc:
+  class:             'AVC'
+  simul_params_ref:  'main'
+  freq:              [[46.5, 112.5]]        # [Hz] one channel, two vibrations; guesses off by 0.5 Hz
+  gx:                10.0
+  gomega:            0.5
+  k:                 1.0
+  plant_gain:        [[0.771, 1.756]]       # plant of this loop at 47 and 113 Hz:
+  plant_phase:       [[234.3, 168.6]]       # -z^-1 / (1 + z^-2 * 0.4 / (1 - z^-1))
+  inputs:
+    in_measurement: 'meas.out_value'
+  outputs: ['out_comm', 'out_freq']
+
+comm:
+  class:            'BaseOperation'
+  sum:              True
+  inputs:
+    in_value1:      'control.out_comm'
+    in_value2:      'avc.out_comm'
+  outputs:  ['out_value']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './data'             # Data result directory: 'store_dir'/TN/
+  inputs:
+    input_list: ['res-diff.out_value', 'avc_freq-avc.out_freq', 'avc_comm-avc.out_comm']

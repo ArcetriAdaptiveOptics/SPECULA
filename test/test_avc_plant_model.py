@@ -19,8 +19,7 @@ T = 0.001
 def _reference_generate_avc_init_conditions(fAVC, KAO, T, f0, csi, DMdc,
                                             delRTC, nSampDelAVC):
     """Line by line translation of ESO's generateAVCInitConditions.m,
-    used as a reference, without the WFS and DAC zero-order holds (see the
-    module docstring)."""
+    used as a reference, without the WFS and DAC zero-order holds"""
     f = np.arange(0.1, 1 / (2 * T) + 1e-9, 0.01)
 
     w0 = 2 * np.pi * f0
@@ -49,7 +48,8 @@ class TestAvcPlantModel(unittest.TestCase):
 
     def test_zero_loop_gain(self):
         """Open loop: S = 1 and P_avc is the pure delay of the AVC path,
-        with the sign of the feedback."""
+        with the sign of the feedback.
+        """
         f = np.array([5.0, 47.0, 200.0])
         loop_delay, extra_delay = 2 * T, -T
         S = closed_loop_sensitivity(f, T, loop_gain=0.0, loop_delay=loop_delay)
@@ -68,9 +68,21 @@ class TestAvcPlantModel(unittest.TestCase):
                 self.assertAlmostEqual(abs(S[0]) / (2 * np.pi * f * T / loop_gain), 1.0, delta=0.05)
 
     def test_nyquist_frequency(self):
-        """At f = 1 / (2 T), z = -1: with a loop delay of 2 steps
-        HOL = loop_gain / 2, so S = 2 / (2 + loop_gain), and with one more
-        step on the AVC path P_avc = -(-1)^3 * S = S."""
+        """At the Nyquist frequency f = 1 / (2 T) the transfer functions are
+        real and have a simple exact value, which checks signs and delays.
+
+        There z = exp(2j pi f T) = exp(j pi) = -1, so each one-step delay
+        z^-1 multiplies by -1:
+
+        - integrator: CTR = loop_gain / (1 - z^-1) = loop_gain / 2;
+        - loop delay of 2 steps: z^-2 = +1, so HOL = loop_gain / 2 and
+          S = 1 / (1 + HOL) = 2 / (2 + loop_gain);
+        - AVC path: its delay differs from the loop one. The AVC command
+          is summed to the integrator output, so it skips the integrator
+          internal delay (1 step) and only goes through the one-step
+          delayed connection to the DM: 1 step, i.e. avc_extra_delay = -T.
+          Then P_avc = -z^-1 * S = -(-1) * S = S.
+        """
         loop_gain = 0.4
         f = 1 / (2 * T)
         S = closed_loop_sensitivity(f, T, loop_gain=loop_gain, loop_delay=2 * T)
@@ -127,7 +139,11 @@ class TestAvcPlantModel(unittest.TestCase):
     def test_matches_specula_loop(self):
         """Response of the params_avc_test.yml loop (Integrator delay 1,
         int_gain 0.4) measured in SPECULA by injecting a tone summed to the
-        integrator command: the discrete model is exact."""
+        integrator command: the discrete model is exact.
+
+        Loop delay: 1 step in the integrator + 1 step on the delayed
+        connection = 2 steps. The AVC command skips the integrator delay
+        (see test_nyquist_frequency): 1 step, i.e. avc_extra_delay = -T."""
         for f, gain, phase_deg in [(47.0, 0.7707, 234.3),
                                    (100.0, 1.6403, 182.6),
                                    (200.0, 1.4609, 99.2)]:
@@ -140,11 +156,33 @@ class TestAvcPlantModel(unittest.TestCase):
     def test_matches_specula_scao_loop(self):
         """Response measured in the params_scao_sh_test.yml loop (int_gain
         0.5, delay 2) by injecting a 47 Hz tone on the tip command,
-        downstream of the integrator: 0.80 at 255 degrees."""
+        downstream of the integrator: 0.80 at 255 degrees.
+
+        How it was measured: no vibration; a WaveGenerator tone (47 Hz,
+        amplitude 100) put on mode 0 by a BaseInserter and summed to
+        control.out_comm by a BaseOperation (sum=True) before the DM, where
+        the AVC command goes. The tip residual rec.out_modes[0] was recorded
+        in two runs with the same seed, with and without the tone, and
+        their difference (the response to the tone alone, turbulence and
+        noise cancel) was demodulated at 47 Hz after a 0.5 s transient,
+        over a whole number of periods:
+        P = sum(y[k] exp(-2j pi f k T)) / sum(u[k] exp(-2j pi f k T)).
+
+        Loop delay: 2 steps in the integrator + 1 step on the delayed DM
+        connection = 3 steps. The AVC command skips the integrator delay
+        (see test_nyquist_frequency): 1 step, i.e. avc_extra_delay = -2 T.
+        The model gives 0.79 at 260 degrees"""
         p = avc_command_to_residual_tf(47.0, T, loop_gain=0.5, loop_delay=3 * T,
                                        avc_extra_delay=-2 * T)[0]
         self.assertAlmostEqual(abs(p), 0.80, delta=0.02)
         self.assertAlmostEqual(np.degrees(np.angle(p)) % 360, 255.0, delta=10.0)
+
+    def test_zero_plant_raises(self):
+        """With a DM of zero gain the AVC command has no effect on the
+        residual: no calibration is possible."""
+        with self.assertRaises(ValueError):
+            generate_avc_init_conditions(47.0, T, loop_gain=0.4, loop_delay=2 * T,
+                                         avc_extra_delay=-T, dm_dc_gain=0.0)
 
     def test_init_conditions_are_the_transfer_function(self):
         for f in (20.0, 47.0, 130.0):

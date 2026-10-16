@@ -51,7 +51,6 @@ control:
 avc:
   class:             'AVC'
   simul_params_ref:  'main'
-  n_avc:             1
   freq:              [46.5]                 # [Hz] initial guess, off by 0.5 Hz
   gx:                10.0
   gomega:            0.5

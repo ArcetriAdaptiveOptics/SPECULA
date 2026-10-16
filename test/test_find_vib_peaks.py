@@ -72,6 +72,10 @@ class TestFindVibPeaks(unittest.TestCase):
         p1, p2 = _resonance_poles(47.3, 0.005)
         ar2 = np.real(np.poly([p1, p2]))
         x = lfilter([1.0], ar2, rng.normal(size=n)) + 3.0 * rng.normal(size=n)
+        # 4 s segments: 0.25 Hz bins resolve the 0.47 Hz wide peak
+        # (2 * zeta * f0), and ~49 averages keep the PSD noise (~15%) far
+        # below the 3x detection threshold. The window broadens the peak,
+        # so the damping is not checked here.
         freq, psd = welch(x, fs=FS, nperseg=4000)
 
         result = find_vib_peaks(psd[1:], freq[1:], fmin=1.0, fmax=400.0)
@@ -81,6 +85,7 @@ class TestFindVibPeaks(unittest.TestCase):
 
     def test_white_noise_gives_no_peaks(self):
         rng = np.random.default_rng(3)
+        # same Welch setup as test_vibration_in_noise_from_time_series
         freq, psd = welch(rng.normal(size=100000), fs=FS, nperseg=4000)
 
         result = find_vib_peaks(psd[1:], freq[1:], fmin=1.0, fmax=400.0)
@@ -124,14 +129,21 @@ class TestFitAr2(unittest.TestCase):
         self.assertLessEqual(abs(k[0] - zeta), DAMPING_STEP)
         self.assertGreater(sigma[0], 0)
 
-    def test_output_sorted_by_frequency(self):
-        """Two peaks in one segment exercise the secondary-peak branch."""
-        band = (FREQ > 1.0) & (FREQ < 100.0)
-        psd = 0.01 + _ar2_psd(FREQ, 30.0, 0.004, 20.0) + _ar2_psd(FREQ, 70.0, 0.004, 15.0)
+    def test_two_close_peaks_in_one_segment(self):
+        """Two close peaks in one segment: the first fit, on the strongest,
+        leaves a contiguous region of large error around the second one,
+        which is then fitted too (the secondary-peak branch). Both are
+        found within one bin and returned sorted by frequency."""
+        band = (FREQ > 45.0) & (FREQ < 56.0)
+        peaks = [(50.0, 0.003, 20.0), (51.0, 0.003, 8.0)]
+        psd = sum(_ar2_psd(FREQ, f0, zeta, power) for f0, zeta, power in peaks)
 
-        sigma, k, f_vib = fit_ar2(psd[band], FREQ[band], 1 / FS, threshold=0.3, df=DF)
+        sigma, k, f_vib = fit_ar2(psd[band], FREQ[band], 1 / FS, threshold=0.5, df=DF)
 
+        self.assertEqual(f_vib.size, 2)
         np.testing.assert_array_equal(f_vib, np.sort(f_vib))
+        for (f0, _, _), f in zip(peaks, f_vib):
+            self.assertLessEqual(abs(f - f0), DF)
 
 
 if __name__ == '__main__':
