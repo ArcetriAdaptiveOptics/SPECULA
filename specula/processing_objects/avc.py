@@ -1,5 +1,7 @@
 from typing import List
 
+import numpy as np
+
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -10,10 +12,14 @@ class AVC(BaseProcessingObj):
     """
     Adaptive Vibration Cancellation
 
-    Cancels a narrowband vibration with a lock-in integrator and a frequency
-    tracking loop (PLL), given a fixed calibration of the plant at the
-    vibration frequency. Fixed-plant variant of the algorithm of Muradore,
-    Pettazzi & Fedrigo (ECC 2014).
+    Cancels narrowband vibrations, each with a lock-in integrator and a
+    frequency tracking loop (PLL), given a fixed calibration of the plant at
+    the vibration frequency. Fixed-plant variant of the algorithm of
+    Muradore, Pettazzi & Fedrigo (ECC 2014).
+
+    Each vibration is an independent AVC instance acting on a measured
+    channel (e.g. a mode), and a channel can have several vibrations: the
+    structure of ``freq`` defines both.
 
     **The algorithm.** Per sample, with ``c = cos(alpha)``, ``s = sin(alpha)``
     and ``mu = gx * Ts``::
@@ -51,79 +57,99 @@ class AVC(BaseProcessingObj):
     simul_params : SimulParams
         Simulation parameters; only ``time_step`` (the AO loop period Ts)
         is used.
-    n_avc : int
-        Number of independent instances (vibrations). ``in_measurement``
-        and ``out_comm`` have this length. Several instances may be fed the
-        same measurement, and their corrections summed downstream (e.g.
-        with :py:class:`~specula.processing_objects.base_operation.BaseOperation` and ``sum=True``).
-    freq : float or array-like [Hz], length n_avc
-        Initial guess of the vibration frequency. The PLL will pull it to
-        the true value provided the tone dominates the residual near it.
-    gx : float or array-like, length n_avc
+    freq : float, list of float, or list of lists of float [Hz]
+        Initial guess of the vibration frequencies, one AVC instance per
+        frequency, grouped by measured channel: ``[[47.0, 113.0], [30.0]]``
+        is two vibrations on channel 0 and one on channel 1,
+        ``[47.0, 30.0]`` one vibration on each of two channels, a scalar
+        one vibration on one channel. Each instance is fed the measurement
+        of its channel, and the corrections of the instances of a channel
+        are summed into its output. The PLL pulls each frequency to the
+        true value provided the tone dominates the residual near it.
+
+        The per-instance parameters below are a scalar (the same for all
+        the instances), a flat list in the order of ``freq``, or a list of
+        lists with the same structure as ``freq``.
+    gx : float or list
         Gain of the disturbance integrator. The convergence rate is
         ``0.5 * gx * Re(kappa)`` [1/s]; see the step-size limit above.
-    gomega : float or array-like, length n_avc
+    gomega : float or list
         Gain of the frequency loop. Set to 0 to hold the frequency fixed at
         ``freq``. Must be re-tuned when the tone's signal-to-noise ratio
         changes, since the PLL is driven by whatever dominates the error.
-    k : float or array-like, length n_avc
+    k : float or list
         Phase/frequency coupling in the PLL (proportional path).
-    plant_re, plant_im : float or array-like, length n_avc, optional
+    plant_re, plant_im : float or list, optional
         Calibrated closed-loop plant response at the vibration frequency,
         in cartesian form: ``P_hat = plant_re + 1j * plant_im``. Defaults
         to ``1 + 0j``. The phase must be within 90 degrees of the true
         one, the magnitude can be any non-zero value. See
         :py:mod:`specula.lib.avc_plant_model` for an analytic estimate.
-    plant_gain, plant_phase : float or array-like, length n_avc, optional
+    plant_gain, plant_phase : float or list, optional
         The same calibration in polar form, ``|P_hat|`` and
         ``arg(P_hat)`` in **degrees**. Mutually exclusive with
         ``plant_re``/``plant_im``; provided because the calibration is
         normally measured as a magnitude and a phase.
-    alpha0 : float or array-like, length n_avc, optional
+    alpha0 : float or list, optional
         Initial phase estimate [rad]. Default 0.
     target_device_idx : int, optional
     precision : int, optional
 
     Inputs
     ------
-    in_measurement : BaseValue, length n_avc
-        Current measurement y[k] (e.g. the residual of one modal
-        coefficient).
+    in_measurement : BaseValue, one value per channel
+        Current measurement y[k] of each channel (e.g. the residual of a
+        modal coefficient).
 
     Outputs
     -------
-    out_comm : BaseValue, length n_avc
-        Correction u[k], computed at the previous iteration, ready to be
-        added to the loop command.
-    out_freq : BaseValue, length n_avc
-        Current frequency estimate [Hz].
-    out_state : BaseValue, shape (n_avc, 4)
+    out_comm : BaseValue, one value per channel
+        Correction u[k], computed at the previous iteration and summed
+        over the instances of each channel, ready to be added to the loop
+        command (e.g. with
+        :py:class:`~specula.processing_objects.base_operation.BaseOperation`
+        and ``sum=True``).
+    out_freq : BaseValue, one value per instance
+        Current frequency estimates [Hz], in the order of ``freq``.
+    out_state : BaseValue, shape (number of instances, 4)
         ``[plant_re, plant_im, x3, x4]``. The first two are the frozen
         calibration and never change
     """
 
     def __init__(self,
                  simul_params: SimulParams,
-                 n_avc: int,
-                 freq: float | List[float],
-                 gx: float | List[float],
-                 gomega: float | List[float],
-                 k: float | List[float],
-                 plant_re: float | List[float] = None,
-                 plant_im: float | List[float] = None,
-                 plant_gain: float | List[float] = None,
-                 plant_phase: float | List[float] = None,
-                 alpha0: float | List[float] = 0.0,
+                 freq: float | List[float] | List[List[float]],
+                 gx: float | List[float] | List[List[float]],
+                 gomega: float | List[float] | List[List[float]],
+                 k: float | List[float] | List[List[float]],
+                 plant_re: float | List[float] | List[List[float]] = None,
+                 plant_im: float | List[float] | List[List[float]] = None,
+                 plant_gain: float | List[float] | List[List[float]] = None,
+                 plant_phase: float | List[float] | List[List[float]] = None,
+                 alpha0: float | List[float] | List[List[float]] = 0.0,
                  target_device_idx: int = None,
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if n_avc < 1:
-            raise ValueError('n_avc must be at least 1')
-        self.n_avc = n_avc
         self.T = float(simul_params.time_step)
 
-        # Tuning parameters, broadcast to n_avc elements if scalar
+        # Measured channels and AVC instances: one instance per frequency,
+        # grouped by channel
+        channels = _as_channels(freq)
+        if not channels or any(len(c) == 0 for c in channels):
+            raise ValueError('freq must give at least one frequency for each channel')
+        self.channel_sizes = [len(c) for c in channels]
+        self.n_channels = len(channels)
+        self.n_instances = sum(self.channel_sizes)
+        channel_of_instance = np.repeat(np.arange(self.n_channels), self.channel_sizes)
+        self.channel_of_instance = self.xp.asarray(channel_of_instance)
+        # (channels, instances) matrix of ones summing the corrections of
+        # the instances of each channel
+        sum_matrix = np.zeros((self.n_channels, self.n_instances))
+        sum_matrix[channel_of_instance, np.arange(self.n_instances)] = 1.0
+        self.sum_matrix = self.xp.asarray(sum_matrix, dtype=self.dtype)
+
+        # Tuning parameters, one value per instance
         self.gx = self.to_param(gx, 'gx')
         self.gomega = self.to_param(gomega, 'gomega')
         self.k = self.to_param(k, 'k')
@@ -168,37 +194,37 @@ class AVC(BaseProcessingObj):
         # Only the disturbance quadratures and the frequency loop. alpha_c
         # is the Kahan compensation carried by the phase accumulator.
         freq_arr = self.to_param(freq, 'freq')
-        self.x3 = self.xp.zeros(n_avc, dtype=self.dtype)
-        self.x4 = self.xp.zeros(n_avc, dtype=self.dtype)
+        self.x3 = self.xp.zeros(self.n_instances, dtype=self.dtype)
+        self.x4 = self.xp.zeros(self.n_instances, dtype=self.dtype)
         self.omega = self.xp.array(2 * self.xp.pi * freq_arr, dtype=self.dtype)
         self.alpha = self.to_param(alpha0, 'alpha0')
-        self.alpha_c = self.xp.zeros(n_avc, dtype=self.dtype)
+        self.alpha_c = self.xp.zeros(self.n_instances, dtype=self.dtype)
 
         # Correction u[k]; zero at start since x3 = x4 = 0
-        self.correction = self.xp.zeros(n_avc, dtype=self.dtype)
+        self.correction = self.xp.zeros(self.n_instances, dtype=self.dtype)
 
         # Working buffers
-        self.measurement = self.xp.zeros(n_avc, dtype=self.dtype)
-        self.out_buffer = self.xp.zeros(n_avc, dtype=self.dtype)
-        self.freq_buffer = self.xp.zeros(n_avc, dtype=self.dtype)
-        self.state_buffer = self.xp.zeros((n_avc, 4), dtype=self.dtype)
+        self.measurement = self.xp.zeros(self.n_instances, dtype=self.dtype)
+        self.out_buffer = self.xp.zeros(self.n_channels, dtype=self.dtype)
+        self.freq_buffer = self.xp.zeros(self.n_instances, dtype=self.dtype)
+        self.state_buffer = self.xp.zeros((self.n_instances, 4), dtype=self.dtype)
         self.state_buffer[:, 0] = self.plant_re
         self.state_buffer[:, 1] = self.plant_im
 
         # Outputs
         self.out_comm = BaseValue(
             'AVC correction command',
-            value=self.xp.zeros(n_avc, dtype=self.dtype),
+            value=self.xp.zeros(self.n_channels, dtype=self.dtype),
             target_device_idx=self.target_device_idx,
             precision=precision)
         self.out_freq = BaseValue(
             'AVC vibration frequency estimate [Hz]',
-            value=self.xp.zeros(n_avc, dtype=self.dtype),
+            value=self.xp.zeros(self.n_instances, dtype=self.dtype),
             target_device_idx=self.target_device_idx,
             precision=precision)
         self.out_state = BaseValue(
             'AVC state [plant_re, plant_im, x3, x4] (diagnostic)',
-            value=self.xp.zeros((n_avc, 4), dtype=self.dtype),
+            value=self.xp.zeros((self.n_instances, 4), dtype=self.dtype),
             target_device_idx=self.target_device_idx,
             precision=precision)
 
@@ -208,24 +234,31 @@ class AVC(BaseProcessingObj):
         self.outputs['out_state'] = self.out_state
 
     def to_param(self, value, name):
-        """Convert a scalar or array-like parameter to a static xp array of
-        length n_avc, broadcasting scalars. Only used at init time."""
-        arr = self.xp.atleast_1d(self.xp.asarray(value, dtype=self.dtype))
-        if arr.size == 1:
-            arr = self.xp.full(self.n_avc, arr.reshape(-1)[0], dtype=self.dtype)
-        elif arr.size != self.n_avc:
+        """Convert a per-instance parameter (a scalar, a flat list in the
+        order of freq, or a list of lists shaped like freq) to a static xp
+        array with one value per instance. Only used at init time."""
+        channels = _as_channels(value)
+        sizes = [len(c) for c in channels]
+        if sizes == [1]:
+            flat = channels[0] * self.n_instances
+        elif sizes == [1] * self.n_instances:
+            flat = [c[0] for c in channels]
+        elif sizes == self.channel_sizes:
+            flat = [v for c in channels for v in c]
+        else:
             raise ValueError(
-                f"Parameter '{name}' has size {arr.size} but n_avc={self.n_avc}")
-        return arr
+                f"Parameter '{name}' must be a scalar, a list of {self.n_instances} "
+                f"values or a list of lists shaped like freq {self.channel_sizes}")
+        return self.xp.asarray(flat, dtype=self.dtype)
 
     @classmethod
     def input_names(cls):
-        return {'in_measurement': InputDesc(BaseValue, 'Input measurement signal, one value per AVC instance')}
+        return {'in_measurement': InputDesc(BaseValue, 'Input measurement signal, one value per channel')}
 
     @classmethod
     def output_names(cls):
         return {
-            'out_comm': OutputDesc(BaseValue, 'Output correction command, one value per AVC instance'),
+            'out_comm': OutputDesc(BaseValue, 'Output correction command, one value per channel'),
             'out_freq': OutputDesc(BaseValue, 'Estimated vibration frequency [Hz], one value per AVC instance'),
             'out_state': OutputDesc(BaseValue, 'State [plant_re, plant_im, x3, x4] per AVC instance'),
         }
@@ -241,23 +274,21 @@ class AVC(BaseProcessingObj):
         measurement_array = self.xp.asarray(measurement, dtype=self.dtype)
         measurement_array = self.xp.atleast_1d(measurement_array).ravel()
 
-        if measurement_array.size != self.n_avc:
-            if measurement_array.size == 1:
-                measurement_array = self.xp.full(
-                    self.n_avc, measurement_array[0], dtype=self.dtype)
-            else:
-                raise ValueError(
-                    f"Input in_measurement has size {measurement_array.size} "
-                    f"but AVC expects {self.n_avc} values")
+        if measurement_array.size != self.n_channels:
+            raise ValueError(
+                f"Input in_measurement has size {measurement_array.size} "
+                f"but AVC expects {self.n_channels} values, one per channel")
 
-        self.measurement[:] = measurement_array
+        # each instance is fed the measurement of its channel
+        self.measurement[:] = measurement_array[self.channel_of_instance]
 
     def trigger_code(self):
         xp = self.xp
 
         # Step 1: emit the correction computed at the previous iteration,
-        # and the current frequency estimate.
-        self.out_buffer[:] = self.correction
+        # summed over the instances of each channel, and the current
+        # frequency estimate.
+        self.out_buffer[:] = (self.sum_matrix * self.correction).sum(axis=1)
         self.freq_buffer[:] = self.omega / (2 * xp.pi)
 
         alpha = self.alpha
@@ -311,3 +342,21 @@ class AVC(BaseProcessingObj):
         self.out_freq.generation_time = self.current_time
         self.out_state.value[:] = self.state_buffer
         self.out_state.generation_time = self.current_time
+
+
+def _as_channels(value):
+    """Normalize a scalar, a flat list or a list of lists to a list of
+    lists of floats, one inner list per channel."""
+    if hasattr(value, 'tolist'):
+        value = value.tolist()
+    if not isinstance(value, (list, tuple)):
+        return [[float(value)]]
+    channels = []
+    for item in value:
+        if hasattr(item, 'tolist'):
+            item = item.tolist()
+        if isinstance(item, (list, tuple)):
+            channels.append([float(v) for v in item])
+        else:
+            channels.append([float(item)])
+    return channels

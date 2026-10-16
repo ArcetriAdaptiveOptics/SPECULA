@@ -138,13 +138,19 @@ def generate_avc_init_conditions(freq_avc, T, loop_gain, loop_delay,
     Returns
     -------
     plant_re, plant_im : float
-        Real and imaginary part of ``P_avc(freq_avc)``, or ``(1.0, 0.0)``
-        if it is zero.
+        Real and imaginary part of ``P_avc(freq_avc)``.
+
+    Raises
+    ------
+    ValueError
+        If ``P_avc(freq_avc)`` is zero: the AVC command has no effect on
+        the residual, and no calibration can make the AVC work.
     """
     p_avc = avc_command_to_residual_tf(freq_avc, T, loop_gain, loop_delay,
                                        avc_extra_delay, dm_dc_gain,
                                        dm_f0, dm_csi, lpf_fc)
     value = complex(p_avc[0])
-    if abs(value) == 0:
-        return 1.0, 0.0
+    if value == 0:
+        raise ValueError(f'P_avc is zero at {freq_avc} Hz: the AVC command has no '
+                         'effect on the residual, the plant cannot be calibrated')
     return float(value.real), float(value.imag)
