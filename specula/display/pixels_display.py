@@ -150,7 +150,7 @@ class PixelsDisplay(BaseDisplay):
             ratio = 1e-6
             if img_max <= 0:
                 img_max = 1.0
-            if img_min >= img_max*ratio or img_min <= 0:
+            if img_min < img_max*ratio:
                 img_min = img_max*ratio
             norm = mcolors.LogNorm(vmin=img_min, vmax=img_max)
             # clip image to avoid issues with LogNorm
@@ -160,7 +160,7 @@ class PixelsDisplay(BaseDisplay):
             self.img = self.ax.imshow(image, norm=norm)
             self._add_colorbar_if_needed(self.img, unit='counts')
         else:
-            self.img.set_data(image)
+            self._update_image_data(self.img, image)
             if norm is not None:
                 self.img.set_norm(norm)
 
