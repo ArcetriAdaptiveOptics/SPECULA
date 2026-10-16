@@ -8,6 +8,9 @@ from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.source import Source
 from specula.data_objects.ifunc import IFunc
+from specula.data_objects.m2c import M2C
+from specula.base_value import BaseValue
+from specula import cpuArray
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.pupdata import PupData
 from specula.data_objects.slopes import Slopes
@@ -245,6 +248,71 @@ class TestSprintPyr(unittest.TestCase):
 
         self.assertIsInstance(sprint.internal_command.description, str)
         self.assertEqual(sprint.internal_command.value.shape, (dm.nmodes,))
+
+    def _check_internal_dm_matches_main(self, dm, target_device_idx):
+        """Unit command e_j on the main DM and on the SprintPyr internal DM gives the same phase"""
+        simul_params, pupil_mask, source, _, wfs, ccd, slopec = create_test_system()
+        sprint = SprintPyr(
+            simul_params=simul_params,
+            dm=dm,
+            slopec=slopec,
+            source=source,
+            wfs=wfs,
+            pupil_mask=pupil_mask,
+            modes_index=[0],
+            carrier_frequencies=[10],
+            target_device_idx=target_device_idx,
+            precision=1
+        )
+        sprint.inputs['in_slopes'].set(Slopes(2, target_device_idx=target_device_idx, precision=1))
+        sprint.setup()
+
+        main_cmd = BaseValue(value=dm.xp.zeros(dm.nmodes, dtype=dm.dtype),
+                             target_device_idx=target_device_idx)
+        dm.inputs['in_command'].set(main_cmd)
+        dm.setup()
+
+        self.assertEqual(sprint.internal_dm.nmodes, dm.nmodes)
+        for j in range(dm.nmodes):
+            t = j + 1
+            e_j = np.zeros(dm.nmodes, dtype=np.float32)
+            e_j[j] = 1.0
+            main_cmd.set_value(e_j)
+            main_cmd.generation_time = t
+            dm.check_ready(t)
+            dm.trigger_code()
+            sprint.internal_command.set_value(e_j)
+            sprint.internal_command.generation_time = t
+            sprint.internal_dm.check_ready(t)
+            sprint.internal_dm.trigger_code()
+            ref = cpuArray(dm.outputs['out_layer'].phaseInNm)
+            got = cpuArray(sprint.internal_dm.outputs['out_layer'].phaseInNm)
+            self.assertGreater(np.abs(ref).max(), 0)
+            np.testing.assert_allclose(got, ref, rtol=1e-5, atol=1e-5 * np.abs(ref).max())
+
+    @cpu_and_gpu
+    def test_internal_dm_matches_main_with_m2c_start_mode(self, target_device_idx, xp):
+        """Main DM with m2c and start_mode>0: internal DM input j drives the same mode as main input j"""
+        simul_params = SimulParams(time_step=1e-3, pixel_pupil=80, pixel_pitch=8.0 / 80)
+        ifunc = IFunc(type_str='zernike', npixels=80, nmodes=6, obsratio=0.0,
+                      target_device_idx=target_device_idx, precision=1)
+        m2c_arr = np.random.RandomState(3).randn(6, 5).astype(np.float32)
+        dm = DM(simul_params=simul_params, ifunc=ifunc, height=0.0, start_mode=2,
+                m2c=M2C(m2c_arr, target_device_idx=target_device_idx, precision=1),
+                target_device_idx=target_device_idx, precision=1)
+        self.assertEqual(dm.nmodes, 3)
+        self._check_internal_dm_matches_main(dm, target_device_idx)
+
+    @cpu_and_gpu
+    def test_internal_dm_matches_main_with_idx_modes(self, target_device_idx, xp):
+        """Main DM without m2c and with idx_modes: internal DM input j drives the same mode as main input j"""
+        simul_params = SimulParams(time_step=1e-3, pixel_pupil=80, pixel_pitch=8.0 / 80)
+        ifunc = IFunc(type_str='zernike', npixels=80, nmodes=6, obsratio=0.0,
+                      target_device_idx=target_device_idx, precision=1)
+        dm = DM(simul_params=simul_params, ifunc=ifunc, height=0.0, idx_modes=[1, 3, 4],
+                target_device_idx=target_device_idx, precision=1)
+        self.assertEqual(dm.nmodes, 3)
+        self._check_internal_dm_matches_main(dm, target_device_idx)
 
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):

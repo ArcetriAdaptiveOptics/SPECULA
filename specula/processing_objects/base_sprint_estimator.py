@@ -77,7 +77,7 @@ class BaseSprintEstimator(BaseProcessingObj):
         wfs : BaseProcessingObj
             WFS object (specific type depends on subclass)
         modes_index : list [1]
-            List of mode indices to estimate
+            List of mode indices to estimate, as indices of the DM input command
         carrier_frequencies : list [Hz]
             Carrier frequencies for each mode [Hz]
         estimation_dt : float [s]
@@ -132,6 +132,9 @@ class BaseSprintEstimator(BaseProcessingObj):
         if len(carrier_frequencies) != len(modes_index):
             raise ValueError("carrier_frequencies and modes_index must have same length")
 
+        if any(i < 0 or i >= dm.nmodes for i in modes_index):
+            raise ValueError(f"modes_index {modes_index} out of range: "
+                             f"the DM input command has {dm.nmodes} modes")
         self.modes_index = modes_index
         self.nmodes = len(modes_index)
         self.carrier_frequencies = self.xp.array(carrier_frequencies, dtype=self.dtype)
@@ -172,7 +175,6 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         # Pupil parameters (extracted from DM)
         self.pup_diam_m = simul_params.pixel_pupil * simul_params.pixel_pitch
-        self.ifunc_3d = None  # Loaded in setup
         if pupil_mask is not None:
             self.pupil_mask = self.to_xp(pupil_mask.A, dtype=self.dtype)
         else:
@@ -268,9 +270,6 @@ class BaseSprintEstimator(BaseProcessingObj):
         # Initialize IM size
         self.estimated_intmat.set_nslopes(len(in_slopes.slopes))
 
-        # Extract DM parameters
-        self.ifunc_3d = cpuArray(self.dm.ifunc_obj.ifunc_2d_to_3d(normalize=True))
-        self.ifunc_3d = self.ifunc_3d[:, :, self.modes_index]  # Extract only requested modes
         if self.pupil_mask is None:
             self.pupil_mask = cpuArray(self.dm.mask)
 
@@ -278,7 +277,6 @@ class BaseSprintEstimator(BaseProcessingObj):
         self.logger.debug(f"  Number of modes: {self.nmodes}")
         self.logger.debug(f"  Number of slopes: {self.estimated_intmat.nslopes}")
         self.logger.debug(f"  Size of pupil: {self.pupil_mask.shape}")
-        self.logger.debug(f"  Size of DM influence functions: {self.ifunc_3d.shape}")
         self.logger.debug(f"  Estimation interval: {self.t_to_seconds(self.estimation_dt):.2f}s")
         self.logger.debug(f"  Integration gain: {self.integration_gain}")
         self.logger.debug(f"  Forgetting factor: {self.forgetting_factor}")
@@ -433,11 +431,18 @@ class BaseSprintEstimator(BaseProcessingObj):
             self.misreg_params = (self.misreg_params * self.forgetting_factor +
                                  delta_misreg * self.integration_gain)
 
-            # Compute weighted relative error
-            # If gains are close to 1.0, this reduces to standard relative error
+            # Convergence metric (unchanged): im_diff is in model units
+            # (measured / G), so it is rescaled by the mean gain
             error_abs = float(self.xp.sqrt(self.xp.mean(im_diff**2)))
-            error_rel = error_abs / im_measured_norm
-            error_weighted = error_rel * G_mean  # Weight by mean gain
+            error_weighted = error_abs / im_measured_norm * G_mean
+
+            # Reported error: least-squares residual relative to the
+            # measurement, in measurement units, so it does not depend on
+            # the probe amplitude: rms(meas - nominal * G) / rms(meas)
+            # (in [0, 1] for a single mode, where G is the least-squares gain).
+            # For a single mode it equals error_weighted.
+            residual = im_measured - im_nominal * G_opt[self.xp.newaxis, :]
+            error_rel = float(self.xp.sqrt(self.xp.mean(residual**2))) / im_measured_norm
             self.current_error = error_rel
 
             self.logger.debug(f"    Iteration {iteration+1}: error_rel={error_rel:.3e}, "

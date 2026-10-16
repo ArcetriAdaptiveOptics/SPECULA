@@ -62,7 +62,7 @@ class PsfDisplay(BaseDisplay):
                 ratio = 1/self._image_p2v
             if img_max <= 0:
                 img_max = 1.0
-            if img_min >= img_max*ratio or img_min <= 0:
+            if img_min < img_max*ratio:
                 img_min = img_max*ratio
             norm = mcolors.LogNorm(vmin=img_min, vmax=img_max)
             # clip image to avoid issues with LogNorm

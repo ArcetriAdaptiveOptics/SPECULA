@@ -6,6 +6,7 @@ specula.init(0)  # Default target device
 from specula.data_objects.simul_params import SimulParams
 from specula.data_objects.source import Source
 from specula.data_objects.ifunc import IFunc
+from specula.data_objects.m2c import M2C
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.subap_data import SubapData
 from specula.base_value import BaseValue
@@ -123,7 +124,7 @@ def generate_reference_im_synim(simul_params, source, dm, wfs, slopec,
     pup_mask = dm.mask
 
     # Get 3D influence functions
-    ifunc_3d = dm.ifunc_obj.ifunc_2d_to_3d(normalize=True)
+    ifunc_3d = dm.ifunc_obj.ifunc_2d_to_3d(normalize=False)
 
     # Get valid subapertures from slopec
     subapdata = slopec.subapdata
@@ -437,5 +438,33 @@ class TestImShSynimGenerator(unittest.TestCase):
             if self.verbose: # pragma: no cover
                 print(f"  Relative difference: {rel_diff*100:.3f}%")
 
-            self.assertLess(rel_diff, 1e-10, f"generate_im()"
+            # The DM modes are built with the generator precision (float32),
+            # the reference uses the float64 influence functions
+            self.assertLess(rel_diff, 1e-6, f"generate_im()"
                             f" should match reference for {description}")
+
+    @cpu_and_gpu
+    def test_im_generator_uses_dm_input_basis(self, target_device_idx, xp):
+        """With m2c and start_mode the IM columns are the DM input command:
+        IM = IM_ifunc @ m2c[:, start_mode:], and the MMSE prior is on the same basis"""
+        simul_params, source, dm, wfs, slopec = create_test_system()
+        n_ifunc = dm.ifunc.shape[0]
+        m2c_arr = np.random.RandomState(1).randn(n_ifunc, 8).astype(np.float32)
+        start_mode = 2
+        dm_m2c = DM(simul_params=simul_params, ifunc=dm.ifunc_obj, height=0.0,
+                    m2c=M2C(m2c_arr), start_mode=start_mode)
+
+        im_ifunc = cpuArray(generate_reference_im_synim(simul_params, source, dm, wfs, slopec, xp=xp))
+
+        im_gen = ImShSynimGenerator(simul_params=simul_params, dm=dm_m2c, slopec=slopec,
+                                    source=source, wfs=wfs, compute_rec=True, mmse=True,
+                                    noise_cov=1.0, target_device_idx=target_device_idx, precision=1)
+        im_gen.setup()
+        im_gen.trigger_code()
+
+        im_generated = cpuArray(im_gen.output_intmat.intmat)
+        im_expected = im_ifunc @ cpuArray(m2c_arr[:, start_mode:])
+        self.assertEqual(im_generated.shape, im_expected.shape)
+        rel_diff = np.sqrt(np.mean((im_generated - im_expected)**2) / np.mean(im_expected**2))
+        self.assertLess(rel_diff, 1e-4)
+        self.assertEqual(im_gen.output_recmat.recmat.shape, (dm_m2c.nmodes, im_generated.shape[0]))

@@ -10,8 +10,6 @@ from specula.base_value import BaseValue
 from specula.data_objects.pupilstop import Pupilstop
 from specula.data_objects.pixels import Pixels
 from specula.data_objects.slopes import Slopes
-from specula.data_objects.ifunc import IFunc
-from specula.data_objects.m2c import M2C
 from specula import cpuArray, np
 
 import matplotlib.pyplot as plt
@@ -121,29 +119,13 @@ class SprintPyr(BaseSprintEstimator):
         """Initialize with Pyramid-specific parameters and build internal pipeline"""
         super().setup()
 
-        # Build independent copies of DM data for internal pipeline
-        ifunc_obj = IFunc(
-            ifunc=self.dm.ifunc_obj.influence_function.copy(),
-            mask=self.dm.ifunc_obj.mask_inf_func.copy(),
-            type_str=self.dm.ifunc_obj.type_str,
-            target_device_idx=self.target_device_idx,
-            precision=self.precision
-        )
-
-        m2c_obj = None
-        if self.dm.m2c is not None:
-            m2c_obj = M2C(
-                m2c=self.dm.m2c.copy(),
-                target_device_idx=self.target_device_idx,
-                precision=self.precision
-            )
-
-        # 1. Build Internal DM (sharing IFuncs with the main DM)
+        # 1. Build Internal DM on the basis of the main DM input command
+        # (an independent copy), so that the two DMs have the same input
         self.internal_dm = DM(
             simul_params=self.simul_params,
             height=getattr(self.dm, 'height', 0.0),
-            ifunc=ifunc_obj,
-            m2c=m2c_obj,
+            ifunc=self.dm.modal_ifunc(target_device_idx=self.target_device_idx,
+                                       precision=self.precision),
             pupilstop=self.pupilstop,
             target_device_idx=self.target_device_idx,
             precision=self.precision

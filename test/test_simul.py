@@ -223,9 +223,11 @@ class TestSimul(unittest.TestCase):
                 }
             },
         }
-        # Raises ValueError
-        with self.assertRaises(ValueError):
+        # Raises ValueError, naming the objects involved
+        with self.assertRaises(ValueError) as context:
             _ = simul.build_trigger_order(pars)
+        self.assertIn('obj1', str(context.exception))
+        self.assertIn('obj2', str(context.exception))
 
 
     def test_combine_params(self):

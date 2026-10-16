@@ -906,6 +906,54 @@ class TestDisplays(unittest.TestCase):
         self.assertTrue(np.all(displayed >= 1.0))  # Data is unchanged
 
         matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_psf_display_log_scale_vmin_floor(self):
+        """In log scale, a tiny image minimum is clamped at max*1e-6"""
+        from specula.base_value import BaseValue
+
+        display = PsfDisplay(log_scale=True)
+        image = np.full((8, 8), 1e-12)
+        image[4, 4] = 2.0
+        display._update_display(BaseValue(value=image))
+
+        self.assertAlmostEqual(display.img.norm.vmin, 2e-6)
+        self.assertAlmostEqual(display.img.norm.vmax, 2.0)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_pixels_pup_display_log_scale_vmin_floor(self):
+        """In log scale, a tiny image minimum is clamped at max*1e-6"""
+        display = PixelsPupDisplay(log_scale=True)
+        image = np.full((8, 8), 1e-12)
+        image[4, 4] = 2.0
+        pix = Pixels(8, 8, target_device_idx=-1)
+        pix.set_value(image)
+        display.local_inputs = {'in_pixels': pix, 'in_pupdata': None}
+        display._update_display(pix)
+
+        self.assertAlmostEqual(display.img.norm.vmin, 2e-6)
+        self.assertAlmostEqual(display.img.norm.vmax, 2.0)
+
+        matplotlib.pyplot.close(display.fig)
+
+    @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
+    @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
+    def test_pixels_display_rescales_on_update(self):
+        """In linear scale, the color limits follow the data of each frame"""
+        display = PixelsDisplay()
+        pix = Pixels(8, 8, target_device_idx=-1)
+        for vmax in (10.0, 1000.0):
+            image = np.full((8, 8), 1.0)
+            image[4, 4] = vmax
+            pix.set_value(image)
+            display._update_display(pix)
+            self.assertEqual(display.img.get_clim(), (1.0, vmax))
+
+        matplotlib.pyplot.close(display.fig)
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')
     @cpu_and_gpu

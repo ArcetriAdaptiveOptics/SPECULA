@@ -1,3 +1,5 @@
+import warnings
+
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputList
@@ -16,12 +18,19 @@ class LinearCombination(BaseProcessingObj):
                  no_lift: bool = False,
                  dm1: DM=None,
                  dm3: DM=None,
-                 start_modes: list = [],
+                 start_modes: list = None,
                  plate_scale_idx: int = None,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        if start_modes is not None:
+            if any(start_modes):
+                raise ValueError('LinearCombination: start_modes is deprecated and must be 0: '
+                                 'the plate scale modes are taken from the full DM basis')
+            warnings.warn('LinearCombination: start_modes is deprecated and ignored',
+                          FutureWarning, stacklevel=2)
 
         self.simul_params = simul_params
         self.pixel_pupil = self.simul_params.pixel_pupil
@@ -36,7 +45,7 @@ class LinearCombination(BaseProcessingObj):
 
         if dm1 is not None and dm3 is not None:
             # 0 because we looked at a single DM
-            self.ps_coeff = self.xp.array(platescale_coeff([dm1,dm3], start_modes, self.pixel_pupil)[0])
+            self.ps_coeff = self.xp.array(platescale_coeff([dm1,dm3], self.pixel_pupil)[0])
         else:
             self.ps_coeff = self.xp.zeros(3)
 

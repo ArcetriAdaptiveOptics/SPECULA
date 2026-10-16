@@ -6,6 +6,7 @@ from astropy.io import fits
 from specula.lib.compute_zonal_ifunc import compute_zonal_ifunc
 from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 from specula.lib.fast_pinv import fast_pinv
+from specula.lib.fits_io import load_fits_array
 
 
 def compute_kl_ifunc(*args, **kwargs):
@@ -194,6 +195,6 @@ class IFunc(BaseDataObj):
     @staticmethod
     def restore(filename, target_device_idx=None, exten=1):
         with fits.open(filename) as hdul:
-            ifunc = hdul[exten].data.T
             mask = hdul[exten+1].data
+        ifunc = load_fits_array(filename, ext=exten, target_device_idx=target_device_idx).T
         return IFunc(ifunc, mask=mask, target_device_idx=target_device_idx)
