@@ -347,6 +347,34 @@ class TestBaseProcessingObj(unittest.TestCase):
         run(obj)
 
     @unittest.skipIf(cp is None, 'GPU not available')
+    def test_graph_mempool_is_freed_with_the_object(self):
+        '''
+        A deleted cupy MemoryPool does not release its memory to the device:
+        the memory of the CUDA graph pool must be freed when the object is
+        garbage collected, otherwise it is lost until the process exits.
+        '''
+        import gc
+        n = 1024 * 1024
+
+        class TempObj(BaseProcessingObj):
+            def __init__(self):
+                super().__init__(target_device_idx=0)
+                self.inp = cp.arange(n, dtype=cp.float32)
+                self.out = cp.zeros(n, dtype=cp.float32)
+
+            def trigger_code(self):
+                self.out[:] = self.inp * 2 + 1  # allocates temporaries
+
+        obj = TempObj()
+        obj.build_stream(allow_parallel=False)
+        pool = obj._graph_mempool
+        self.assertGreater(pool.total_bytes(), 0)
+
+        del obj
+        gc.collect()
+        self.assertEqual(pool.total_bytes(), 0)
+
+    @unittest.skipIf(cp is None, 'GPU not available')
     def test_trigger_code_runs_once_per_trigger_when_capturing(self):
         '''
         With a stateful trigger_code() (like an integrator), each trigger() must

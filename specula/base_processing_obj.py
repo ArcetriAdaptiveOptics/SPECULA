@@ -2,6 +2,7 @@ from collections import defaultdict, namedtuple
 import contextlib
 import fnmatch
 import re
+import weakref
 
 from specula import cpuArray, default_target_device, cp
 from specula.tracing import tracer
@@ -253,6 +254,9 @@ class BaseProcessingObj(BaseTimeObj):
         if cp is not None:
             if self._graph_mempool is None:
                 self._graph_mempool = cp.cuda.MemoryPool()
+                # A deleted MemoryPool does not release its memory to the device,
+                # free it explicitly when this object is garbage collected
+                weakref.finalize(self, self._graph_mempool.free_all_blocks)
             else:
                 # Recapture: the old graph is not launched anymore
                 self.cuda_graph = None
