@@ -1,0 +1,56 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import imageio.v2 as imageio   # from scikit-image
+
+from iteras.connections import InputList
+from iteras.scalar_values import IntValue
+from iteras.base_processing_obj import InputDesc
+from iteras.base_processing_obj import BaseProcessingObj
+from iteras.display import display_process
+
+class DisplayRecorder(BaseProcessingObj):
+
+    def __init__(self,
+                 filename: str,
+                 fps: int=10,
+                 codec: str='libx264',
+                 ):
+
+        super().__init__()
+        if display_process.enabled:
+            raise ValueError('DisplayRecorder cannot record displays running in a separate process (--async-displays)')
+        self.writer = imageio.get_writer(
+            filename,
+            fps=fps,
+            codec=codec,
+            )
+
+        self.inputs['in_windows'] = InputList(type=IntValue)
+
+    @classmethod
+    def input_names(cls):
+        return {'in_windows': InputDesc(IntValue, 'Window IDs of the windows to record')}
+
+    def trigger(self):
+        windows = self.local_inputs['in_windows']
+        frames = []
+        for window in windows:
+            fig = plt.figure(num=window.value)
+            # Displays do not render non-interactive canvases (e.g. Agg)
+            if fig.canvas.required_interactive_framework is None:
+                fig.canvas.draw()
+            buffer = np.asarray(fig.canvas.buffer_rgba())
+            frames.append(buffer[:, :, :3])
+
+        if len(windows) > 1:
+            try:
+                frame = np.hstack(frames)
+            except ValueError:
+                frame = np.vstack(frames)
+        else:
+            frame = frames[0]
+
+        self.writer.append_data(frame)
+
+    def finalize(self):
+        self.writer.close()

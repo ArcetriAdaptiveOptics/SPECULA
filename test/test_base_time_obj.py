@@ -242,7 +242,8 @@ class TestBaseValue(unittest.TestCase):
     # Same checks in-process, simulating the uninitialized globals with patch
 
     def test_uninitialized_raises_inprocess(self):
-        with patch('specula.global_precision', None):
+        # The global state is kept in iteras, specula forwards it
+        with patch('iteras.global_precision', None):
             with self.assertRaisesRegex(RuntimeError, 'SPECULA is not initialized'):
                 BaseTimeObj()
 

@@ -52,6 +52,9 @@ class Layer(ElectricField):
 
     # get_value and set_value are inherited from ElectricField
 
+    def debug_summary(self):
+        return self.phaseInNm
+
     def get_fits_header(self):
         hdr = fits.Header()
         hdr['VERSION'] = 1

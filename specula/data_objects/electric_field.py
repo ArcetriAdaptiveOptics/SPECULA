@@ -11,6 +11,13 @@ class ElectricField(BaseDataObj):
     This class represents a 2D electric field, storing both amplitude and phase information
     for each pixel in a rectangular grid.
     """
+
+    # Objects adding a phase-additive contribution to an electric field (e.g. an
+    # ElectricFieldCombinator or PhaseScreenCube feeding a WFS downstream of a
+    # captured AtmoPropagation) must not be silently left out of a targeted replay
+    # (SPECULA #696, see Simul.build_targeted_replay)
+    replay_track_consumers = True
+
     def __init__(self,
                  dimx: int,
                  dimy: int,

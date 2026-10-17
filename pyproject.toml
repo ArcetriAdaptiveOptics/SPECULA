@@ -28,14 +28,16 @@ specula_frontend_start = "specula.scripts.web_frontend:start"
 specula_frontend_stop = "specula.scripts.web_frontend:stop"
 specula = "specula.scripts.specula_main:main"
 specula_list_runs = "specula.scripts.list_runs:main"
+iteras = "iteras.scripts.iteras_main:main"
+
+[project.entry-points."iteras.plugins"]
+specula = "specula"
 
 [tool.setuptools]
-packages = [
-    "specula",
-    "specula.data_objects",
-    "specula.processing_objects"
-]
 include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["specula*", "iteras*"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = "requirements.txt" }

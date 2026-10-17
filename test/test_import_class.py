@@ -10,7 +10,9 @@ from specula.lib.utils import import_class
 
 class TestImportClass(unittest.TestCase):
     """
-    Unit tests for the `import_class` function in specula.lib.utils.
+    Unit tests for the `import_class` function in specula.lib.utils
+    (defined in iteras.lib.utils, which searches iteras's packages first,
+    then the ones registered by plugins like specula).
     
     The tests verify correct behavior in all major scenarios:
     - Successful import from default modules
@@ -23,15 +25,15 @@ class TestImportClass(unittest.TestCase):
     def test_successful_import_from_first_module(self):
         """
         Test that `import_class` correctly imports a class from the first
-        default module (specula.processing_objects).
+        default module (iteras.processing_objects).
 
         This test mocks `camelcase_to_snakecase` to return a fixed module name,
         and mocks `importlib.import_module` to return a module containing the
         expected class. The test asserts that the returned class is correct and
         that both mocks are called as expected.
         """
-        with patch("specula.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
-             patch("specula.lib.utils.importlib.import_module") as mock_import:
+        with patch("iteras.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
+             patch("iteras.lib.utils.importlib.import_module") as mock_import:
 
             # Fake module + class
             mock_module = MagicMock()
@@ -44,7 +46,7 @@ class TestImportClass(unittest.TestCase):
             self.assertEqual(result, mock_class)
             self.assertTrue(mock_snake.called)
             mock_snake.assert_called_with("MyClass")
-            mock_import.assert_called_with("specula.processing_objects.my_class")
+            mock_import.assert_called_with("iteras.processing_objects.my_class")
 
     def test_successful_import_from_additional_module(self):
         """
@@ -57,17 +59,11 @@ class TestImportClass(unittest.TestCase):
         that the correct class is returned and that import_module is called
         for the additional module.
         """
-        with patch("specula.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
-             patch("specula.lib.utils.importlib.import_module") as mock_import:
+        with patch("iteras.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
+             patch("iteras.lib.utils.importlib.import_module") as mock_import:
 
             def side_effect(module_path):
-                if module_path in [
-                    "specula.processing_objects.my_class",
-                    "specula.data_objects.my_class",
-                    "specula.display.my_class",
-                ]:
-                    raise ModuleNotFoundError
-                elif module_path == "custom.module.my_class":
+                if module_path == "custom.module.my_class":
                     mock_module = MagicMock()
                     mock_class = type("MyClass", (), {})
                     setattr(mock_module, "MyClass", mock_class)
@@ -91,8 +87,8 @@ class TestImportClass(unittest.TestCase):
         It asserts that the function raises ImportError and that
         camelcase_to_snakecase is called.
         """
-        with patch("specula.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
-             patch("specula.lib.utils.importlib.import_module") as mock_import:
+        with patch("iteras.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
+             patch("iteras.lib.utils.importlib.import_module") as mock_import:
 
             mock_import.side_effect = ModuleNotFoundError
 
@@ -106,16 +102,20 @@ class TestImportClass(unittest.TestCase):
         Test that `import_class` correctly falls back to later default modules
         when earlier ones are missing.
 
-        The test simulates ModuleNotFoundError for 'processing_objects' and
-        'data_objects', then provides a module for 'display'. It verifies that
+        The test simulates ModuleNotFoundError for all iteras packages and for
+        specula's 'processing_objects' and 'data_objects', then provides a
+        module for specula's 'display'. It verifies that
         the returned class is correct and that import_module was called on
         the fallback module.
         """
-        with patch("specula.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
-             patch("specula.lib.utils.importlib.import_module") as mock_import:
+        with patch("iteras.lib.utils.camelcase_to_snakecase", return_value="my_class") as mock_snake, \
+             patch("iteras.lib.utils.importlib.import_module") as mock_import:
 
             def side_effect(module_path):
                 if module_path in [
+                    "iteras.processing_objects.my_class",
+                    "iteras.data_objects.my_class",
+                    "iteras.display.my_class",
                     "specula.processing_objects.my_class",
                     "specula.data_objects.my_class",
                 ]:
