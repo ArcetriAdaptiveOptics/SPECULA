@@ -336,6 +336,28 @@ class TestDataStore(unittest.TestCase):
             self.assertEqual(ds.tn_dir, expected_path)
             mock_makedirs.assert_called_once_with(expected_path)
 
+    def test_create_tn_folder_skips_existing_names(self):
+        """Existing TN folders are skipped: TN, TN.0 taken -> TN.1."""
+        with patch("time.strftime", return_value="20250101_120000"):
+            ds = DataStore(store_dir=self.tmp_dir, data_format="fits")
+            base = os.path.join(self.tmp_dir, "20250101_120000")
+            os.makedirs(base)
+            os.makedirs(base + ".0")
+            ds.create_TN_folder()
+            self.assertEqual(ds.tn_dir, base + ".1")
+            self.assertTrue(os.path.isdir(base + ".1"))
+
+    def test_create_tn_folder_race_with_another_process(self):
+        """Another process creates the same TN between the name choice and mkdir (simulated by an
+        exists() check that never sees the folder): the next free name must be used, not an error."""
+        with patch("time.strftime", return_value="20250101_120000"), \
+             patch("os.path.exists", return_value=False):
+            ds = DataStore(store_dir=self.tmp_dir, data_format="fits")
+            base = os.path.join(self.tmp_dir, "20250101_120000")
+            os.makedirs(base)
+            ds.create_TN_folder()
+            self.assertEqual(ds.tn_dir, base + ".0")
+
     def test_finalize_does_not_save_when_split_tn_set(self):
         """
         Verify that finalize() does not call save() when split_size > 0.

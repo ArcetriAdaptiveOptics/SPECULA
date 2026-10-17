@@ -194,9 +194,13 @@ class DataStore(BaseProcessingObj):
             fullpath = os.path.join(self.tn_dir_orig, tn) + suffix
             if iter is not None:
                 fullpath += f'.{iter}'
-            if not os.path.exists(fullpath):
+            # mkdir is atomic: an exists() check before it would race with other
+            # processes that pick the same timestamp-based name
+            try:
                 os.makedirs(fullpath)
                 break
+            except FileExistsError:
+                pass
             if iter is None:
                 iter = 0
             else:
