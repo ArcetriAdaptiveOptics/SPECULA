@@ -54,8 +54,10 @@ class TestZWFSlopec(unittest.TestCase):
         slopes1 = slopec1.outputs['out_slopes']
         slopes2 = slopec2.outputs['out_slopes']
 
-        np.testing.assert_equal(cpuArray(sn.xslopes),np.arange(9)[:4]/9) # ensure sn can handle an odd number of elements
-        np.testing.assert_equal(cpuArray(sn.yslopes),np.arange(9)[4:]/9) # ensure sn can handle an odd number of elements
+        # ensure sn can handle an odd number of elements (values in the precision of sn)
+        expected = (np.arange(9)/9).astype(cpuArray(sn.slopes).dtype)
+        np.testing.assert_equal(cpuArray(sn.xslopes), expected[:4])
+        np.testing.assert_equal(cpuArray(sn.yslopes), expected[4:])
         np.testing.assert_array_almost_equal(cpuArray(slopes2.slopes),
                                              cpuArray(slopes1.slopes - sn.slopes))
 

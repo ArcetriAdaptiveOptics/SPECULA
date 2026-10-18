@@ -5,7 +5,7 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
-from specula.loop_control import LoopControl, process_rank
+from specula.loop_control import LoopControl
 from specula.base_processing_obj import BaseProcessingObj
 
 from test.specula_testlib import cpu_and_gpu
@@ -155,7 +155,7 @@ class TestSteppingFeature(unittest.TestCase):
     # Case 1: default stepping = 1 step
     # -----------------------------
     @patch("builtins.input", return_value="")
-    @patch("specula.process_rank", 0)
+    @patch("iteras.process_rank", 0)
     def test_stepping_default_one_step(self, mock_input):
         """
         If user presses Enter, should advance exactly 1 timestep.
@@ -177,7 +177,7 @@ class TestSteppingFeature(unittest.TestCase):
     # -----------------------------
     # Case 2: stepping disabled skips input
     # -----------------------------
-    @patch("specula.process_rank", 0)
+    @patch("iteras.process_rank", 0)
     @patch("builtins.input")
     def test_no_input_when_not_stepping(self, mock_input):
         """
@@ -199,7 +199,7 @@ class TestSteppingFeature(unittest.TestCase):
     # Case 3: invalid input defaults to 1
     # -----------------------------
     @patch("builtins.input", return_value="invalid")
-    @patch("specula.process_rank", 0)
+    @patch("iteras.process_rank", 0)
     def test_invalid_input_defaults_to_one(self, mock_input):
         """
         Non-integer input should fallback to 1 timestep.
@@ -219,7 +219,7 @@ class TestSteppingFeature(unittest.TestCase):
     # Case 4: stepping only triggers after next_time_to_stop
     # -----------------------------
     @patch("builtins.input", return_value="5")
-    @patch("specula.process_rank", 0)
+    @patch("iteras.process_rank", 0)
     def test_next_time_to_stop_controls_prompt(self, mock_input):
         """
         Ensure next_time_to_stop logic is applied.

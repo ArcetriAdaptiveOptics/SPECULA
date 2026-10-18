@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
-from specula import xp
+import specula
 from specula import cpuArray
 
 from specula.display.base_display import BaseDisplay
@@ -166,7 +166,7 @@ class PixelsDisplay(BaseDisplay):
 
     def _reformat_as_pyramid(self, pixels, subapdata):    
         pupil = subapdata.copyTo(-1).single_mask()
-        idx2d = xp.unravel_index(subapdata.idxs, pixels.shape)
+        idx2d = specula.xp.unravel_index(subapdata.idxs, pixels.shape)
         A, B, C, D = pupil.copy(), pupil.copy(), pupil.copy(), pupil.copy()
         pix_idx = subapdata.display_map
         half_sub = subapdata.np_sub // 2

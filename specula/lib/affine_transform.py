@@ -1,12 +1,20 @@
 import inspect
+from functools import cache
 
-from specula import cp, np
+from specula import np
 
-if cp:  # pragma: no cover
-    from cupyx.scipy.ndimage import affine_transform as _cupy_affine_transform
+
+@cache
+def _cupy_affine_transform():  # pragma: no cover
+    '''
+    cupyx affine_transform and its keyword arguments, imported at the first
+    GPU call, so that this module can be imported before init()
+    '''
+    from cupyx.scipy.ndimage import affine_transform
     # cupy < 14.1 always uses float64 coordinates and has no float64_coords argument
-    _COORDS_KW = ({'float64_coords': True}
-                if 'float64_coords' in inspect.signature(_cupy_affine_transform).parameters else {})
+    coords_kw = ({'float64_coords': True}
+                 if 'float64_coords' in inspect.signature(affine_transform).parameters else {})
+    return affine_transform, coords_kw
 
 # Number of output elements computed at once by the generic CPU interpolation:
 # small temporaries stay in cache, and large memory allocations are avoided.
@@ -41,8 +49,9 @@ def affine_transform(data, matrix, output, xp):
         numpy or cupy
     """
     if xp is not np:
-        _cupy_affine_transform(data, matrix, output=output, output_shape=output.shape,
-                               order=1, **_COORDS_KW)
+        cupy_affine_transform, coords_kw = _cupy_affine_transform()
+        cupy_affine_transform(data, matrix, output=output, output_shape=output.shape,
+                              order=1, **coords_kw)
         return
     linear, offset = matrix[:, :2], matrix[:, 2]
     if not (_is_signed_permutation(linear) and _permuted(data, linear, offset, output)):

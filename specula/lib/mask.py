@@ -3,7 +3,7 @@ Copied from arte.types.mask
 Commenting out unused imports
 '''
 
-from specula import xp
+import specula
 from scipy import optimize
 import warnings
 import matplotlib.pyplot as plt
@@ -31,7 +31,9 @@ class BaseMask():
         '''
         return self._mask
     
-    def as_masked_array(self, xp=xp):
+    def as_masked_array(self, xp=None):
+        if xp is None:
+            xp = specula.xp
         return xp.ma.array(xp.ones(self._shape, dtype=self.dtype),
                            mask=self.mask())
         
@@ -52,7 +54,7 @@ class BaseMask():
     
     def __eq__(self, other):
         if isinstance(other, BaseMask):
-            return xp.array_equal(self.mask(), other.mask())
+            return specula.xp.array_equal(self.mask(), other.mask())
         return False
 
     def __hash__(self):
@@ -106,7 +108,7 @@ class CircularMask(BaseMask):
                  frameShape,
                  maskRadius=None,
                  maskCenter=None,
-                 xp=xp):
+                 xp=None):
         self._shape = frameShape
         self._maskRadius = maskRadius
         self._maskCenter = maskCenter
@@ -117,7 +119,9 @@ class CircularMask(BaseMask):
         return "shape %s, radius %f, center %s" % (
             self._shape, self._maskRadius, self._maskCenter)
 
-    def _computeMask(self,xp=xp):
+    def _computeMask(self, xp=None):
+        if xp is None:
+            xp = specula.xp
         if self._maskRadius is None:
             self._maskRadius = min(self._shape) / 2.
         if self._maskCenter is None:
@@ -141,7 +145,7 @@ class CircularMask(BaseMask):
         transmission_value: ndarray[int]
             transmission mask as a numpy array with dtype int
         '''
-        return xp.logical_not(self._mask).astype(int)
+        return specula.xp.logical_not(self._mask).astype(int)
     
     #def as_masked_array(self):
     #    return xp.ma.array(xp.array(self.asTransmissionValue(), dtype=self.dtype,
@@ -205,6 +209,7 @@ class CircularMask(BaseMask):
             a circular mask included in the mask of `maskedArray`
 
         '''
+        xp = specula.xp  # used by the code below, not reached
         raise NotImplementedError('CircularMask.fromMaskedArray is not implemented')
     
         # TODO declarations intended to remove warnings
@@ -346,7 +351,7 @@ class AnnularMask(CircularMask):
                  maskRadius=None,
                  maskCenter=None,
                  inRadius=0,
-                 xp=xp):
+                 xp=None):
         self._inRadius = inRadius
         super().__init__(frameShape, maskRadius, maskCenter, xp=xp)
 
@@ -357,7 +362,9 @@ class AnnularMask(CircularMask):
     def inRadius(self):
         return self._inRadius
 
-    def _computeMask(self, xp=xp):
+    def _computeMask(self, xp=None):
+        if xp is None:
+            xp = specula.xp
 
         if self._maskRadius is None:
             self._maskRadius = min(self._shape) / 2.

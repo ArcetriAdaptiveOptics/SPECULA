@@ -1,5 +1,5 @@
 
-from specula import float_dtype_list
+import specula
 
 def calc_spatialfrequency(dimension, xp, precision):
     """
@@ -15,7 +15,7 @@ def calc_spatialfrequency(dimension, xp, precision):
     - matrix: A square matrix of size [dimension X dimension].
     """
 
-    dtype = float_dtype_list[precision]
+    dtype = specula.float_dtype_list[precision]
 
     half_dim = dimension // 2
 

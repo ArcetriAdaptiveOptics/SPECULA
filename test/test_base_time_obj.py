@@ -36,7 +36,7 @@ class TestBaseValue(unittest.TestCase):
     @cpu_and_gpu
     def test_init_uses_global_precision_if_none(self, target_device_idx, xp):
         """If precision is None, global_precision should be used."""
-        with patch("specula.base_time_obj.global_precision", 1):
+        with patch("iteras.global_precision", 1):
             obj = BaseTimeObj(target_device_idx=target_device_idx)
             self.assertEqual(obj.precision, 1)
 
@@ -46,7 +46,7 @@ class TestBaseValue(unittest.TestCase):
         if target_device_idx < 0:
             self.skipTest("CPU mode — not applicable")
 
-        with patch("specula.base_time_obj.cp.cuda.Device") as mock_device:
+        with patch("iteras.cp.cuda.Device") as mock_device:
             mock_device.return_value = MagicMock()
             obj = BaseTimeObj(target_device_idx=target_device_idx)
             mock_device.assert_called_once_with(target_device_idx)
@@ -73,7 +73,7 @@ class TestBaseValue(unittest.TestCase):
 
         obj = BaseTimeObj(target_device_idx=target_device_idx)
 
-        with patch("specula.base_time_obj.cp.get_default_memory_pool") as mock_pool:
+        with patch("iteras.cp.get_default_memory_pool") as mock_pool:
             mock_pool.return_value.used_bytes.side_effect = [1000, 2500]
             obj.startMemUsageCount()
             obj.stopMemUsageCount()
@@ -226,13 +226,15 @@ class TestBaseValue(unittest.TestCase):
     def test_uninitialized_raises(self):
         r = self._run_python('from specula.base_time_obj import BaseTimeObj; BaseTimeObj()')
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn('SPECULA is not initialized', r.stderr, r.stderr)
+        self.assertIn('Not initialized', r.stderr, r.stderr)
 
-    def test_init_after_import_raises(self):
+    def test_init_after_import_works(self):
+        # The framework reads the settings when objects are created,
+        # so init() can be called after importing its modules
         r = self._run_python('import specula; from specula.base_time_obj import BaseTimeObj; '
-                             'specula.init(-1); BaseTimeObj()')
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn('called after importing', r.stderr, r.stderr)
+                             'specula.init(-1, precision=0); o = BaseTimeObj(); '
+                             'assert o.target_device_idx == -1 and o.precision == 0, vars(o)')
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_init_before_import_works(self):
         r = self._run_python('import specula; specula.init(-1); '
@@ -242,16 +244,21 @@ class TestBaseValue(unittest.TestCase):
     # Same checks in-process, simulating the uninitialized globals with patch
 
     def test_uninitialized_raises_inprocess(self):
-        with patch('specula.global_precision', None):
-            with self.assertRaisesRegex(RuntimeError, 'SPECULA is not initialized'):
+        # The global state is kept in iteras, specula forwards it
+        with patch('iteras.global_precision', None):
+            with self.assertRaisesRegex(RuntimeError, 'Not initialized'):
                 BaseTimeObj()
 
-    def test_init_after_import_raises_inprocess(self):
-        with patch('specula.base_time_obj.global_precision', None):
-            with self.assertRaisesRegex(RuntimeError, 'called after importing'):
-                BaseTimeObj()
+    def test_settings_read_at_creation(self):
+        # Objects created after a new init() use its settings
+        with patch('iteras.global_precision', 0), patch('iteras.default_target_device_idx', -1):
+            obj = BaseTimeObj()
+        self.assertEqual((obj.precision, obj.target_device_idx), (0, -1))
+        with patch('iteras.global_precision', 1), patch('iteras.default_target_device_idx', -1):
+            obj = BaseTimeObj()
+        self.assertEqual((obj.precision, obj.target_device_idx), (1, -1))
 
     def test_gpu_without_cupy_raises(self):
-        with patch('specula.base_time_obj.cp', None):
+        with patch('iteras.cp', None):
             with self.assertRaisesRegex(RuntimeError, 'cupy is not available'):
                 BaseTimeObj(target_device_idx=0)

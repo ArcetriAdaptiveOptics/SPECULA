@@ -44,6 +44,8 @@ Developer Guide
    Processing objects <processing_objects>
    Data objects <data_objects>
    Base classes <base_classes>
+   Plugins <plugins>
+   Extension API <extension_api>
 
 Reference
 ---------

@@ -347,7 +347,7 @@ class TestGpuEvents(unittest.TestCase):
     def test_gpu_rows_and_streams(self):
         from unittest.mock import patch
         fake_cp, current_stream = _make_fake_cp(elapsed_ms=0.25)
-        with patch('specula.tracing.cp', fake_cp):
+        with patch('iteras.cp', fake_cp):
             tracer = Tracer()
             tracer.open(self.filename, gpu_events=True)
             graph_obj = _GpuObj('graph', with_graph=True)
@@ -375,7 +375,7 @@ class TestGpuEvents(unittest.TestCase):
     def test_events_are_reused(self):
         from unittest.mock import patch
         fake_cp, _ = _make_fake_cp()
-        with patch('specula.tracing.cp', fake_cp):
+        with patch('iteras.cp', fake_cp):
             _FakeEvent.created = 0
             tracer = Tracer()
             tracer.open(self.filename, gpu_events=True)
@@ -388,7 +388,7 @@ class TestGpuEvents(unittest.TestCase):
         from unittest.mock import patch
         from specula.tracing import GPU_EVENTS_LAG
         fake_cp, _ = _make_fake_cp()
-        with patch('specula.tracing.cp', fake_cp):
+        with patch('iteras.cp', fake_cp):
             tracer = Tracer()
             tracer.open(self.filename, gpu_events=True)
             obj = _GpuObj('a')
@@ -405,7 +405,7 @@ class TestGpuEvents(unittest.TestCase):
     def test_no_events_during_setup_or_skip(self):
         from unittest.mock import patch
         fake_cp, _ = _make_fake_cp()
-        with patch('specula.tracing.cp', fake_cp):
+        with patch('iteras.cp', fake_cp):
             tracer = Tracer()
             tracer.open(self.filename, gpu_events=True, skip=2)
             obj = _GpuObj('a')
@@ -423,7 +423,7 @@ class TestSync(unittest.TestCase):
     def test_no_sync_during_capture(self):
         from unittest.mock import patch
         fake_cp, stream = _make_fake_cp()
-        with tempfile.TemporaryDirectory() as tmpdir, patch('specula.tracing.cp', fake_cp):
+        with tempfile.TemporaryDirectory() as tmpdir, patch('iteras.cp', fake_cp):
             tracer = Tracer()
             tracer.open(os.path.join(tmpdir, 'trace.tsv'), sync=True)
             obj = _GpuObj('a')
@@ -439,7 +439,7 @@ class TestSync(unittest.TestCase):
     def test_current_device_unchanged(self):
         from unittest.mock import patch
         fake_cp, _ = _make_fake_cp()
-        with tempfile.TemporaryDirectory() as tmpdir, patch('specula.tracing.cp', fake_cp):
+        with tempfile.TemporaryDirectory() as tmpdir, patch('iteras.cp', fake_cp):
             tracer = Tracer()
             tracer.open(os.path.join(tmpdir, 'trace.tsv'), sync=True, gpu_events=True)
             obj = _GpuObj('a')

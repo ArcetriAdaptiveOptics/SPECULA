@@ -144,7 +144,7 @@ class TestRecmat(unittest.TestCase):
         """A float64 recmat file restored with single global precision must be float32"""
         data = np.arange(6, dtype=np.float64).reshape((3, 2))
         Recmat(data, target_device_idx=-1, precision=0).save(self.filename, overwrite=True)
-        with patch("specula.base_time_obj.global_precision", 1):
+        with patch("iteras.global_precision", 1):
             restored = Recmat.restore(self.filename, target_device_idx=target_device_idx)
         self.assertEqual(restored.recmat.dtype, xp.float32)
         np.testing.assert_array_equal(cpuArray(restored.recmat), data)

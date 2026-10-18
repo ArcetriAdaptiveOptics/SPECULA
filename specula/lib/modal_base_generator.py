@@ -1,5 +1,5 @@
 import numpy as np
-from specula import cp
+import specula
 from specula.lib.utils import make_orto_modes
 from specula.lib.zernike_generator import ZernikeGenerator
 from specula.log import get_specula_logger
@@ -27,7 +27,7 @@ def generate_phase_spectrum(f, r0, L0, xp=np, dtype=np.float32):
         Phase spectrum
     """
 
-    if xp == cp:
+    if xp == specula.cp:
         from cupyx.scipy.special import gamma
     else:
         from scipy.special import gamma
@@ -282,7 +282,7 @@ def make_modal_base_from_ifs_fft(pupil_mask, diameter, influence_functions, r0, 
         Singular values of the covariance matrices
     """
 
-    if xp == cp:
+    if xp == specula.cp:
         from cupy.linalg import svd, pinv
     else:
         from scipy.linalg import svd, pinv
