@@ -76,11 +76,14 @@ class SimulDiagram:
     def build(self, **kwargs):
         # On macOS, drawing text with cairo (used by orthogram) crashes any
         # matplotlib window created afterwards in the same process (issue #397):
-        # build the diagram in a separate process.
+        # build the diagram in a separate process. This is done on all platforms
+        # to have a single code path.
         # The child gets our sys.path, in case specula is not installed
+        self.logger.info('Building diagram...')
         code = 'import pickle, sys; d, kw = pickle.load(sys.stdin.buffer); d._build(**kw)'
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
         subprocess.run([sys.executable, '-c', code], input=pickle.dumps((self, kwargs)), env=env, check=True)
+        self.logger.info(f'Diagram saved in {self.filename}')
 
     def _build(self,
               trigger_order: list,
@@ -93,7 +96,6 @@ class SimulDiagram:
         # unless the diagram is actually built.
         from orthogram import Color, DiagramDef, write_png, Side, FontWeight, FontStyle, TextOrientation
 
-        self.logger.info('Building diagram...')        
         title_fontsize = 48*2
         block_fontsize = 42*2
         arrow_fontsize = 24*2
@@ -225,4 +227,3 @@ class SimulDiagram:
 
 
         write_png(d, self.filename)
-        self.logger.info(f'Diagram saved in {self.filename}')
