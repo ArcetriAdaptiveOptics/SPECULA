@@ -6,6 +6,7 @@ specula.init(0)  # Default target device
 import os
 import tempfile
 import unittest
+import multiprocessing
 from unittest.mock import patch
 
 import yaml
@@ -302,6 +303,14 @@ class TestSimul(unittest.TestCase):
         params = yaml.safe_load(yml)
         with self.assertRaises(ValueError):
             simul.build_objects(params)
+
+    def test_run_in_bootstrapping_child_raises(self):
+        '''Test that run() stops before reading any file when called while a
+        spawned child process is bootstrapping (unguarded main script)'''
+        simul = Simul('nonexistent_file.yml')
+        with patch.object(multiprocessing.current_process(), '_inheriting', True, create=True):
+            with self.assertRaisesRegex(RuntimeError, '__name__ == "__main__"'):
+                simul.run()
 
     def test_data_suffix_stripped_and_null_passed(self):
         '''
