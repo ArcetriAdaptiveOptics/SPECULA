@@ -108,6 +108,19 @@ class TestDiagrams(unittest.TestCase):
         args, kwargs = mock_write_png.call_args
         self.assertIn(".png", str(args[1]))
 
+    def test_build_in_subprocess_ignores_cwd(self):
+        """Real build() in a separate process, started from a directory
+        containing another specula package, which must not be imported"""
+        os.remove(self.tmp_png_path)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.makedirs(os.path.join(tmpdir, 'specula'))
+            with open(os.path.join(tmpdir, 'specula', '__init__.py'), 'w') as f:
+                f.write('raise ImportError("wrong specula imported")\n')
+            os.chdir(tmpdir)
+            self._make_diagram()
+            os.chdir(self.cwd)
+        self.assertTrue(self.tmp_png_path.stat().st_size > 0)
+
     @patch.object(SimulDiagram, "build", SimulDiagram._build)
     def test_main_simul_with_diagram(self):
         """Test main_simul() triggers diagram generation when enabled."""
