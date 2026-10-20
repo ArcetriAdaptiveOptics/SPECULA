@@ -22,6 +22,7 @@
 - `GreyFilter`: grey (neutral density) filter for an `Intensity`: `out_i` is `in_i` times a transmission in [0, 1], the `transmission` parameter or, if connected, the optional `in_transmission` input (e.g. from a generator). Placed between a wavefront sensor and its detector, it emulates a fainter source, also varying in time (a transmission of 10**(-0.4 dm) for dm magnitudes).
 - `AVC`: Adaptive Vibration Cancellation of narrowband vibrations, any number on each measured channel of `in_measurement` (e.g. the residual of a mode), as set by the structure of `freq` (e.g. `[[47, 113], [30]]`): for each vibration, a lock-in integrator with a frequency tracking loop (PLL) and a fixed calibration of the plant at the vibration frequency (`plant_re`/`plant_im` or `plant_gain`/`plant_phase`), stable if the calibration phase is within 90 degrees of the true one. Outputs the correction `out_comm`, one per channel, to be summed to the loop command, the frequency estimate `out_freq` and the state `out_state`. 
 - `IntensitySum`: sums a list of `Intensity` inputs (`in_i_list`) pixel by pixel into `out_i`. The output shape is taken from the first input; all inputs must have the same shape.
+- `PhaseUnwrapper` (#727): two-wavelength unwrapping of segment pistons (e.g. petals) measured at `lambda_1` and `lambda_2` (`in_pistons_1`, `in_pistons_2`), with a capture range up to half the synthetic wavelength. A two-stage logic uses the `lambda_1` estimate directly while its residual is small, and an optional temporal filtering (`none`, `median`, `weighted_average`) is available. Outputs `out_pistons` and `out_pistonsU`.
 
 ### Interface changes
 
@@ -55,6 +56,8 @@
 - Added the `specula_list_runs` command (#794): lists the TN folders written by `DataStore` in a directory, prints for each TN the parameters that changed with respect to the previous one, and writes a CSV with one column per parameter that takes different values among the runs.
 - Creating a SPECULA object before `specula.init()` now raises a `RuntimeError` (#743), as does calling `specula.init()` after importing SPECULA submodules (they would keep the stale backend and precision) or requesting a GPU (`target_device_idx >= 0`) when cupy is not available.
 - `Simul` (#821): objects are set up in an order that follows all their inputs, delayed ones (`:-1`) included, so the producer of a delayed input is set up before its consumer (objects read their inputs in `setup()`, e.g. to allocate outputs or capture a CUDA graph). Delayed inputs closing a feedback loop are ignored for this order. Without delayed inputs the setup order is the trigger order; none of the configurations in config/ changes.
+- `Lift` (#727): the output modal coefficients are wrapped to [-lambda/2, +lambda/2), as needed by multi-wavelength phase unwrapping. The `gui_pos` parameter (widget position saved by the GUI) is ignored for all objects, also next to `tag`.
+- Displays (#733): `window` must be a positive integer, and a `ValueError` is raised if the same number is given twice; without `window`, the first unused number is assigned (it was a large number from the object id).
 
 ### Other
 
@@ -107,6 +110,7 @@
 - Displays: fixed the colorbar drawn on the wrong figure and the floor of the log scale in `PsfDisplay` and the pixel displays (#815); rendering is skipped when there is no GUI window (#774).
 - Speed report guarded against a zero elapsed time (#747); inputs are formatted for debug logging only when MPI debug logging is enabled (#758); the `Slopec` error raised when only one of `filt_intmat`/`filt_recmat` is given names the missing one (#750); CUDA graphs are shown in the profiler (#772).
 - Docs: added the ELT-class segmented-pupil / Soft-Limiter tutorial series (3 parts) (#791), fixed the units of the turbulence covariance in the MMSE petal tutorial (#795).
+- MPI (#729): an exception in one rank aborts all ranks (the others stayed blocked waiting for its data), and sending the output of an object that is not a processing object to another rank raises a `ValueError`.
 
 ## [1.0.4] - 2026-08-19
 
