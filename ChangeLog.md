@@ -5,6 +5,20 @@
 
 ### New processing and data objects
 
+- ...
+
+### Interface changes
+
+- ...
+
+### Other
+
+- ...
+
+## [1.1.0] - 2026-10-20
+
+### New processing and data objects
+
 - `GreyFilter`: grey (neutral density) filter for an `Intensity`: `out_i` is `in_i` times a transmission in [0, 1], the `transmission` parameter or, if connected, the optional `in_transmission` input (e.g. from a generator). Placed between a wavefront sensor and its detector, it emulates a fainter source, also varying in time (a transmission of 10**(-0.4 dm) for dm magnitudes).
 - `AVC`: Adaptive Vibration Cancellation of narrowband vibrations, any number on each measured channel of `in_measurement` (e.g. the residual of a mode), as set by the structure of `freq` (e.g. `[[47, 113], [30]]`): for each vibration, a lock-in integrator with a frequency tracking loop (PLL) and a fixed calibration of the plant at the vibration frequency (`plant_re`/`plant_im` or `plant_gain`/`plant_phase`), stable if the calibration phase is within 90 degrees of the true one. Outputs the correction `out_comm`, one per channel, to be summed to the loop command, the frequency estimate `out_freq` and the state `out_state`. 
 - `IntensitySum`: sums a list of `Intensity` inputs (`in_i_list`) pixel by pixel into `out_i`. The output shape is taken from the first input; all inputs must have the same shape.
@@ -38,6 +52,9 @@
 - Added `cache` to `ZernikeGenerator.getZernike()` (default True, unchanged behavior): if False, the polynomial is not cached.
 - `Simul` (#822): data objects of `xxx_object` parameters are restored from the calibration subdirectory of their class (from the constructor type hint), as `tag`, `xxx_list_object` and `xxx_dict_object` already did, instead of the one of the parameter name. `Slopes` objects are now read from `slopenulls/` (was `slopes/`), so `sn_object` is unchanged. Parameters with no subdirectory for their name, which raised a `KeyError` (`pupil_mask`, `source`, `filt_intmat`, `filt_recmat`, `laser_launch_tel`, `cube`), now work.
 - `TerminalInput` now keeps the input prompt on the last line of the terminal while log output scrolls above it (using `prompt_toolkit`, new dependency). `SpeculaInput` now reads input in a background thread instead of a separate process: `set_input_task()` is replaced by the thread-safe `put_input()`, which validates values immediately.
+- Added the `specula_list_runs` command (#794): lists the TN folders written by `DataStore` in a directory, prints for each TN the parameters that changed with respect to the previous one, and writes a CSV with one column per parameter that takes different values among the runs.
+- Creating a SPECULA object before `specula.init()` now raises a `RuntimeError` (#743), as does calling `specula.init()` after importing SPECULA submodules (they would keep the stale backend and precision) or requesting a GPU (`target_device_idx >= 0`) when cupy is not available.
+- `Simul` (#821): objects are set up in an order that follows all their inputs, delayed ones (`:-1`) included, so the producer of a delayed input is set up before its consumer (objects read their inputs in `setup()`, e.g. to allocate outputs or capture a CUDA graph). Delayed inputs closing a feedback loop are ignored for this order. Without delayed inputs the setup order is the trigger order; none of the configurations in config/ changes.
 
 ### Other
 
@@ -75,6 +92,21 @@
 - `PushPullGenerator` no longer allocates the full `(n_steps, nmodes)` push-pull time history (mostly zeros, growing as nmodes^2 * ncycles * nsamples, e.g. ~40 GB for 5000 modes and 100 cycles): each step is now computed on the fly from the per-mode amplitudes and the pattern. The `time_hist` attribute has been removed (the sequence length is available as `nsteps`), and triggering past the end of the sequence raises an explicit `IndexError`. The amplitude computation has been factored out as `specula.lib.modal_pushpull_signal.modal_pushpull_amplitudes()`, and `modal_pushpull_signal()` has been removed (see Interface changes).
 - Fixed an out-of-bounds read in the `Interp2D` bilinear CUDA kernel: on the last column it read the first element of the next row, and at the bottom-right corner one element past the end of the input array. The weight was zero, but NaN/Inf in that memory propagated to the output. Added GPU regression tests in test\_interp2d.py.
 - Removed support for Python 3.8 and 3.9, minimum required version is now 3.10.
+- Fixed a GPU memory leak (#826): the private memory pool of the CUDA graph temporaries was not released when its processing object was destroyed, accumulating tens of GB of GPU memory in processes creating many simulations (test suite, `nsimul` > 1, calibration followed by a run).
+- CUDA graph temporaries are allocated from a private memory pool (#768), so that buffers used by a captured graph cannot be freed and reused by other code. `AtmoEvolution` no longer requires its own CUDA stream (#788).
+- GPU memory tracking per object (#745): memory is read on the object's own device (multi-GPU simulations reported wrong, even negative, values), objects built inside another one are included in its total, allocations up to the first trigger are counted, and memory is reported once. `Intmat` no longer holds a reference cycle through its `modes`/`slopes` views, so its array is freed without waiting for the garbage collector (#819).
+- `SH` speed and memory: faster `trigger_code()` without more memory, and fixed `dimx`/`dimy` issues (#759); the input field interpolation runs inside the CUDA graph (#763); fixed the truncation of the oversampled size (#764); the LGS kernels are recomputed only when the sodium profile changes (#775).
+- `ConvolutionKernel`: with `return_fft=True` only half of each kernel FFT is stored (the kernels are real, SH uses rfft2/irfft2), -43% GPU memory with 6 MORFEO LGS SHs and unchanged step time (#765); LGS SHs with the same kernel share a single kernels array, saving two 433 MB arrays in MORFEO (#789); `process_kernels()` is batched per row of subapertures (MORFEO LGS kernel: 0.8-0.9 s -> 0.011 s per call), and non-square subaperture grids are fixed (#782). Cached kernel files remain valid.
+- Added `specula.lib.fits_io.load_fits_array()` (#818): fast chunked FITS loading of large arrays, used to restore `IFunc`, `IFuncInv`, `M2C`, `Intmat`, `Recmat` and convolution kernels.
+- `compute_zonal_ifunc()` solves the thin plate spline system once (#761).
+- `demodulate_signal()`: the cumulated demodulation uses cumulative sums, O(nt) instead of an O(nt^2) loop (#810).
+- SPRINT estimators (#811): the reported relative error is rms(meas - nominal * G) / rms(meas), independent of the probe amplitude. The convergence metric is unchanged.
+- MPI (#824): connection tags are assigned sequentially (0, 2, 4, ...) instead of a hash of the connection names, which could make two connections share a tag and gave tags above the guaranteed MPI limit (32767).
+- `DataStore` (#830): fixed a `FileExistsError` when several processes created a TN folder with the same timestamp-based name.
+- macOS and Windows: `Simul.run()` stops with a clear message when a 'spawn' child process (e.g. the display server) re-imports a main script without an `if __name__ == '__main__'` guard (#832); the block diagram is built in a separate process, since cairo text broke the matplotlib windows created afterwards with the native macOS backend (#831).
+- Displays: fixed the colorbar drawn on the wrong figure and the floor of the log scale in `PsfDisplay` and the pixel displays (#815); rendering is skipped when there is no GUI window (#774).
+- Speed report guarded against a zero elapsed time (#747); inputs are formatted for debug logging only when MPI debug logging is enabled (#758); the `Slopec` error raised when only one of `filt_intmat`/`filt_recmat` is given names the missing one (#750); CUDA graphs are shown in the profiler (#772).
+- Docs: added the ELT-class segmented-pupil / Soft-Limiter tutorial series (3 parts) (#791), fixed the units of the turbulence covariance in the MMSE petal tutorial (#795).
 
 ## [1.0.4] - 2026-08-19
 
