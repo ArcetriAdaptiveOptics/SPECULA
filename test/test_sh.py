@@ -565,14 +565,13 @@ class TestSH(unittest.TestCase):
 
     def test_choose_fov_resolution(self):
         '''
-        The resolution is turbulence_pxscale / k. Here all candidates k = 3...12
-        give the exact FoV: with 6 pixels the first one (k=3) has the smallest
-        L.C.M. / k ratio and is chosen, while with 8 pixels the L.C.M. criterion
-        prefers k=4 (L.C.M. 16 instead of 24).
+        The resolution is turbulence_pxscale / k. The wanted FoV is exact for
+        all candidates k = 3...12, but the detector FoV rules out k=3 (6 pixels)
+        and k=4 (8 pixels). k=5 samples both FoVs exactly in either case.
         '''
         turb = 0.5
-        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 6), turb / 3)
-        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 8), turb / 4)
+        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 6), turb / 5)
+        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 8), turb / 5)
 
         # The resolution is always finer than the sensor pixel scale
         for sensor_pxscale in (0.1, 0.2, 0.3, 0.45):

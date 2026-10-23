@@ -38,9 +38,10 @@ def choose_fov_resolution(turbulence_pxscale, sensor_pxscale, subap_wanted_fov, 
 
     The candidates are the n_try values of k starting from the smallest one
     (at least 2) that gives a resolution finer than the sensor pixel scale.
-    For each candidate, the FoV is rounded to an even number of resolution
-    elements. Candidates whose FoV error is below max_fov_error are kept (all
-    of them, if none is). Among these, the first one is chosen, unless the
+    For each candidate, both the wanted FoV and the sensor FoV are rounded to
+    an even number of resolution elements. Candidates whose errors on both
+    FoVs are below max_fov_error are kept (all of them, if none is). Among
+    these, the first one is chosen, unless the
     one with the smallest ratio between the L.C.M. used by toccd() and k
     reduces the L.C.M. by more than it increases k.
 
@@ -71,10 +72,14 @@ def choose_fov_resolution(turbulence_pxscale, sensor_pxscale, subap_wanted_fov, 
     k = i_min + 2 + np.arange(n_try)
     resolution = turbulence_pxscale / k
     fov_pix = np.round(subap_wanted_fov / resolution / 2.0) * 2
-    lcm = np.lcm(int(subap_npx), fov_pix.astype(int))
+    sensor_fov = sensor_pxscale * subap_npx
+    sensor_fov_pix = np.round(sensor_fov / resolution / 2.0) * 2
+    # toccd() rebins the sensor FoV, which can differ from the wanted FoV.
+    lcm = np.lcm(int(subap_npx), sensor_fov_pix.astype(int))
 
     fov_error = np.abs(fov_pix * resolution - subap_wanted_fov) / subap_wanted_fov
-    idx_good = np.where(fov_error < max_fov_error)[0]
+    sensor_fov_error = np.abs(sensor_fov_pix * resolution - sensor_fov) / sensor_fov
+    idx_good = np.where((fov_error < max_fov_error) & (sensor_fov_error < max_fov_error))[0]
     if len(idx_good) == 0:
         idx_good = np.arange(n_try)
 
@@ -286,8 +291,6 @@ class SH(BaseProcessingObj):
             self._fov_resolution_arcsec = turbulence_pxscale
             self.logger.warning('set_fov_res_to_turbpxsc property is set.')
             self.logger.warning('FoV internal resolution parameter will be set to turb. pix. sc.')
-        elif turbulence_pxscale < sensor_pxscale and sensor_pxscale / 2.0 > 0.5:
-            self._fov_resolution_arcsec = turbulence_pxscale * 0.5
         else:
             self._fov_resolution_arcsec = choose_fov_resolution(turbulence_pxscale,
                                                                 sensor_pxscale,

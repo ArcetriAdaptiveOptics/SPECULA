@@ -13,7 +13,7 @@
 
 ### Other
 
-- ...
+- SH sampling selection now checks the rounding error on both the wanted and detector subaperture FoVs, including coarse detector pixels (#766). The rebinning cost uses the detector FoV. Configurations selecting a different FFT sampling will produce different sensor images and must be recalibrated. The explicit `set_fov_res_to_turbpxsc` override, fallback when no candidate meets the tolerance, and warning on the effective pixel scale are unchanged.
 
 ## [1.1.0] - 2026-10-20
 
