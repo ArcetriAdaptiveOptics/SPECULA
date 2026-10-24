@@ -9,11 +9,11 @@
 
 ### Interface changes
 
-- ...
+- `SH` (#766, #836): each detector pixel is now the exact integral of the subaperture PSF over a pixel of exactly `sensor_pxscale`. The PSF of a subaperture field of n pixels is band limited, so its samples from an FFT with zero padding by 2 (2n points) determine it everywhere, and the integral over any pixel is a weighted sum of them (`pixel_integration_matrix()` and `integrate_pixels()` in the new library module `specula.lib.pixel_integration`, usable by other sensors). This replaces the search of a finer FFT sampling, the cut of the FoV rounded to an even number of FFT pixels and the `toccd()` rebinning: the effective pixel scale differed from the requested one by up to ~7% (e.g. +7.3% for the AOF LGS SH), and the rebinning of point samples added errors of a few % on the images and on the slope gain, even with an exact scale. The FFT is now never larger than 2n (smaller than before in many configurations, e.g. 162 -> 36 for the ERIS NGS SH). The LGS kernels are applied as before; since they are not band limited, the FFT is enlarged by the smallest integer factor that samples them accurately (factor 1 for spots much wider than lambda/(2d), e.g. all the AOF and ERIS LGS configurations). SH images, and so interaction matrices, reconstructors and slope nulls, change: configurations using an SH must be recalibrated. `sensor_pxscale_effective` is now always equal to `sensor_pxscale`; `set_fov_res_to_turbpxsc` is deprecated and ignored; `squaremask=False` (circular field stop) raises a `ValueError`. Builds on the contribution of @salma2vec in #836.
 
 ### Other
 
-- SH sampling selection now checks the rounding error on both the wanted and detector subaperture FoVs, including coarse detector pixels (#766). The rebinning cost uses the detector FoV. Configurations selecting a different FFT sampling will produce different sensor images and must be recalibrated. The explicit `set_fov_res_to_turbpxsc` override, fallback when no candidate meets the tolerance, and warning on the effective pixel scale are unchanged.
+- ...
 
 ## [1.1.0] - 2026-10-20
 

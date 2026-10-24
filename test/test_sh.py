@@ -12,7 +12,7 @@ from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.data_objects.simul_params import SimulParams
-from specula.processing_objects.sh import SH, choose_fov_resolution
+from specula.processing_objects.sh import SH
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -50,12 +50,16 @@ class TestSH(unittest.TestCase):
         Test that pixelscale is correctly handled, by comparing spots from a flat 
         wavefront and from a tilted one. The introduced tilt corresponds to exactly 1 pixel,
         and we verify that the resulting intensity field is indeed shifted by 1 pixel
-        in the correct direction
+        in the correct direction.
+
+        The pupil sampling and fov_ovs_coeff=1 are chosen so that the input field is not
+        interpolated: the interpolation magnifies the field by N/(N-1) (issue #838),
+        which would shift the spot by (N-1)/N pixels only.
         '''
         t = 1
         pxscale_arcsec = 0.5
-        pixel_pupil = 120
-        pixel_pitch = 0.05
+        pixel_pupil = 240
+        pixel_pitch = 0.025
         sh_npix = 6
 
         sh = SH(wavelengthInNm=500,
@@ -63,6 +67,7 @@ class TestSH(unittest.TestCase):
                 sensor_pxscale=pxscale_arcsec,
                 subap_on_diameter=20,
                 subap_npx=sh_npix,
+                fov_ovs_coeff=1.0,
                 target_device_idx=target_device_idx)
 
         # Flat wavefront
@@ -154,7 +159,7 @@ class TestSH(unittest.TestCase):
 
         # Test 1: sh1 and sh2 should share arrays (same geometry, same rank)
         assert id(sh1._wf3) == id(sh2._wf3), "sh1 and sh2 should share _wf3"
-        assert id(sh1._psfimage) == id(sh2._psfimage), "sh1 and sh2 should share _psfimage"
+        assert id(sh1._intensity) == id(sh2._intensity), "sh1 and sh2 should share _intensity"
         assert id(sh1.ef_row) == id(sh2.ef_row), "sh1 and sh2 should share ef_row"
 
         # Test 2: sh3 should NOT share with sh1/sh2 (different geometry)
@@ -167,10 +172,9 @@ class TestSH(unittest.TestCase):
         # We should have entries for:
         # - sh1/sh2 (shared, rank 0, geometry 20)
         # - sh3 (separate, rank 0, geometry 30)
-        # Each geometry allocates 3 arrays (_wf3, ef_row, _psfimage),
-        # psf_shifted is only allocated when a convolution kernel is used.
-        # So expected: 2 geometries × 3 arrays = 6 entries
-        assert cache_size == 6
+        # Each geometry allocates 5 arrays (_wf3, ef_row, _intensity, _int_tmp, _int_img)
+        # So expected: 2 geometries × 5 arrays = 10 entries
+        assert cache_size == 10
         print(f"Cache has {cache_size} entries")
 
     @cpu_and_gpu
@@ -360,9 +364,11 @@ class TestSH(unittest.TestCase):
     @cpu_and_gpu
     def test_wf3_not_shared_with_different_subap_size(self, target_device_idx, xp):
         '''
-        Two SH with the same number of subaps and FFT size, but a different
-        number of pixels per subap, must not share the padded _wf3 buffer:
-        the one with the larger subaps would write into the padding of the other.
+        Two SH with the same number of subaps but a different number of pixels
+        per subap must not share the padded _wf3 buffer: the one with the larger
+        subaps would write into the padding of the other. (With the FFT size
+        twice the subap size they also have different FFT sizes, but the cache
+        key includes the subap size anyway.)
         '''
         t = 1
 
@@ -390,7 +396,6 @@ class TestSH(unittest.TestCase):
         SH._SH__zeros_cache.clear()
         sh_a = make(40, 3.0)
         sh_b = make(60, 1.0)
-        assert sh_a._fft_size == sh_b._fft_size
         assert sh_a._ovs_np_sub > sh_b._ovs_np_sub
         assert sh_a._wf3 is not sh_b._wf3
 
@@ -430,31 +435,21 @@ class TestSH(unittest.TestCase):
 
     def test_sensor_pxscale_effective(self):
         '''
-        The simulated sensor pixel scale is available in arcsec, and a warning
-        is logged when it differs from the requested one by more than 1%
+        The simulated sensor pixel scale is exactly the requested one, with no
+        warning: the pixels are integrated exactly, without rounding the FoV
         '''
-        def make(sensor_pxscale):
+        for sensor_pxscale in (0.3, 0.7):
             sh = SH(wavelengthInNm=500,
                     subap_wanted_fov=6 * sensor_pxscale,
                     sensor_pxscale=sensor_pxscale,
                     subap_on_diameter=10,
                     subap_npx=6,
                     target_device_idx=-1)
-            return sh, ElectricField(80, 80, 0.05, S0=1, target_device_idx=-1)
-
-        # 0.27% difference: no warning
-        sh, ef = make(0.3)
-        with self.assertNoLogs('specula.SH', level='WARNING'):
-            sh._set_in_ef(ef)
-        self.assertAlmostEqual(sh.sensor_pxscale_effective, 0.3, delta=0.3 * 0.01)
-        self.assertAlmostEqual(sh.subap_real_fov_arcsec, 6 * sh.sensor_pxscale_effective)
-
-        # 1.8% difference: warning
-        sh, ef = make(0.7)
-        with self.assertLogs('specula.SH', level='WARNING') as logs:
-            sh._set_in_ef(ef)
-        self.assertGreater(abs(sh.sensor_pxscale_effective - 0.7) / 0.7, 0.01)
-        self.assertTrue(any('Effective sensor pixel scale' in line for line in logs.output))
+            ef = ElectricField(80, 80, 0.05, S0=1, target_device_idx=-1)
+            with self.assertNoLogs('specula.SH', level='WARNING'):
+                sh._set_in_ef(ef)
+            self.assertEqual(sh.sensor_pxscale_effective, sensor_pxscale)
+            self.assertAlmostEqual(sh.subap_real_fov_arcsec, 6 * sensor_pxscale)
 
     def _lgs_sh(self, target_device_idx, xp, data_dir):
         '''
@@ -562,19 +557,3 @@ class TestSH(unittest.TestCase):
             np.testing.assert_allclose(out(sh2), out(ref_sh), rtol=1e-4,
                                        atol=1e-6 * out(ref_sh).max())
             self.assertFalse(np.allclose(out(sh2), out1, rtol=1e-4))
-
-    def test_choose_fov_resolution(self):
-        '''
-        The resolution is turbulence_pxscale / k. The wanted FoV is exact for
-        all candidates k = 3...12, but the detector FoV rules out k=3 (6 pixels)
-        and k=4 (8 pixels). k=5 samples both FoVs exactly in either case.
-        '''
-        turb = 0.5
-        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 6), turb / 5)
-        self.assertEqual(choose_fov_resolution(turb, 0.2, 2.0, 8), turb / 5)
-
-        # The resolution is always finer than the sensor pixel scale
-        for sensor_pxscale in (0.1, 0.2, 0.3, 0.45):
-            res = choose_fov_resolution(turb, sensor_pxscale, 2.0, 8)
-            self.assertLess(res, sensor_pxscale)
-            self.assertAlmostEqual(turb / res, round(turb / res))

@@ -3,30 +3,17 @@ import unittest
 import specula
 specula.init(-1)
 
-import numpy as np
-
 from specula import RAD2ASEC
 from specula.data_objects.electric_field import ElectricField
-from specula.processing_objects.sh import SH, choose_fov_resolution
+from specula.processing_objects.sh import SH
 
 
 class TestSHSensorSampling(unittest.TestCase):
-    def test_resolution_bounds_both_fields_of_view(self):
-        # The requested optical FoV and the detector FoV need not be equal.
-        cases = ((0.912, 1.275, 5.1, 4),
-                 (0.5, 0.2, 2.0, 6),
-                 (0.5, 0.2, 2.0, 8))
-        for turbulence_pxscale, sensor_pxscale, wanted_fov, npx in cases:
-            with self.subTest(case=(turbulence_pxscale, sensor_pxscale, wanted_fov, npx)):
-                resolution = choose_fov_resolution(turbulence_pxscale, sensor_pxscale,
-                                                   wanted_fov, npx)
-                for fov in (wanted_fov, sensor_pxscale * npx):
-                    sampled_fov = 2 * round(fov / resolution / 2) * resolution
-                    self.assertLess(abs(sampled_fov / fov - 1), 0.02)
 
-    def test_coarse_sensor_uses_sampling_search(self):
+    def test_coarse_sensor_pixel_scale_is_exact(self):
         # AOF-like lambda/d and detector sampling from issue #766, at reduced
-        # pupil size. Geometry depends on subaperture width, not pupil size.
+        # pupil size. The rounding of the FoV gave +7.3% on the pixel scale:
+        # with the exact pixel integration it is the requested one.
         turbulence_pxscale = 0.912
         wavelength_nm = 589
         subap_width = wavelength_nm * 1e-9 * RAD2ASEC / turbulence_pxscale
@@ -35,21 +22,32 @@ class TestSHSensorSampling(unittest.TestCase):
                 sensor_pxscale=1.275, subap_on_diameter=4, subap_npx=4,
                 target_device_idx=-1)
         sh._set_in_ef(ef)
-        self.assertLess(abs(sh.sensor_pxscale_effective / 1.275 - 1), 0.02)
-        self.assertEqual(sh._cutsize % 2, 0)
-        self.assertGreaterEqual(sh._fft_size, sh._cutsize)
-        self.assertEqual(sh._ovs_ef_size % 8, 0)
+        self.assertEqual(sh.sensor_pxscale_effective, 1.275)
+        self.assertAlmostEqual(sh.subap_real_fov_arcsec, 5.1)
+        # Zero padding by 2, whatever the pixel scale
+        self.assertEqual(sh._fft_size, 2 * sh._ovs_np_sub)
 
-    def test_explicit_turbulence_sampling_is_preserved(self):
+    def test_fft_period_covers_sensor_fov(self):
+        # The FFT period (lambda / pixel pitch of the oversampled field) must
+        # cover the sensor FoV, even with fov_ovs_coeff = 1
         ef = ElectricField(80, 80, 0.05, S0=1, target_device_idx=-1)
-        sh = SH(wavelengthInNm=500, subap_wanted_fov=5.1,
-                sensor_pxscale=1.275, subap_on_diameter=4, subap_npx=4,
-                set_fov_res_to_turbpxsc=True, target_device_idx=-1)
+        sh = SH(wavelengthInNm=500, subap_wanted_fov=4.0, sensor_pxscale=1.0,
+                subap_on_diameter=4, subap_npx=4, fov_ovs_coeff=1.0,
+                target_device_idx=-1)
         sh._set_in_ef(ef)
-        expected = 500e-9 / (20 * 0.05) * RAD2ASEC
-        self.assertAlmostEqual(sh._fov_resolution_arcsec, expected)
+        native_period = 500e-9 / 0.05 * RAD2ASEC     # 2.06 arcsec < 4 arcsec FoV
+        self.assertGreater(sh._fov_ovs, 1)
+        self.assertGreaterEqual(sh._fft_period_arcsec, 4.0)
+        self.assertAlmostEqual(sh._fft_period_arcsec, native_period * sh._fov_ovs)
 
-    def test_no_admissible_candidate_keeps_finite_fallback(self):
-        resolution = choose_fov_resolution(0.912, 1.275, 5.1, 4, n_try=1)
-        self.assertTrue(np.isfinite(resolution))
-        self.assertEqual(resolution, 0.912 / 2)
+    def test_set_fov_res_to_turbpxsc_is_deprecated(self):
+        with self.assertWarns(FutureWarning):
+            SH(wavelengthInNm=500, subap_wanted_fov=5.1, sensor_pxscale=1.275,
+               subap_on_diameter=4, subap_npx=4, set_fov_res_to_turbpxsc=True,
+               target_device_idx=-1)
+
+    def test_circular_field_stop_is_rejected(self):
+        with self.assertRaises(ValueError):
+            SH(wavelengthInNm=500, subap_wanted_fov=5.1, sensor_pxscale=1.275,
+               subap_on_diameter=4, subap_npx=4, squaremask=False,
+               target_device_idx=-1)

@@ -634,8 +634,12 @@ class TestShSlopecMorfeo(unittest.TestCase):
             print(f"  Max ratio: {slopes_max_ratio:.6f}")
 
         # Test assertions
-        self.assertLess(slopes_rms_ratio, 0.06,
-                    f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 2% of reference RMS")
+        # The reference comes from PASSATA, which samples the SH focal plane as SPECULA
+        # did before the exact pixel integration (finer FFT, FoV cut and rebinning).
+        # The difference (0.056 then, 0.084 now) is dominated by that sampling error,
+        # not by a disagreement on the physics.
+        self.assertLess(slopes_rms_ratio, 0.09,
+                    f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 9% of reference RMS")
 
         # Basic sanity checks
         self.assertEqual(intensity_cube.shape[0], n_frames)
