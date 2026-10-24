@@ -90,12 +90,16 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         Test that pixelscale is correctly handled, by comparing spots from a flat 
         wavefront and from a tilted one. The introduced tilt corresponds to exactly 1 pixel,
         and we verify that the resulting intensity field is indeed shifted by 1 pixel
-        in the correct direction
+        in the correct direction.
+
+        The pupil sampling and fov_ovs_coeff=1 are chosen so that the input field is not
+        interpolated: the interpolation magnifies the field by N/(N-1) (issue #838),
+        which would shift the spot by (N-1)/N pixels only.
         '''
         t = 1
         pxscale_arcsec = 0.5
-        pixel_pupil = 120
-        pixel_pitch = 0.05
+        pixel_pupil = 240
+        pixel_pitch = 0.025
         sh_npix = 6
 
         sh = DistributedSH(wavelengthInNm=500,
@@ -104,6 +108,7 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
                 subap_on_diameter=20,
                 subap_npx=sh_npix,
                 n_slices=2,
+                fov_ovs_coeff=1.0,
                 target_device_idx=target_device_idx)
 
         # Flat wavefront
