@@ -96,6 +96,12 @@ def left_mul(a, x, out, xp):
     if xp is np:
         np.matmul(a, x, out=out)
         return
+    # The kernel reads a and writes out as row-major arrays of out.dtype
+    if not (a.flags.c_contiguous and out.flags.c_contiguous):
+        raise ValueError('left_mul: a and out must be C-contiguous')
+    if not a.dtype == x.dtype == out.dtype:
+        raise ValueError(f'left_mul: a, x and out must have the same dtype, '
+                         f'got {a.dtype}, {x.dtype}, {out.dtype}')
     key = (out.dtype.str, xp.cuda.Device().id)
     if key not in _left_mul_kernels:
         ctype = 'float' if out.dtype == np.float32 else 'double'

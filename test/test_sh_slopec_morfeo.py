@@ -637,7 +637,11 @@ class TestShSlopecMorfeo(unittest.TestCase):
         # The reference comes from PASSATA, which samples the SH focal plane as SPECULA
         # did before the exact pixel integration (finer FFT, FoV cut and rebinning).
         # The difference (0.056 then, 0.084 now) is dominated by that sampling error,
-        # not by a disagreement on the physics.
+        # not by a disagreement on the physics: in this case, with a 2x finer FFT the
+        # old method moves from 0.070 to 0.016 rms from the exact integration (order
+        # ~2), and its Richardson extrapolation matches it to 0.25% on the slopes. The
+        # old sampling biased the slope gain by ~7%, as PASSATA does (analysis by
+        # @salma2vec in #839).
         self.assertLess(slopes_rms_ratio, 0.09,
                     f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 9% of reference RMS")
 
