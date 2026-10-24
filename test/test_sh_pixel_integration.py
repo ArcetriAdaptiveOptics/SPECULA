@@ -3,6 +3,7 @@ specula.init(0)  # Default target device
 
 import tempfile
 import unittest
+import unittest.mock
 
 from specula import np
 from specula import cpuArray
@@ -10,7 +11,7 @@ from specula import cpuArray
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH
-from specula.lib.pixel_integration import pixel_integration_matrix
+from specula.lib.pixel_integration import pixel_integration_matrix, integrate_pixels
 from test.specula_testlib import cpu_and_gpu
 
 WAVELENGTH_NM = 500.0
@@ -188,6 +189,21 @@ class TestSHPixelIntegration(unittest.TestCase):
                 # The kernels are narrower than requested by (N-1)/N (issue #837): the
                 # error is ~1/N. With that fixed it is below 1e-7: then use 1e-6 here.
                 self.assertLess(self._rel_l2(img, ref), 1.5 / sh._fft_size)
+
+    @cpu_and_gpu
+    def test_negative_pixels_are_clipped(self, target_device_idx, xp):
+        # Rounding in G @ PSF @ G.T can give slightly negative dark pixels: emulate
+        # them by removing the mean of each integrated row of subapertures
+        def integrate_with_offset(*args, **kwargs):
+            img = integrate_pixels(*args, **kwargs)
+            return img - img.mean()
+
+        with unittest.mock.patch('specula.processing_objects.sh.integrate_pixels',
+                                 integrate_with_offset):
+            sh, _ = self._make_sh(target_device_idx, self._phase_nm(), 4, 1.275, 5.1)
+            img = self._run(sh)
+        self.assertTrue(np.any(img == 0))
+        self.assertGreaterEqual(img.min(), 0)
 
     @cpu_and_gpu
     def test_flat_wavefront_symmetry_and_flux(self, target_device_idx, xp):

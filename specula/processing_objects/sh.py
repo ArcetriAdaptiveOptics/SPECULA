@@ -477,6 +477,9 @@ class SH(BaseProcessingObj):
 
             # Detector pixels: G @ PSF @ G.T for each subaperture
             out_view[:] = integrate_pixels(g, psf, self._int_tmp, self._int_img, xp)
+            # G has oscillating weights: rounding can make dark pixels slightly
+            # negative, which a Poisson noise generator would reject
+            xp.maximum(out_view, 0, out=out_view)
 
     def post_trigger(self):
         super().post_trigger()
