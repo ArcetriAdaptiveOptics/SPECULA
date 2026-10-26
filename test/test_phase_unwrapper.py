@@ -244,5 +244,150 @@ class TestPhaseUnwrapper(unittest.TestCase):
         self.assertEqual(len(u.confidence_history), 3)
 
 
+# Wavelengths (nm) of the interval-mode tests (dual-wavelength LIFT case):
+# lambda_2 - lambda_1 = 245 nm, synthetic_lambda = 10750 nm, max_capture = 5375 nm.
+LIFT_L1 = 1505.0
+LIFT_L2 = 1750.0
+
+
+def _interval_reference(p1, p2, err_1, err_2, max_capture, npts=200001):
+    '''Brute-force reference of the interval mode on a grid of trial pistons x:
+    x is compatible with p_i if |wrap(x - p_i, lambda_i)| <= err_i.'''
+    x = np.linspace(-max_capture, max_capture, npts)
+    mask = (np.abs(_wrap(x - p1, LIFT_L1)) <= err_1) & (np.abs(_wrap(x - p2, LIFT_L2)) <= err_2)
+    xs = x[mask]
+    if xs.size == 0:
+        return 0.0
+    if xs.max() - xs.min() <= 0.5 * (LIFT_L1 + LIFT_L2) / 2:
+        return xs.mean()
+    if np.all(xs > 0):
+        return LIFT_L1
+    if np.all(xs < 0):
+        return -LIFT_L1
+    return 0.0
+
+
+class TestPhaseUnwrapperInterval(unittest.TestCase):
+    '''Tests of the interval-overlap mode (interval_unwrap=True).'''
+
+    def _unwrapper(self, err, target_device_idx=-1, **kwargs):
+        return PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True,
+                              err_1=err, err_2=err, target_device_idx=target_device_idx,
+                              **kwargs)
+
+    def _single(self, u, p1, p2):
+        '''Interval estimate for one segment, as a host float.'''
+        return float(u._interval_unwrap(u.dtype(p1), u.dtype(p2))[0])
+
+    def _run_once(self, u, p1_value, p2_value, target_device_idx, xp):
+        return TestPhaseUnwrapper._run_once(self, u, p1_value, p2_value, target_device_idx, xp)
+
+    # ------------------------------------------------------------------ #
+    # Construction
+    # ------------------------------------------------------------------ #
+    def test_invalid_parameters(self):
+        with self.assertRaises(ValueError):
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True)
+        with self.assertRaises(ValueError):
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True, err_1=50.0)
+        with self.assertRaises(ValueError):
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True,
+                           err_1=-1.0, err_2=50.0)
+
+    def test_default_is_not_interval(self):
+        u = PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2)
+        self.assertFalse(u.interval_unwrap)
+
+    def test_search_range_covers_max_capture(self):
+        u = self._unwrapper(100.0)
+        self.assertAlmostEqual(u.max_capture, 5375.0, places=6)
+        self.assertGreaterEqual(u.max_k_int * LIFT_L1, u.max_capture + LIFT_L1)
+        self.assertGreaterEqual(u.max_m_int * LIFT_L2, u.max_capture + LIFT_L2)
+
+    # ------------------------------------------------------------------ #
+    # Decision rules
+    # ------------------------------------------------------------------ #
+    def test_noiseless_piston_recovered(self):
+        # Exact estimates: the overlap is centred on the true piston, which is
+        # recovered also when it is not a multiple of lambda_1.
+        u = self._unwrapper(100.0)
+        for true in [0.0, 37.5, -620.0, 1505.0, -3010.0, 4000.7, -4515.0]:
+            est = self._single(u, _wrap(true, LIFT_L1), _wrap(true, LIFT_L2))
+            self.assertAlmostEqual(est, true, places=2, msg=f'true piston {true}')
+
+    def test_unique_overlap_returns_its_centre(self):
+        # p1 = 20 +/- 75 and p2 = 60 +/- 75 overlap on [-15, 95]: centre 40
+        u = self._unwrapper(75.0)
+        self.assertAlmostEqual(self._single(u, 20.0, 60.0), 40.0, places=4)
+
+    def test_ambiguous_mixed_signs_returns_zero(self):
+        # Overlaps at k = 0 ([-100, 20], containing 0) and at k = -1 (around -1668):
+        # mixed signs -> no correction. (Regression: comparing only the overlap
+        # centres, both negative, returned -lambda_1 here.)
+        u = self._unwrapper(100.0)
+        self.assertEqual(self._single(u, -80.0, 0.0), 0.0)
+
+    def test_ambiguous_same_sign_returns_one_lambda_1_step(self):
+        # Overlaps at k = 0 ([50, 100]) and at k = +1 ([1650, 1755]), all positive
+        u = self._unwrapper(100.0)
+        self.assertEqual(self._single(u, 150.0, 0.0), LIFT_L1)
+        self.assertEqual(self._single(u, -150.0, 0.0), -LIFT_L1)
+
+    def test_no_overlap_returns_zero(self):
+        u = self._unwrapper(10.0)
+        self.assertEqual(self._single(u, 0.0, 300.0), 0.0)
+
+    def test_overlaps_outside_max_capture_are_ignored(self):
+        true = 4545.0
+        p1, p2 = _wrap(true, LIFT_L1), _wrap(true, LIFT_L2)
+        self.assertAlmostEqual(self._single(self._unwrapper(100.0), p1, p2), true, places=2)
+        clipped = self._single(self._unwrapper(100.0, max_capture=3500.0), p1, p2)
+        self.assertLessEqual(abs(clipped), 3500.0)
+        self.assertNotAlmostEqual(clipped, true, places=0)
+
+    def test_margins_larger_than_wavelength_difference(self):
+        # A lambda_1 error reads -245 nm at lambda_2: with err_1 + err_2 <= 245 nm it
+        # is corrected, above that the k = 0 and k = 1 solutions always overlap
+        # with mixed signs and it is never corrected.
+        p1, p2 = 0.0, _wrap(LIFT_L1, LIFT_L2)
+        self.assertEqual(self._single(self._unwrapper(120.0), p1, p2), LIFT_L1)
+        self.assertEqual(self._single(self._unwrapper(130.0), p1, p2), 0.0)
+
+    def test_matches_brute_force_reference(self):
+        # Random noisy estimates against a grid implementation of the same rules
+        u = self._unwrapper(100.0)
+        rng = np.random.default_rng(1234)
+        for _ in range(200):
+            true = rng.uniform(-4500.0, 4500.0)
+            p1 = _wrap(true + rng.normal(0.0, 60.0), LIFT_L1)
+            p2 = _wrap(true + rng.normal(0.0, 60.0), LIFT_L2)
+            ref = _interval_reference(p1, p2, 100.0, 100.0, u.max_capture)
+            est = self._single(u, p1, p2)
+            self.assertAlmostEqual(est, ref, delta=0.5, msg=f'p1={p1}, p2={p2}')
+
+    def test_two_stage_flag_is_ignored(self):
+        p1, p2 = -80.0, 0.0
+        a = self._single(self._unwrapper(100.0, two_stage_enabled=True), p1, p2)
+        b = self._single(self._unwrapper(100.0, two_stage_enabled=False), p1, p2)
+        self.assertEqual(a, b)
+
+    # ------------------------------------------------------------------ #
+    # Through the processing object
+    # ------------------------------------------------------------------ #
+    @cpu_and_gpu
+    def test_trigger_vector_of_segments(self, target_device_idx, xp):
+        # One segment per decision rule: unique (continuous), unique (k = 3),
+        # ambiguous with mixed signs, ambiguous with the same sign
+        p1_value = [20.0, 30.0, -80.0, 150.0]
+        p2_value = [60.0, _wrap(4545.0, LIFT_L2), 0.0, 0.0]
+        u = PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True,
+                           err_1=100.0, err_2=100.0, target_device_idx=target_device_idx)
+        out_pistons, out_pistonsU = self._run_once(u, p1_value, p2_value, target_device_idx, xp)
+        np.testing.assert_allclose(out_pistons, p1_value, atol=1e-3)
+        np.testing.assert_allclose(out_pistonsU[:2], [40.0, 4545.0], atol=1e-2)
+        self.assertEqual(out_pistonsU[2], 0.0)
+        self.assertEqual(out_pistonsU[3], LIFT_L1)
+
+
 if __name__ == '__main__':
     unittest.main()

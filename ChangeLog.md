@@ -5,16 +5,59 @@
 
 ### New processing and data objects
 
+- ...
+
+### Interface changes
+
+- `PhaseUnwrapper`: new interval mode, enabled with `interval_unwrap: True` and the error margins `err_1` and `err_2` of the two estimates (same units as the wavelengths, both required); it replaces the two-stage/full unwrapping, so `two_stage_enabled` is ignored. Each estimate defines the candidate intervals `p1 + k*lambda_1 +/- err_1` and `p2 + m*lambda_2 +/- err_2`, restricted to `[-max_capture, max_capture]` (default: half the synthetic wavelength). If the overlapping regions span at most `mean(lambda_1, lambda_2)/2`, `out_pistonsU` is their mean (a continuous estimate, not only a multiple of `lambda_1`); otherwise the estimate is ambiguous, and `out_pistonsU` is `+lambda_1` or `-lambda_1` if all the overlapping points have the same sign, and 0 if they have mixed signs (e.g. an overlap containing 0) or if there is no overlap. Ambiguous estimates therefore give no correction or a single `lambda_1` step, instead of a jump to the closest candidate. Larger margins are more robust to noise and to a bias between the two estimates, but slower to converge; `err_1 + err_2` must not exceed `|lambda_2 - lambda_1|`, otherwise a `lambda_1` error is always ambiguous and never corrected. The default (`interval_unwrap: False`) is unchanged. Example, with a fast loop on the `lambda_1` sensor and slow `lambda_1` jumps from the unwrapping:
+
+  ```yaml
+  unwrapper:
+    class:           'PhaseUnwrapper'
+    lambda_1:        1505.0
+    lambda_2:        1750.0
+    interval_unwrap: True
+    err_1:           100.0
+    err_2:           100.0
+    inputs:
+      in_pistons_1:  'lift1_avg.output'   # wrapped estimates averaged over the same window
+      in_pistons_2:  'lift2_avg.output'
+  jump_raw:
+    class:           'BaseOperation'
+    sub:             True
+    inputs:
+      in_value1:     'unwrapper.out_pistonsU'
+      in_value2:     'unwrapper.out_pistons'
+  jump:
+    class:           'RoundToMultiple'  # keep only whole lambda_1 steps
+    multiple:        1505.0
+    inputs:
+      in_value:      'jump_raw.out_value'
+  ```
+
+  `out_pistonsU` can also be used directly as the piston command when the unwrapping is the only piston loop.
+
+### Other
+
+- ...
+
+## [1.1.0] - 2026-10-20
+
+### New processing and data objects
+
 - `GreyFilter`: grey (neutral density) filter for an `Intensity`: `out_i` is `in_i` times a transmission in [0, 1], the `transmission` parameter or, if connected, the optional `in_transmission` input (e.g. from a generator). Placed between a wavefront sensor and its detector, it emulates a fainter source, also varying in time (a transmission of 10**(-0.4 dm) for dm magnitudes).
+- `AVC`: Adaptive Vibration Cancellation of narrowband vibrations, any number on each measured channel of `in_measurement` (e.g. the residual of a mode), as set by the structure of `freq` (e.g. `[[47, 113], [30]]`): for each vibration, a lock-in integrator with a frequency tracking loop (PLL) and a fixed calibration of the plant at the vibration frequency (`plant_re`/`plant_im` or `plant_gain`/`plant_phase`), stable if the calibration phase is within 90 degrees of the true one. Outputs the correction `out_comm`, one per channel, to be summed to the loop command, the frequency estimate `out_freq` and the state `out_state`. 
 - `IntensitySum`: sums a list of `Intensity` inputs (`in_i_list`) pixel by pixel into `out_i`. The output shape is taken from the first input; all inputs must have the same shape.
+- `PhaseUnwrapper` (#727): two-wavelength unwrapping of segment pistons (e.g. petals) measured at `lambda_1` and `lambda_2` (`in_pistons_1`, `in_pistons_2`), with a capture range up to half the synthetic wavelength. A two-stage logic uses the `lambda_1` estimate directly while its residual is small, and an optional temporal filtering (`none`, `median`, `weighted_average`) is available. Outputs `out_pistons` and `out_pistonsU`.
 
 ### Interface changes
 
 - New `DM.modal_ifunc()` (#800): `IFunc` whose row j is the shape of the DM input command element j, after the mode selection and the `m2c`, if any, built on demand. The objects that need the DM modes use it, so they no longer handle the `m2c`/influence function cases and the mode selection themselves; `Intmat.generate_rec_mmse()` lost its `m2c` argument (pass the basis of the interaction matrix columns as `modal_base`).
-  - `RecCalibrator` (MMSE): the turbulence prior is computed on the DM input modes starting from `first_mode`, as the interaction matrix columns: it was computed on modes 0..n-1, so it was shifted with `start_mode`, `idx_modes` or `first_mode` > 0, and MMSE reconstructors computed in those cases change. `first_mode` of `RecCalibrator`, previously ignored, must match the one of `ImCalibrator` (#801). With `mmse=True` it now raises a `ValueError` at init if `dm` is not given (it failed in `finalize()`, after the calibration).
+  - `RecCalibrator` (MMSE): the turbulence prior is computed on the DM input modes, as the interaction matrix columns: it was computed on modes 0..n-1, so it was shifted with `start_mode` or `idx_modes`, and MMSE reconstructors computed in those cases change. With `mmse=True` it now raises a `ValueError` at init if `dm` is not given (it failed in `finalize()`, after the calibration).
   - `SprintPyr`: the internal DM has the same input as the main DM (with `start_mode` or `idx_modes` it pushed the wrong modes).
   - `ImShSynimGenerator` and `SprintShSynim`: the interaction matrix columns are the DM input command, in slopes per command unit. They were the influence function rows (actuators with `m2c`, ignoring the mode selection) normalized to unit RMS, and the `ImShSynimGenerator` MMSE prior used the full `m2c`. `modes_index` of the SPRINT estimators now indexes the DM input command (out of range values raise a `ValueError`), and only `SprintShSynim` builds the 3D cube of the modes, only for the selected ones (`SprintPyr` built a cube of all the influence functions, unused).
   - `platescale_coeff()` and `LinearCombination`: the plate scale modes (focus and astigmatism) are always modes 2-4 of the full DM basis (`m2c` columns or influence function rows), independently of the DM mode selection; a `ValueError` is raised if the basis has fewer than 5 modes, or if modes 2-4 are not driven by the DM input command (new `DM.selected_modes` property). The `start_modes` argument of `platescale_coeff()` has been removed, and the `start_modes` parameter of `LinearCombination` is deprecated (a `FutureWarning` is issued if it is set, a `ValueError` is raised if it is not all zeros): with `start_modes[i] == 1` or `2` the plate scale modes were taken from the wrong `m2c` columns. Removed it from the MORFEO configurations.
+- `ImCalibrator` and `RecCalibrator` (#801): the `first_mode` parameter is deprecated (a `FutureWarning` is issued if it is set, a `ValueError` is raised if it is not 0): interaction matrix column j and reconstructor row j are always DM input j. With `first_mode` > 0, IM column j was DM input `first_mode + j`, but the reconstructor output was applied to DM input j, and a push below `first_mode` was written into the last IM columns. To calibrate a subset of modes (e.g. to split a long calibration), use `first_mode` of `PushPullGenerator`: the IM keeps all the columns, zero for the modes not pushed. To exclude modes from the control, use the DM mode selection (`start_mode`/`idx_modes`) or discard them downstream. Removed it from the MORFEO configurations.
 - Delayed connections (#808): delays other than `0` and `-1` in an output reference (e.g. `'dm.out_layer:-2'` or `':1'`) now raise a `ValueError`. The one-step delay comes from the trigger order, so `:-2` silently behaved as `:-1`, and a positive delay gave a 0 or 1 step delay depending on the trigger order. Longer delays must be implemented inside the processing objects (e.g. the `delay` parameter of the filters).
 - `DM` (#796): the mode selection (`start_mode`/`nmodes` or `idx_modes`) is resolved once at init, on the `m2c` columns with `m2c` or on the influence function rows without it, so the trigger no longer copies them at every step. `dm.nmodes` is now the input command length (it was the number of actuators with `m2c`, and `max(idx_modes)+1` with `idx_modes`); with `m2c`, `nmodes` defaults to the number of `m2c` columns; a short input is zero-filled instead of keeping the values of the previous step; `nmodes` larger than the available modes raises a `ValueError` (it was silently truncated), as does an empty selection (the DM did nothing); setting `dm.ifunc` with a different shape raises a `ValueError`.
 - Added the `--async-displays` command-line flag (`async_displays` in `main_simul()` and `Simul`): all displays run in a separate process, so that slow drawing does not slow down the simulation. Data is copied to the CPU and sent through a queue, and updates are skipped while the display process is busy, except for displays with a history (`PlotDisplay`, `PlotVectorDisplay`, or any display with `skip_updates = False`), which never lose points. The display code, including `setup()` and `finalize()` of derived classes, runs in the display process. Not compatible with `DisplayRecorder`.
@@ -29,13 +72,24 @@
 - Added `compute_single_im` (bool, default True) to `ImCalibrator` to optionally skip populating the `out_single_im` per-mode output (the output itself is always present, empty when disabled). When True (default, unchanged behavior) this costs an O(nmodes) Python loop on every `trigger_code()` call (not just push-pull events) plus roughly double the fixed memory (one extra Intmat per mode); set to False to skip that loop/memory when nothing downstream consumes `out_single_im` (only `out_intmat` is used elsewhere in this codebase) -- needed for large-nmodes, long calibrations.
 - Removed `specula.lib.modal_pushpull_signal.modal_pushpull_signal()`, which duplicated the step ordering of `PushPullGenerator` and was only used by tests (it is kept in test\_generators.py as a reference implementation). Per-mode amplitudes are available from `modal_pushpull_amplitudes()`.
 - `ModalAnalysis` now always computes the wavefront RMS: the `dorms` parameter is deprecated and ignored (a `FutureWarning` is issued if it is set). In list mode (`in_ef_list`) the per-input RMS is available from the new `rms_list` output, mirroring `out_modes_list`; `rms` is now only updated for the single input `in_ef` (previously, in list mode, it held the RMS of the last input only).
+- `ModalAnalysis`: all inputs are projected with a single matrix product, so the inverse influence function is read once per step instead of once per input (8 inputs, 5 GB matrix: 33.6 -> 5.0 ms per step). The values of the list outputs are views on preallocated buffers, and `out_modes`/`rms` are still only updated for the single input `in_ef`. The per-input modal coefficients are also available as `out_modes_{i}` (same objects as `out_modes_list[i]`), `nmodes` larger than the available modes now raises a `ValueError`, and the `unwrap_2d()` wrapper has been removed (use `unwrap_ls()`).
+- `FieldAnalyser.compute_modal_analysis()` uses a single `ModalAnalysis` object (`field_modal_analysis`, list input) for all sources, instead of one object per source (`modal_analysis_0`, ...): the inverse influence function is allocated and read only once. The saved files are unchanged.
 - MORFEO configurations: the LGS (and reference) tomographic reconstructors now use `ModalrecImplicitPolc` instead of `ModalrecExplicitPolc`, since the pseudo open-loop modes were not used. The `out_pseudo_ol_modes` output is not available anymore for these objects: use `ModalrecExplicitPolc` again if needed.
 - `Modalrec`: the `nmodes` parameter, which was ignored, is deprecated (a `FutureWarning` is issued if it is set): the number of modes is set by the recmat, use `ncutmodes` to discard the last modes. Removed it from the ANDES configurations.
 - Added `cache` to `ZernikeGenerator.getZernike()` (default True, unchanged behavior): if False, the polynomial is not cached.
+- `Simul` (#822): data objects of `xxx_object` parameters are restored from the calibration subdirectory of their class (from the constructor type hint), as `tag`, `xxx_list_object` and `xxx_dict_object` already did, instead of the one of the parameter name. `Slopes` objects are now read from `slopenulls/` (was `slopes/`), so `sn_object` is unchanged. Parameters with no subdirectory for their name, which raised a `KeyError` (`pupil_mask`, `source`, `filt_intmat`, `filt_recmat`, `laser_launch_tel`, `cube`), now work.
 - `TerminalInput` now keeps the input prompt on the last line of the terminal while log output scrolls above it (using `prompt_toolkit`, new dependency). `SpeculaInput` now reads input in a background thread instead of a separate process: `set_input_task()` is replaced by the thread-safe `put_input()`, which validates values immediately.
+- Added the `specula_list_runs` command (#794): lists the TN folders written by `DataStore` in a directory, prints for each TN the parameters that changed with respect to the previous one, and writes a CSV with one column per parameter that takes different values among the runs.
+- Creating a SPECULA object before `specula.init()` now raises a `RuntimeError` (#743), as does calling `specula.init()` after importing SPECULA submodules (they would keep the stale backend and precision) or requesting a GPU (`target_device_idx >= 0`) when cupy is not available.
+- `Simul` (#821): objects are set up in an order that follows all their inputs, delayed ones (`:-1`) included, so the producer of a delayed input is set up before its consumer (objects read their inputs in `setup()`, e.g. to allocate outputs or capture a CUDA graph). Delayed inputs closing a feedback loop are ignored for this order. Without delayed inputs the setup order is the trigger order; none of the configurations in config/ changes.
+- `Lift` (#727): the output modal coefficients are wrapped to [-lambda/2, +lambda/2), as needed by multi-wavelength phase unwrapping. The `gui_pos` parameter (widget position saved by the GUI) is ignored for all objects, also next to `tag`.
+- Displays (#733): `window` must be a positive integer, and a `ValueError` is raised if the same number is given twice; without `window`, the first unused number is assigned (it was a large number from the object id).
 
 ### Other
 
+- Fixed `ModalAnalysis` with both `ifunc` and `ifunc_inv` and `nmodes` set: `ifunc_inv` was not cut to `nmodes`, and the output assignment failed. With `ifunc_inv` and `nmodes` not set, the `IFuncInv` is no longer rebuilt.
+- `ModalAnalysis` no longer removes the piston a second time from the Zernike modes (one less copy of the modal basis), and precomputes the phase unwrapping mask and Laplacian denominator.
+- `BaseProcessingObj.check_output_names()`: exact output names now take precedence over placeholder patterns also when checking the declared outputs, as documented (e.g. `out_modes_list` and `out_modes_{input_idx}`).
 - Fixed the circular loop error of `Simul.build_trigger_order()` (#807): the message printed the literal text `{leaves}` instead of the names of the objects involved.
 - Fixed `ModulatedDoubleRoof` (#798): the focal plane PSF was accumulated once per roof, so `out_psf_bfm` and `out_psf_tot` were twice the ones of `ModulatedPyramid`. Pixels, slopes and `out_transmission` are unchanged.
 - `ModalrecExplicitPolc` and `ModalrecImplicitPolc` share the command inputs and the slopes update check in the new base class `BasePolcModalrec`.
@@ -67,6 +121,22 @@
 - `PushPullGenerator` no longer allocates the full `(n_steps, nmodes)` push-pull time history (mostly zeros, growing as nmodes^2 * ncycles * nsamples, e.g. ~40 GB for 5000 modes and 100 cycles): each step is now computed on the fly from the per-mode amplitudes and the pattern. The `time_hist` attribute has been removed (the sequence length is available as `nsteps`), and triggering past the end of the sequence raises an explicit `IndexError`. The amplitude computation has been factored out as `specula.lib.modal_pushpull_signal.modal_pushpull_amplitudes()`, and `modal_pushpull_signal()` has been removed (see Interface changes).
 - Fixed an out-of-bounds read in the `Interp2D` bilinear CUDA kernel: on the last column it read the first element of the next row, and at the bottom-right corner one element past the end of the input array. The weight was zero, but NaN/Inf in that memory propagated to the output. Added GPU regression tests in test\_interp2d.py.
 - Removed support for Python 3.8 and 3.9, minimum required version is now 3.10.
+- Fixed a GPU memory leak (#826): the private memory pool of the CUDA graph temporaries was not released when its processing object was destroyed, accumulating tens of GB of GPU memory in processes creating many simulations (test suite, `nsimul` > 1, calibration followed by a run).
+- CUDA graph temporaries are allocated from a private memory pool (#768), so that buffers used by a captured graph cannot be freed and reused by other code. `AtmoEvolution` no longer requires its own CUDA stream (#788).
+- GPU memory tracking per object (#745): memory is read on the object's own device (multi-GPU simulations reported wrong, even negative, values), objects built inside another one are included in its total, allocations up to the first trigger are counted, and memory is reported once. `Intmat` no longer holds a reference cycle through its `modes`/`slopes` views, so its array is freed without waiting for the garbage collector (#819).
+- `SH` speed and memory: faster `trigger_code()` without more memory, and fixed `dimx`/`dimy` issues (#759); the input field interpolation runs inside the CUDA graph (#763); fixed the truncation of the oversampled size (#764); the LGS kernels are recomputed only when the sodium profile changes (#775).
+- `ConvolutionKernel`: with `return_fft=True` only half of each kernel FFT is stored (the kernels are real, SH uses rfft2/irfft2), -43% GPU memory with 6 MORFEO LGS SHs and unchanged step time (#765); LGS SHs with the same kernel share a single kernels array, saving two 433 MB arrays in MORFEO (#789); `process_kernels()` is batched per row of subapertures (MORFEO LGS kernel: 0.8-0.9 s -> 0.011 s per call), and non-square subaperture grids are fixed (#782). Cached kernel files remain valid.
+- Added `specula.lib.fits_io.load_fits_array()` (#818): fast chunked FITS loading of large arrays, used to restore `IFunc`, `IFuncInv`, `M2C`, `Intmat`, `Recmat` and convolution kernels.
+- `compute_zonal_ifunc()` solves the thin plate spline system once (#761).
+- `demodulate_signal()`: the cumulated demodulation uses cumulative sums, O(nt) instead of an O(nt^2) loop (#810).
+- SPRINT estimators (#811): the reported relative error is rms(meas - nominal * G) / rms(meas), independent of the probe amplitude. The convergence metric is unchanged.
+- MPI (#824): connection tags are assigned sequentially (0, 2, 4, ...) instead of a hash of the connection names, which could make two connections share a tag and gave tags above the guaranteed MPI limit (32767).
+- `DataStore` (#830): fixed a `FileExistsError` when several processes created a TN folder with the same timestamp-based name.
+- macOS and Windows: `Simul.run()` stops with a clear message when a 'spawn' child process (e.g. the display server) re-imports a main script without an `if __name__ == '__main__'` guard (#832); the block diagram is built in a separate process, since cairo text broke the matplotlib windows created afterwards with the native macOS backend (#831).
+- Displays: fixed the colorbar drawn on the wrong figure and the floor of the log scale in `PsfDisplay` and the pixel displays (#815); rendering is skipped when there is no GUI window (#774).
+- Speed report guarded against a zero elapsed time (#747); inputs are formatted for debug logging only when MPI debug logging is enabled (#758); the `Slopec` error raised when only one of `filt_intmat`/`filt_recmat` is given names the missing one (#750); CUDA graphs are shown in the profiler (#772).
+- Docs: added the ELT-class segmented-pupil / Soft-Limiter tutorial series (3 parts) (#791), fixed the units of the turbulence covariance in the MMSE petal tutorial (#795).
+- MPI (#729): an exception in one rank aborts all ranks (the others stayed blocked waiting for its data), and sending the output of an object that is not a processing object to another rank raises a `ValueError`.
 
 ## [1.0.4] - 2026-08-19
 
