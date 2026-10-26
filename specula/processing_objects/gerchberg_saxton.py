@@ -32,7 +32,8 @@ class GerchbergSaxton(Lift):
     2. focal field ``F = FFT(E)``; model image binned to detector pixels
     3. focal constraint: inside the ROI (``cropped_size`` around the
        measured PSF centre) the modulus of ``F`` is rescaled by
-       ``sqrt(I_meas / I_model)`` (computed on detector pixels and spread
+       ``sqrt((I_meas + eps) / (I_model + eps))``, eps = reg_factor * ron**2
+       (computed on detector pixels and spread
        back to the FFT grid, i.e. a generalised projection that handles
        binning / sub-Nyquist pixels); outside the ROI ``F`` is left free
     4. back to the pupil, keep the phase, impose the known amplitude
@@ -60,6 +61,8 @@ class GerchbergSaxton(Lift):
                  modal_projection: bool = False,
                  rel_tol: float = 1e-4,
                  abs_tol: float = 1e-4,
+                 reg_factor: float = 1.0,
+                 shifted_poisson: bool = True,
                  target_device_idx: int = None,
                  precision: int = None):
         """
@@ -79,6 +82,16 @@ class GerchbergSaxton(Lift):
         abs_tol : float [rad], optional
             Stop when the mean absolute change of the modal coefficients in
             one iteration is below this value. Defaults to 1e-4.
+        reg_factor : float, optional
+            The focal-plane modulus ratio is regularised as
+            sqrt((I_meas + eps) / (I_model + eps)) with eps = reg_factor * ron**2
+            (shifted-Poisson approximation of read noise; faint, read-noise
+            dominated pixels then barely change the model). 0 disables it
+            (classic GS). Defaults to 1.
+        shifted_poisson : bool, optional
+            If True (default), use max(I_meas + eps, 0) instead of clipping
+            negative pixels to zero before adding eps, which avoids biasing
+            faint pixels upwards.
         """
         super().__init__(simul_params=simul_params,
                          nPistons=nPistons,
@@ -98,6 +111,8 @@ class GerchbergSaxton(Lift):
         self.modal_projection = bool(modal_projection)
         self.rel_tol = float(rel_tol)
         self.abs_tol = float(abs_tol)
+        self.reg_factor = float(reg_factor)
+        self.shifted_poisson = bool(shifted_poisson)
         self.n_iter_done = 0
         self.error_history = []
         self.logger.info(f"Gerchberg-Saxton initialized with {self.nmodes} modes")
@@ -189,8 +204,11 @@ class GerchbergSaxton(Lift):
         self.setRefTT(float(center[0]), float(center[1]), float(psf.shape[0]))
         roi = self._roi_slices(center, psf.shape)
 
-        meas_roi = xp.maximum(psf[roi], 0)
+        raw_roi = psf[roi]
+        meas_roi = xp.maximum(raw_roi, 0)
         meas_flux = meas_roi.sum()
+        ron2 = self.reg_factor * float(self.ron)**2
+        shifted = self.shifted_poisson
         sqrt_meas = xp.sqrt(meas_roi)
 
         # Phase estimate relative to the LIFT-like reference phase
@@ -216,9 +234,10 @@ class GerchbergSaxton(Lift):
             self.error_history.append(newerror)
 
             # 3. Focal-plane modulus constraint (generalised projection)
-            eps = max(float(self.ron)**2, 1e-6 * float(cpuArray(model_roi.max())))
+            eps = max(ron2, 1e-6 * float(cpuArray(model_roi.max())))
+            num = xp.maximum(raw_roi + eps, 0) if shifted else meas_roi + eps
             ratio_det = xp.ones(I_det.shape, dtype=self.dtype)
-            ratio_det[roi] = xp.sqrt((meas_roi + eps) / (model_roi + eps))
+            ratio_det[roi] = xp.sqrt(num / (model_roi + eps))
             F = F * self._ratio_to_fft_grid(ratio_det)
 
             # 4. Back to the pupil plane, keep phase, impose known amplitude
