@@ -1,3 +1,4 @@
+import math
 from collections import deque
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
@@ -21,6 +22,12 @@ class PhaseUnwrapper(BaseProcessingObj):
     Two-stage logic (when enabled):
     - Stage 1: Use p1 directly as long as residual < threshold
     - Stage 2: Full multi-wavelength unwrapping when Stage 1 residual is too high
+
+    Interval mode (interval_unwrap=True, replaces the two-stage/full logic):
+    - Candidates p1 + k*lambda_1 +/- err_1 and p2 + m*lambda_2 +/- err_2
+    - Overlaps spanning <= mean(lambda)/2: mean over the overlapping region;
+      otherwise (ambiguous) +/-lambda_1 if every overlapping point has the same
+      sign, else 0; no overlap: 0
     """
 
     def __init__(self,
@@ -35,6 +42,9 @@ class PhaseUnwrapper(BaseProcessingObj):
                  unwrap_enabled: bool = True,
                  two_stage_enabled: bool = True,
                  temporal_filtering_mode: str = 'none',  # 'none', 'median', 'weighted_average'
+                 interval_unwrap: bool = False,
+                 err_1: float = None,
+                 err_2: float = None,
                  target_device_idx=None,
                  precision=None):
         """
@@ -66,6 +76,11 @@ class PhaseUnwrapper(BaseProcessingObj):
             'none': No temporal filtering (recommended for closed-loop control)
             'median': Use median of last N frames (robust to outliers but adds lag)
             'weighted_average': Confidence-weighted average (trust good estimates)
+        interval_unwrap : bool
+            If True: use the interval-overlap unwrapping (see class docstring)
+            instead of the two-stage / full unwrapping
+        err_1, err_2 : float, optional
+            Error margins on p1 and p2 for interval_unwrap (required if it is True)
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -84,6 +99,12 @@ class PhaseUnwrapper(BaseProcessingObj):
         self.unwrap_enabled = bool(unwrap_enabled)
         self.two_stage_enabled = bool(two_stage_enabled)
         self.temporal_filtering_mode = str(temporal_filtering_mode).lower()
+        self.interval_unwrap = bool(interval_unwrap)
+        if self.interval_unwrap:
+            if err_1 is None or err_2 is None or err_1 < 0 or err_2 < 0:
+                raise ValueError("interval_unwrap requires non-negative err_1 and err_2")
+            self.err_1 = float(err_1)
+            self.err_2 = float(err_2)
 
         if self.temporal_filtering_mode not in ('none', 'median', 'weighted_average'):
             raise ValueError(
@@ -115,6 +136,10 @@ class PhaseUnwrapper(BaseProcessingObj):
         # Number of +/- wavelength steps to search in Stage 2 (at least 1).
         # Plain-Python arithmetic to avoid a device->host sync at construction.
         self.max_k = max(1, int(self.max_capture // self.lambda_1) - 1)
+        # Interval mode: k and m ranges wide enough to cover +/- max_capture; the
+        # max_capture limit is then applied to the overlap centres themselves
+        self.max_k_int = int(math.ceil(self.max_capture / self.lambda_1)) + 1
+        self.max_m_int = int(math.ceil(self.max_capture / self.lambda_2)) + 1
 
         # Output arrays
         self.out_pistons_array = None
@@ -230,6 +255,55 @@ class PhaseUnwrapper(BaseProcessingObj):
 
         return estimate, confidence, residual
 
+    def _interval_unwrap(self, p1_val, p2_val):
+        """
+        Interval-overlap unwrapping for a single piston.
+        Candidate intervals from p1 (+/- err_1) and p2 (+/- err_2), restricted to
+        [-max_capture, max_capture]. If all overlaps lie within mean(lambda)/2, the
+        estimate is the mean over the overlapping region; otherwise +/-lambda_1 if
+        every overlapping point has the same sign, else 0. No overlap: 0.
+
+        Returns
+        -------
+        estimate, confidence, residual
+        """
+        k_values = self.xp.arange(-self.max_k_int, self.max_k_int + 1, dtype=self.xp.int32)
+        m_values = self.xp.arange(-self.max_m_int, self.max_m_int + 1, dtype=self.xp.int32)
+        candidates_1 = p1_val + k_values * self.lambda_1
+        candidates_2 = p2_val + m_values * self.lambda_2
+
+        # Overlap of every (k, m) pair of intervals
+        lo = self.xp.maximum(candidates_1[:, None] - self.err_1, candidates_2[None, :] - self.err_2)
+        hi = self.xp.minimum(candidates_1[:, None] + self.err_1, candidates_2[None, :] + self.err_2)
+        # Clip the overlaps to the search range [-max_capture, max_capture]
+        lo = self.xp.maximum(lo, -self.max_capture)
+        hi = self.xp.minimum(hi, self.max_capture)
+        valid_mask = lo < hi  # ignore zero-width (touching) overlaps
+        lo = lo[valid_mask]
+        hi = hi[valid_mask]
+
+        if lo.size == 0:
+            # No solution
+            estimate = self.dtype(0.0)
+        elif float(self.xp.max(hi) - self.xp.min(lo)) <= 0.5 * (self.lambda_1 + self.lambda_2) / 2:
+            # Unique solution: mean over the overlapping region(s)
+            lengths = hi - lo
+            estimate = self.xp.sum(lengths * 0.5 * (lo + hi)) / self.xp.sum(lengths)
+        elif bool(self.xp.all(lo > 0)):
+            # Ambiguous, every solution positive
+            estimate = self.dtype(self.lambda_1)
+        elif bool(self.xp.all(hi < 0)):
+            # Ambiguous, every solution negative
+            estimate = self.dtype(-self.lambda_1)
+        else:
+            # Ambiguous with mixed signs (including any overlap containing 0)
+            estimate = self.dtype(0.0)
+
+        # Use SAME confidence computation as Stage 1 (for consistency)
+        confidence, residual = self._compute_confidence(estimate, p2_val)
+
+        return estimate, confidence, residual
+
     def _get_windowed_median(self, piston_idx):
         """
         Get median of estimates from temporal window.
@@ -310,7 +384,9 @@ class PhaseUnwrapper(BaseProcessingObj):
 
         # ===== PATH 2: Two-stage or full unwrapping =====
         for i in range(nseg):
-            if self.two_stage_enabled:
+            if self.interval_unwrap:
+                estimate, confidence, residual = self._interval_unwrap(p1[i], p2[i])
+            elif self.two_stage_enabled:
                 # Try Stage 1: use p1 directly
                 estimate = p1[i]
                 confidence, residual = self._compute_confidence(estimate, p2[i])

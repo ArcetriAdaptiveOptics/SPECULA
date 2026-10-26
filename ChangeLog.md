@@ -9,7 +9,7 @@
 
 ### Interface changes
 
-- ...
+- `PhaseUnwrapper`: new interval mode, enabled with `interval_unwrap: True` and the error margins `err_1` and `err_2` of the two estimates (same units as the wavelengths, both required); it replaces the two-stage/full unwrapping, so `two_stage_enabled` is ignored. 
 
 ### Other
 
