@@ -1,4 +1,5 @@
 import math
+import warnings
 from collections import deque
 
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
@@ -24,10 +25,20 @@ class PhaseUnwrapper(BaseProcessingObj):
     - Stage 2: Full multi-wavelength unwrapping when Stage 1 residual is too high
 
     Interval mode (interval_unwrap=True, replaces the two-stage/full logic):
-    - Candidates p1 + k*lambda_1 +/- err_1 and p2 + m*lambda_2 +/- err_2
-    - Overlaps spanning <= mean(lambda)/2: mean over the overlapping region;
-      otherwise (ambiguous) +/-lambda_1 if every overlapping point has the same
-      sign, else 0; no overlap: 0
+    - Candidates p1 + k*lambda_1 +/- err_1 and p2 + m*lambda_2 +/- err_2,
+      restricted to [-max_capture, max_capture]
+    - Unique solution (overlaps spanning <= mean(lambda)/2): out_pistonsU is the
+      piston estimate, the mean over the overlapping region
+    - Ambiguous solution: out_pistonsU is not an estimate but a correction signal
+      for an integrator: +lambda_1 (resp. -lambda_1) if every overlapping point is
+      positive (resp. negative), i.e. the sign of the piston is known but not its
+      value, so a lambda_1 step is applied towards 0, and the following steps
+      continue until the estimate becomes unique; 0 (do not move) if the overlaps
+      have mixed signs, e.g. one of them contains 0, or if one of them is within
+      lambda_1/2 of 0: the lambda_1 step is made only if it brings every
+      possible solution closer to 0
+    - No overlap (inconsistent estimates): out_pistonsU is 0 (do not move)
+    The confidence of the ambiguous and no-overlap outputs is 0.
     """
 
     def __init__(self,
@@ -80,7 +91,12 @@ class PhaseUnwrapper(BaseProcessingObj):
             If True: use the interval-overlap unwrapping (see class docstring)
             instead of the two-stage / full unwrapping
         err_1, err_2 : float, optional
-            Error margins on p1 and p2 for interval_unwrap (required if it is True)
+            Error margins on p1 and p2 for interval_unwrap, same units as the
+            wavelengths: required and strictly positive if it is True, ignored
+            (with a warning) otherwise. Larger margins are more robust to noise
+            and to a bias between p1 and p2, but slower to converge; err_1 + err_2
+            must not exceed |lambda_2 - lambda_1|, otherwise a lambda_1 error is
+            always ambiguous and never corrected.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
@@ -101,10 +117,16 @@ class PhaseUnwrapper(BaseProcessingObj):
         self.temporal_filtering_mode = str(temporal_filtering_mode).lower()
         self.interval_unwrap = bool(interval_unwrap)
         if self.interval_unwrap:
-            if err_1 is None or err_2 is None or err_1 < 0 or err_2 < 0:
-                raise ValueError("interval_unwrap requires non-negative err_1 and err_2")
+            if err_1 is None or err_2 is None or err_1 <= 0 or err_2 <= 0:
+                raise ValueError("interval_unwrap requires strictly positive err_1 and err_2")
             self.err_1 = float(err_1)
             self.err_2 = float(err_2)
+            # Ambiguous solutions closer than this to 0: no lambda_1 step, which
+            # would move them further from 0
+            self.zero_margin = self.lambda_1 / 2.0
+        elif err_1 is not None or err_2 is not None:
+            warnings.warn('PhaseUnwrapper: err_1 and err_2 are ignored '
+                          'because interval_unwrap is False', UserWarning)
 
         if self.temporal_filtering_mode not in ('none', 'median', 'weighted_average'):
             raise ValueError(
@@ -137,7 +159,7 @@ class PhaseUnwrapper(BaseProcessingObj):
         # Plain-Python arithmetic to avoid a device->host sync at construction.
         self.max_k = max(1, int(self.max_capture // self.lambda_1) - 1)
         # Interval mode: k and m ranges wide enough to cover +/- max_capture; the
-        # max_capture limit is then applied to the overlap centres themselves
+        # overlaps are then clipped to [-max_capture, max_capture]
         self.max_k_int = int(math.ceil(self.max_capture / self.lambda_1)) + 1
         self.max_m_int = int(math.ceil(self.max_capture / self.lambda_2)) + 1
 
@@ -260,8 +282,11 @@ class PhaseUnwrapper(BaseProcessingObj):
         Interval-overlap unwrapping for a single piston.
         Candidate intervals from p1 (+/- err_1) and p2 (+/- err_2), restricted to
         [-max_capture, max_capture]. If all overlaps lie within mean(lambda)/2, the
-        estimate is the mean over the overlapping region; otherwise +/-lambda_1 if
-        every overlapping point has the same sign, else 0. No overlap: 0.
+        estimate is the mean over the overlapping region; otherwise (ambiguous) the
+        output is a correction signal: 0 if an overlap is within lambda_1/2 of 0
+        (or contains it), else +/-lambda_1 if every overlapping point has the
+        same sign, else 0. No overlap: 0. The confidence of the ambiguous and
+        no-overlap outputs is 0 (see the class docstring).
 
         Returns
         -------
@@ -282,6 +307,7 @@ class PhaseUnwrapper(BaseProcessingObj):
         lo = lo[valid_mask]
         hi = hi[valid_mask]
 
+        unique = False
         if lo.size == 0:
             # No solution
             estimate = self.dtype(0.0)
@@ -289,6 +315,11 @@ class PhaseUnwrapper(BaseProcessingObj):
             # Unique solution: mean over the overlapping region(s)
             lengths = hi - lo
             estimate = self.xp.sum(lengths * 0.5 * (lo + hi)) / self.xp.sum(lengths)
+            unique = True
+        elif float(self.xp.min(self.xp.maximum(lo, -hi))) <= self.zero_margin:
+            # Ambiguous, with a solution containing 0 or within lambda_1/2 of it:
+            # a lambda_1 step would move that solution further from 0
+            estimate = self.dtype(0.0)
         elif bool(self.xp.all(lo > 0)):
             # Ambiguous, every solution positive
             estimate = self.dtype(self.lambda_1)
@@ -296,11 +327,14 @@ class PhaseUnwrapper(BaseProcessingObj):
             # Ambiguous, every solution negative
             estimate = self.dtype(-self.lambda_1)
         else:
-            # Ambiguous with mixed signs (including any overlap containing 0)
+            # Ambiguous with mixed signs
             estimate = self.dtype(0.0)
 
-        # Use SAME confidence computation as Stage 1 (for consistency)
+        # Use SAME confidence computation as Stage 1 (for consistency), except for
+        # the ambiguous and no-overlap outputs, which are not estimates
         confidence, residual = self._compute_confidence(estimate, p2_val)
+        if not unique:
+            confidence = self.dtype(0.0)
 
         return estimate, confidence, residual
 

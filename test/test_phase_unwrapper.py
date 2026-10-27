@@ -2,6 +2,7 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
+import warnings
 
 from specula import cpuArray, np
 from specula.loop_control import LoopControl
@@ -260,6 +261,8 @@ def _interval_reference(p1, p2, err_1, err_2, max_capture, npts=200001):
         return 0.0
     if xs.max() - xs.min() <= 0.5 * (LIFT_L1 + LIFT_L2) / 2:
         return xs.mean()
+    if np.min(np.abs(xs)) <= LIFT_L1 / 2:
+        return 0.0
     if np.all(xs > 0):
         return LIFT_L1
     if np.all(xs < 0):
@@ -293,6 +296,22 @@ class TestPhaseUnwrapperInterval(unittest.TestCase):
         with self.assertRaises(ValueError):
             PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True,
                            err_1=-1.0, err_2=50.0)
+        # zero margins would give only zero-width overlaps, i.e. always 0
+        with self.assertRaises(ValueError):
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True,
+                           err_1=0.0, err_2=50.0)
+
+    def test_margins_without_interval_mode_warn(self):
+        with self.assertWarns(UserWarning):
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, err_1=100.0, err_2=100.0)
+        with self.assertWarns(UserWarning):
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=False, err_2=100.0)
+
+    def test_no_warning_without_margins(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter('error')
+            PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2)
+            self._unwrapper(100.0)
 
     def test_default_is_not_interval(self):
         u = PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2)
@@ -328,10 +347,30 @@ class TestPhaseUnwrapperInterval(unittest.TestCase):
         self.assertEqual(self._single(u, -80.0, 0.0), 0.0)
 
     def test_ambiguous_same_sign_returns_one_lambda_1_step(self):
-        # Overlaps at k = 0 ([50, 100]) and at k = +1 ([1650, 1755]), all positive
+        # Overlaps [2155, 2250] and [3800, 3860] (and their mirror): all on the
+        # same side and farther than lambda_1/2 from 0
         u = self._unwrapper(100.0)
-        self.assertEqual(self._single(u, 150.0, 0.0), LIFT_L1)
-        self.assertEqual(self._single(u, -150.0, 0.0), -LIFT_L1)
+        self.assertEqual(self._single(u, 750.0, 400.0), LIFT_L1)
+        self.assertEqual(self._single(u, -750.0, -400.0), -LIFT_L1)
+
+    def test_ambiguous_same_sign_near_zero_returns_zero(self):
+        # Overlaps [50, 100] and [1650, 1755]: all positive, but the first one is
+        # within lambda_1/2 of 0, so no lambda_1 step (the piston may be ~75 nm,
+        # and a step would bring it to ~-1430 nm)
+        u = self._unwrapper(100.0)
+        self.assertEqual(self._single(u, 150.0, 0.0), 0.0)
+        self.assertEqual(self._single(u, -150.0, 0.0), 0.0)
+        # Same with a solution beyond the margins but within lambda_1/2: [110, 200]
+        self.assertEqual(self._single(u, 210.0, 100.0), 0.0)
+
+    def test_zero_margin_is_half_lambda_1(self):
+        # Nearest overlap [650, 800] within lambda_1/2 of 0: no step;
+        # nearest overlap [805, 950] beyond it: step
+        u = self._unwrapper(100.0)
+        self.assertEqual(u.zero_margin, LIFT_L1 / 2)
+        self.assertEqual(self._single(u, 750.0, 700.0), 0.0)
+        self.assertEqual(self._single(u, -600.0, 850.0), LIFT_L1)
+        self.assertEqual(self._single(u, 600.0, -850.0), -LIFT_L1)
 
     def test_no_overlap_returns_zero(self):
         u = self._unwrapper(10.0)
@@ -365,6 +404,17 @@ class TestPhaseUnwrapperInterval(unittest.TestCase):
             est = self._single(u, p1, p2)
             self.assertAlmostEqual(est, ref, delta=0.5, msg=f'p1={p1}, p2={p2}')
 
+    def test_confidence_zero_when_not_unique(self):
+        u = self._unwrapper(100.0)
+        # unique: confidence from the residual against p2 (20 nm here)
+        _, confidence, _ = u._interval_unwrap(u.dtype(20.0), u.dtype(60.0))
+        self.assertAlmostEqual(float(confidence), 1.0 - 2.0 * 20.0 / LIFT_L2, places=5)
+        # ambiguous, same sign / mixed signs, and no overlap: confidence 0
+        for p1, p2, err in [(150.0, 0.0, 100.0), (-80.0, 0.0, 100.0), (0.0, 300.0, 10.0)]:
+            u = self._unwrapper(err)
+            _, confidence, _ = u._interval_unwrap(u.dtype(p1), u.dtype(p2))
+            self.assertEqual(float(confidence), 0.0, msg=f'p1={p1}, p2={p2}, err={err}')
+
     def test_two_stage_flag_is_ignored(self):
         p1, p2 = -80.0, 0.0
         a = self._single(self._unwrapper(100.0, two_stage_enabled=True), p1, p2)
@@ -377,9 +427,10 @@ class TestPhaseUnwrapperInterval(unittest.TestCase):
     @cpu_and_gpu
     def test_trigger_vector_of_segments(self, target_device_idx, xp):
         # One segment per decision rule: unique (continuous), unique (k = 3),
-        # ambiguous with mixed signs, ambiguous with the same sign
-        p1_value = [20.0, 30.0, -80.0, 150.0]
-        p2_value = [60.0, _wrap(4545.0, LIFT_L2), 0.0, 0.0]
+        # ambiguous with mixed signs, ambiguous with the same sign, ambiguous
+        # with the same sign but a solution close to 0
+        p1_value = [20.0, 30.0, -80.0, 750.0, 150.0]
+        p2_value = [60.0, _wrap(4545.0, LIFT_L2), 0.0, 400.0, 0.0]
         u = PhaseUnwrapper(lambda_1=LIFT_L1, lambda_2=LIFT_L2, interval_unwrap=True,
                            err_1=100.0, err_2=100.0, target_device_idx=target_device_idx)
         out_pistons, out_pistonsU = self._run_once(u, p1_value, p2_value, target_device_idx, xp)
@@ -387,6 +438,10 @@ class TestPhaseUnwrapperInterval(unittest.TestCase):
         np.testing.assert_allclose(out_pistonsU[:2], [40.0, 4545.0], atol=1e-2)
         self.assertEqual(out_pistonsU[2], 0.0)
         self.assertEqual(out_pistonsU[3], LIFT_L1)
+        self.assertEqual(out_pistonsU[4], 0.0)
+        confidences = cpuArray(u.confidences)
+        self.assertTrue(np.all(confidences[:2] > 0))
+        np.testing.assert_array_equal(confidences[2:], [0.0, 0.0, 0.0])
 
 
 if __name__ == '__main__':
