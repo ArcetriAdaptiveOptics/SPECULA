@@ -13,7 +13,7 @@
 
 ### Other
 
-- ...
+- Fixed sign error in far-field propagation. Propagation distance for `doFresnel=true` is no longer reduced. Added power-loss warning for long distance propagation, if more than `power_loss_warning_threshold` of the power falls outside the padded grid.
 
 ## [1.1.0] - 2026-10-20
 
