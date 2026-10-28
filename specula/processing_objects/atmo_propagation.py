@@ -82,12 +82,10 @@ class AtmoPropagation(BaseProcessingObj):
         beam_center : float [1], optional
             Center of Gaussian uplink beam in pixel. Used for Fraunhofer propagation.
         power_loss_warning_threshold : float [1], optional
-            Only used when doFresnel is True. Long propagation steps (single-step Fresnel
-            transform, used above the angular spectrum limit N * pixel_pitch**2 / wavelength)
-            compute the field only on the padded grid (padding_factor * pupil): light that
+            Only used when doFresnel=True. Long propagation steps  used above the angular spectrum limit
+            N * pixel_pitch**2 / wavelength) compute the field only on the padded grid: light that
             diffracts outside is lost. If the fraction of power lost in one step exceeds
-            this threshold, a warning is logged (once per source and step). Default is 1%.
-            Set to None to disable the check.
+            this threshold, a warning is logged. Default is 1%. Set to None to disable the check.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -279,12 +277,11 @@ class AtmoPropagation(BaseProcessingObj):
     def calc_propagators(self, z):
         """Calculate propagators based on distance.
 
-        The propagation distance is never modified. The method is chosen by the sampling limit
-        z_max_ASM = N * pixel_pitch**2 / wavelength (N = padded grid size):
+        The method is chosen by the sampling limit z_max_ASM = N * pixel_pitch**2 / wavelength (N = padded grid size):
 
         - z <= z_max_ASM: angular spectrum method (ASM), whose transfer function is adequately
           sampled in this range;
-        - z >  z_max_ASM: single-step Fresnel transform (direct DFT, see fraunhofer_propagator),
+        - z >  z_max_ASM: single-step Fresnel transform (direct DFT),
           which is adequately sampled in this range. This includes the far field
           (z >= 2 D**2 / wavelength), where it reduces to Fraunhofer propagation.
 
