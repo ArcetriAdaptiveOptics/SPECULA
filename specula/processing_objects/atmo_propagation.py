@@ -34,6 +34,7 @@ class AtmoPropagation(BaseProcessingObj):
                  upwards: bool=False,
                  padding_factor: int=1,
                  beam_center=None,
+                 power_loss_warning_threshold: float=0.01,
                  target_device_idx=None,
                  precision=None):
         """
@@ -80,6 +81,13 @@ class AtmoPropagation(BaseProcessingObj):
             Factor for zero padding in Fresnel propagation to avoid numerical issues with FFTs.
         beam_center : float [1], optional
             Center of Gaussian uplink beam in pixel. Used for Fraunhofer propagation.
+        power_loss_warning_threshold : float [1], optional
+            Only used when doFresnel is True. Long propagation steps (single-step Fresnel
+            transform, used above the angular spectrum limit N * pixel_pitch**2 / wavelength)
+            compute the field only on the padded grid (padding_factor * pupil): light that
+            diffracts outside is lost. If the fraction of power lost in one step exceeds
+            this threshold, a warning is logged (once per source and step). Default is 1%.
+            Set to None to disable the check.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -105,6 +113,10 @@ class AtmoPropagation(BaseProcessingObj):
         if padding_factor < 1:
             raise ValueError('get_atmo_propagation: padding_factor must be greater than 1.')
         self.padding_factor = padding_factor
+        if power_loss_warning_threshold is not None and not 0 <= power_loss_warning_threshold < 1:
+            raise ValueError('power_loss_warning_threshold must be in [0, 1) or None.')
+        self.power_loss_warning_threshold = power_loss_warning_threshold
+        self._power_loss_warned = set()
         self.mergeLayersContrib = mergeLayersContrib
         self.prop_sign = -1 if upwards else 1
         self.pixel_pupil_size = self.pixel_pupil
@@ -172,7 +184,13 @@ class AtmoPropagation(BaseProcessingObj):
     def fraunhofer_propagator(self, distanceInM):
         """
        Jason D. Schmidt, Numerical Simulation of Optical Wave Propagation with Examples in MATLAB
-       Computes the propagators used for Fraunhofer far-field propagation.
+       Computes the propagators for the single-step Fresnel transform, evaluated as a direct
+       (matrix) DFT onto an output grid with the same pixel pitch as the input grid.
+
+       Both the input and the output quadratic phase factors are applied, so this is the full
+       Fresnel integral (not only its Fraunhofer limit). It is accurate whenever
+       distanceInM >= N * pixel_pitch**2 / wavelength (N = padded grid size).
+       This is exactly the range where the angular spectrum method is no longer valid.
 
        Parameters
        ----------
@@ -186,7 +204,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         # Fraunhofer propagator
         H_FR = (self.pixel_pitch ** 2 / (1j * self.wavelengthInNm * 1e-9 * distanceInM)) * self.xp.exp(
-            -1j * (k / (2 * distanceInM)) * (x_in_out ** 2 + y_in_out ** 2))
+            1j * (k / (2 * distanceInM)) * (x_in_out ** 2 + y_in_out ** 2))
 
         # Chirp Z-transform for performing DFT
         row_idx = self.xp.arange(self.ef_size_padded) - (self.ef_size_padded // 2) + 0.5
@@ -261,35 +279,37 @@ class AtmoPropagation(BaseProcessingObj):
     def calc_propagators(self, z):
         """Calculate propagators based on distance.
 
-        For far-field propagation Fraunhofer is used, otherwise angular spectrum propagation (ASM) method.
-        Propagation distance is automatically reduced to avoid numerical issues with FFTs.
+        The propagation distance is never modified. The method is chosen by the sampling limit
+        z_max_ASM = N * pixel_pitch**2 / wavelength (N = padded grid size):
+
+        - z <= z_max_ASM: angular spectrum method (ASM), whose transfer function is adequately
+          sampled in this range;
+        - z >  z_max_ASM: single-step Fresnel transform (direct DFT, see fraunhofer_propagator),
+          which is adequately sampled in this range. This includes the far field
+          (z >= 2 D**2 / wavelength), where it reduces to Fraunhofer propagation.
+
+        Note that in the second case light that diffracts outside the padded grid is lost
+        (it is not wrapped around); increase padding_factor if the beam at the destination
+        plane is larger than the padded grid.
         """
         far_field = False
         if z in (0, self.xp.inf):
             return None, far_field
-        z_in = z
 
-        z_far_field = 2 * ((self.pixel_pitch * self.pixel_pupil) ** 2) / (self.wavelengthInNm * 1e-9)
-        if z < z_far_field:
-            # Check if propagation distance exceed ASM limit
-            z_max_ASM = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
-            z = min(z, z_max_ASM)
+        z_max_ASM = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+        if z <= z_max_ASM:
             propagator = self.asm_propagator(z, self.pixel_pitch, self.pixel_pitch)
         else:
             if self.xp.any(self.beam_center + self.pixel_pupil > self.ef_size_padded):
                 raise ValueError(
-                    "For Fraunhofer propagation the beam center is too far off-axis. Please increase zero padding.")
+                    "For Fresnel transform propagation the beam center is too far off-axis."
+                    " Please increase zero padding.")
             propagator, _, _ = self.fraunhofer_propagator(z)
             far_field = True
-            self.logger.warning(
-                "For far-field Fraunhofer propagation is applied using Chirp Z-transform. If the propagated beam is"
-                " off-axis, please specify the beam center.")
-
-        if z != z_in:
-            self.logger.warning(
-                "For the current configuration the propagation distance is too large. "
-                "Thus it is reduced from " + str(z_in) + "m to " + str(z) +
-                "m. Consider increasing zero padding.")
+            self.logger.info(
+                f"Propagation over {z:.1f} m exceeds the angular spectrum limit ({z_max_ASM:.1f} m):"
+                " single-step Fresnel transform is used. If the propagated beam is off-axis,"
+                " please specify the beam center.")
 
         # Phases are computed in float64 (they can be large); only the result is stored
         # in the object precision, so that the per-step FFTs and products are not in double.
@@ -312,17 +332,26 @@ class AtmoPropagation(BaseProcessingObj):
         height_diffs = np.diff(height_layers, append=source_height)
         self.propagators, self.far_field_propagation = map(list,
                                                            zip(*[self.calc_propagators(diff) for diff in height_diffs]))
+        self.propagation_distances = [float(d) for d in height_diffs]
 
         # adapt for downwards propagation
         if self.prop_sign == 1:
             self.propagators = self.propagators[::-1]
             self.far_field_propagation = self.far_field_propagation[::-1]
+            self.propagation_distances = self.propagation_distances[::-1]
 
             # no propagation from the source downwards
             self.propagators.pop(0)
             self.propagators.append(None)
             self.far_field_propagation.pop(0)
             self.far_field_propagation.append(None)
+            self.propagation_distances.pop(0)
+            self.propagation_distances.append(0.0)
+
+        # index of the last propagation step: light lost there only limits the extent of the
+        # output plane, light lost in earlier steps is also missing from all later planes
+        steps = [i for i, p in enumerate(self.propagators) if p is not None]
+        self._last_propagation_step = steps[-1] if steps else None
 
         # pre-allocate arrays for propagation
         self.ef_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
@@ -409,8 +438,15 @@ class AtmoPropagation(BaseProcessingObj):
                         if not self.far_field_propagation[li]:
                             angular_spectrum_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1, self.xp)
                         else:
+                            check_loss = self.power_loss_warning_threshold is not None and (source_name, li) not in self._power_loss_warned
+                            if check_loss:
+                                power_in = float((self.ef_fresnel.real ** 2 + self.ef_fresnel.imag ** 2).sum())
                             fraunhofer_far_field_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1)
                             s_shifted = s + self.beam_center
+
+                            if check_loss:
+                                power_out = float((self.ef_fresnel.real ** 2 + self.ef_fresnel.imag ** 2).sum())
+                                self._check_power_loss(source_name, li, layer, power_in, power_out)
 
                 else:
                     output_ef.A *= self.ef_temp.A
@@ -423,6 +459,37 @@ class AtmoPropagation(BaseProcessingObj):
                     self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]) * self.wavelengthInNm / (
                                                   2 * self.xp.pi))
                 output_ef.A[:] = (abs(self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]))
+
+
+    def _check_power_loss(self, source_name, step_idx, layer, power_in, power_out):
+        """Warn (once per source and step) if a Fresnel-transform step lost too much light.
+        The single-step Fresnel transform conserves power on an unbounded output plane, so
+        any deficit on the padded grid is light that diffracted outside it.
+        """
+        if not power_in > 0:
+            return
+        loss = 1.0 - power_out / power_in
+        if loss <= self.power_loss_warning_threshold:
+            return
+        self._power_loss_warned.add((source_name, step_idx))
+
+        distance = self.propagation_distances[step_idx]
+        grid_m = self.ef_size_padded * self.pixel_pitch
+        where = (f"source '{source_name}': propagation over {distance:.1f} m from the"
+                 f" layer at {self.layer_height[layer]:.1f} m")
+        if step_idx == self._last_propagation_step:
+            self.logger.warning(
+                f"{where} (last step): {100 * loss:.1f}% of the light falls outside the padded"
+                f" grid ({grid_m:.2f} m = padding_factor {self.padding_factor} x pupil). The field"
+                f" on the grid is still correct, but the beam at the target plane is larger than"
+                f" the grid and only its central part is represented. Increase padding_factor if"
+                f" you need the whole beam.)")
+        else:
+            self.logger.warning(
+                f"{where}: {100 * loss:.1f}% of the light falls outside the padded grid"
+                f" ({grid_m:.2f} m = padding_factor {self.padding_factor} x pupil) and is lost:"
+                f" it is missing from all subsequent planes, so the output field is not"
+                f" accurate. Increase padding_factor.")
 
     def post_trigger(self):
         super().post_trigger()
