@@ -14,6 +14,7 @@ specula.init(-1)  # Default target device
 
 from specula.processing_objects.terminal_input import TerminalInput, TerminalReader
 from specula.processing_objects.terminal_input import _redirect_log_handlers, _restore_log_handlers, _isatty, print_help
+from specula.processing_objects.terminal_input import default_prompt
 
 
 class TestTerminalInput(unittest.TestCase):
@@ -35,6 +36,27 @@ class TestTerminalInput(unittest.TestCase):
         a.finalize()
         b = TerminalInput(output_list=["a:int"])
         b.finalize()
+
+    @patch.object(TerminalReader, 'start')
+    def test_prompt(self, _):
+        a = TerminalInput(output_list=["a:int"], prompt='lab> ')
+        self.assertEqual(a.reader.prompt, 'lab> ')
+        a.finalize()
+        with patch('sys.argv', ['/usr/bin/specula', 'params.yml']):
+            b = TerminalInput(output_list=["a:int"])
+        self.assertEqual(b.reader.prompt, 'specula> ')
+        b.finalize()
+
+    def test_default_prompt(self):
+        cases = [(['/usr/local/bin/specula', 'params.yml'], 'specula> '),
+                 (['/usr/local/bin/iteras'], 'iteras> '),
+                 (['/home/user/run_lab.py', '--cpu'], 'run_lab> '),
+                 (['-c'], '> '),
+                 ([''], '> '),
+                 ([], '> ')]
+        for argv, expected in cases:
+            with self.subTest(argv=argv), patch('sys.argv', argv):
+                self.assertEqual(default_prompt(), expected)
 
     def test_handle_line(self):
         received = []
@@ -205,6 +227,17 @@ class TestPromptToolkit(unittest.TestCase):
     def test_commands_until_eof(self):
         received = self._run_prompt('a 1\nb 2\n')
         self.assertEqual(received, [('a', '1'), ('b', '2')])
+
+    def test_prompt_is_shown(self):
+        from prompt_toolkit import PromptSession
+        reader = TerminalReader(lambda name, value: None, prompt='lab> ')
+        # Pipe input and dummy output, as in _run_prompt(): no real console
+        # is needed (there is none on Windows CI runners)
+        with create_pipe_input() as pipe_input, \
+             create_app_session(input=pipe_input, output=DummyOutput()), \
+             patch.object(PromptSession, 'prompt', side_effect=EOFError) as mock_prompt:
+            reader._run_prompt_toolkit()
+        self.assertEqual(mock_prompt.call_args.args, ('lab> ',))
 
     def test_ctrl_c_interrupts_main_thread(self):
         with patch('specula.processing_objects.terminal_input._thread.interrupt_main') as mock_interrupt, \

@@ -52,7 +52,7 @@ class TestIntmat(unittest.TestCase):
         """A float64 intmat file restored with single global precision must be float32"""
         im = Intmat(np.arange(6, dtype=np.float64).reshape((3, 2)), target_device_idx=-1, precision=0)
         im.save(self.filename, overwrite=True)
-        with patch("specula.base_time_obj.global_precision", 1):
+        with patch("iteras.global_precision", 1):
             im2 = Intmat.restore(self.filename, target_device_idx=target_device_idx)
         assert im2.intmat.dtype == xp.float32
         np.testing.assert_array_equal(cpuArray(im2.intmat), cpuArray(im.intmat))

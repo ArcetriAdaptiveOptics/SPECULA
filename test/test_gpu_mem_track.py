@@ -6,6 +6,7 @@ import specula
 specula.init(0)  # Default target device
 
 from specula import cp
+import iteras
 import specula.base_time_obj as bto
 from specula.base_time_obj import BaseTimeObj
 from specula.base_time_obj import gpu_mem_report, mem_registry_mark, top_level_objs
@@ -88,18 +89,18 @@ class TestDevicesRead(unittest.TestCase):
     def test_reads_only_used_devices_before_init(self):
         # Reading the memory pool of an unused GPU would create a CUDA context on it
         read = MagicMock(return_value=0)
-        with patch.object(bto, 'cp', MagicMock()), \
+        with patch.object(iteras, 'cp', MagicMock()), \
              patch.object(bto, '_pool_used_bytes', read), \
              patch.object(bto, '_mem_count_stack', []), \
              patch.object(bto, '_used_devices', {1}):
 
             # Before __init__ the device is not known
-            with patch.object(bto, 'default_target_device_idx', 0):
+            with patch.object(iteras, 'default_target_device_idx', 0):
                 BaseTimeObj.__new__(BaseTimeObj).startMemUsageCount(device_hint=3)
             self.assertEqual({c.args[0] for c in read.call_args_list}, {0, 1, 3})
 
             read.reset_mock()
-            with patch.object(bto, 'default_target_device_idx', -1):
+            with patch.object(iteras, 'default_target_device_idx', -1):
                 BaseTimeObj.__new__(BaseTimeObj).startMemUsageCount(device_hint=-1)
             self.assertEqual({c.args[0] for c in read.call_args_list}, {1})
 
@@ -115,7 +116,7 @@ class TestGpuMemTrack(unittest.TestCase):
     def test_device_not_read_is_counted_from_base_init(self):
         # Device neither hinted nor used yet: counting starts in BaseTimeObj.__init__
         with patch.object(bto, '_used_devices', set()), \
-             patch.object(bto, 'default_target_device_idx', -1):
+             patch.object(iteras, 'default_target_device_idx', -1):
             obj = DeviceNotHinted(0)
         self.assertEqual(obj.gpu_bytes_used, 1 * MB)
 

@@ -243,9 +243,9 @@ class TestReceiveNewValue(unittest.TestCase):
     # First receive (pickle path)
     # ----------------------------------------
 
-    @patch("specula.connections.process_comm")
+    @patch("iteras.process_comm")
     @patch("specula.connections.np")
-    @patch("specula.connections.cp")
+    @patch("iteras.cp")
     def test_first_receive_numpy(self, mock_cp, mock_np, mock_comm):
         """
         Should use recv() and assign np when xp_str != 'cp'
@@ -259,9 +259,9 @@ class TestReceiveNewValue(unittest.TestCase):
         self.assertEqual(result.xp, mock_np)
         mock_comm.recv.assert_called_once_with(source=1, tag=10)
 
-    @patch("specula.connections.process_comm")
+    @patch("iteras.process_comm")
     @patch("specula.connections.np")
-    @patch("specula.connections.cp")
+    @patch("iteras.cp")
     def test_first_receive_cupy(self, mock_cp, mock_np, mock_comm):
         """
         Should assign cp when xp_str == 'cp'
@@ -277,7 +277,7 @@ class TestReceiveNewValue(unittest.TestCase):
     # Force pickle path when cloned_value is empty
     # ----------------------------------------
 
-    @patch("specula.connections.process_comm")
+    @patch("iteras.process_comm")
     def test_buffer_path_falls_back_if_no_value(self, mock_comm):
         """
         If cloned_value.get_value() is None → use pickle path
@@ -296,7 +296,7 @@ class TestReceiveNewValue(unittest.TestCase):
     # Logging calls sanity check
     # ----------------------------------------
 
-    @patch("specula.connections.process_comm")
+    @patch("iteras.process_comm")
     def test_logging_called(self, mock_comm):
         new_val = DummyValue(val=1, xp_str="np")
         mock_comm.recv.return_value = new_val
@@ -309,7 +309,7 @@ class TestReceiveNewValue(unittest.TestCase):
     # Exception propagation
     # ----------------------------------------
 
-    @patch("specula.connections.process_comm")
+    @patch("iteras.process_comm")
     def test_recv_exception_propagates(self, mock_comm):
         """
         No try/except → exception should propagate

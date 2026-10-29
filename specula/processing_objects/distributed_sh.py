@@ -3,7 +3,7 @@ import copy
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
 from specula.processing_objects.sh import SH
-from specula import cp
+import specula
 
 
 class DistributedSH(SH):
@@ -54,7 +54,7 @@ class DistributedSH(SH):
 
         for i in range(n_slices):
             if target_device_idx >= 0:
-                num_devices = cp.cuda.runtime.getDeviceCount()
+                num_devices = specula.cp.cuda.runtime.getDeviceCount()
                 args['target_device_idx'] = (target_device_idx + i) % num_devices
             args['subap_rows_slice'] = self.slices[i]
             self.sub_sh.append( SH(**args))

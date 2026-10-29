@@ -1223,74 +1223,157 @@ class TestServerShutdown(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# ImageFlaskServer.status_update – logic branches
+# Status reports: forwarded to the frontend by the response thread
 # ---------------------------------------------------------------------------
 
-class TestImageFlaskServerStatusUpdate(unittest.TestCase):
+class TestFlaskServerStatusReports(unittest.TestCase):
 
-    def _make_server(self):
-        from specula.lib.display_server_api import ImageFlaskServer
+    def _make_server(self, cls_name='DataFlaskServer'):
+        import specula.lib.display_server_api as api
         sq = _queue_module.Queue()
         with patch('threading.Thread'):
-            srv = ImageFlaskServer(params_dict={}, status_queue=sq,
-                                   request_queue=_queue_module.Queue())
+            srv = getattr(api, cls_name)(params_dict={}, status_queue=sq,
+                                         request_queue=_queue_module.Queue())
         srv.actual_port = 5000
         return srv, sq
 
-    def test_breaks_on_none_data(self):
-        srv, sq = self._make_server()
-        srv.shutdown = lambda: 0  # prevent actual shutdown
-        sq.put(('sim', None))
-        with patch('socketio.Client'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
+    def test_forward_status_emits_simul_update(self):
+        srv, _ = self._make_server('ImageFlaskServer')
+        mock_client = MagicMock()
+        with patch('socketio.Client', return_value=mock_client):
+            srv.forward_status('sim_name', 'running at 10 Hz')
+        self.assertTrue(srv.frontend_connected)
+        self.assertEqual(mock_client.emit.call_args[0][0], 'simul_update')
+        self.assertEqual(mock_client.emit.call_args[1]['data']['status'], 'running at 10 Hz')
+
+    def test_forward_status_without_frontend_does_not_raise(self):
+        import socketio.exceptions
+        srv, _ = self._make_server()
+        mock_client = MagicMock()
+        mock_client.connect.side_effect = socketio.exceptions.ConnectionError()
+        with patch('socketio.Client', return_value=mock_client):
+            srv.forward_status('sim', 'running')
+            srv.forward_status('sim', 'running')     # within the retry interval
+        self.assertFalse(srv.frontend_connected)
+        self.assertEqual(mock_client.connect.call_count, 1)
+        mock_client.emit.assert_not_called()
+
+    def test_lost_frontend_resets_flag(self):
+        import socketio.exceptions
+        srv, _ = self._make_server()
+        srv.frontend_connected = True
+        mock_client = MagicMock()
+        mock_client.emit.side_effect = socketio.exceptions.BadNamespaceError()
+        with patch('socketio.Client', return_value=mock_client):
+            srv.forward_status('sim', 'running')
+        self.assertFalse(srv.frontend_connected)
+
+    def _run_handler(self, srv, items, wait=0.5):
+        for item in items:
+            srv.status_queue.put(item)
+        t = threading.Thread(target=srv.handle_responses, daemon=True)
+        t.start()
+        t.join(timeout=wait)
+        return t
+
+    def test_status_and_responses_read_by_one_thread_in_order(self):
+        srv, _ = self._make_server()
+        srv.client_types['cli1'] = 'dpg'
+        seen = []
+        srv.response_handlers['data_response'] = lambda c, n, d: seen.append(('data', n))
+        srv.response_handlers['terminator'] = lambda c, n, d: seen.append(('done', n))
+        with patch.object(srv, 'forward_status',
+                          side_effect=lambda n, d: seen.append(('status', n))):
+            self._run_handler(srv, [('data_response', 'cli1', 'a', {}), ('sim', 'running'),
+                                    ('terminator', 'cli1', None, '')])
+        self.assertEqual(seen, [('data', 'a'), ('status', 'sim'), ('done', None)])
+        self.assertTrue(srv.status_queue.empty())     # nothing put back
+
+    def test_none_status_stops_the_server(self):
+        srv, _ = self._make_server()
+        with patch.object(srv, 'shutdown') as mock_shutdown:
+            t = self._run_handler(srv, [('sim', None)])
+        mock_shutdown.assert_called_once()
         self.assertFalse(t.is_alive())
 
-    def test_emits_simul_update_on_status_tuple(self):
-        srv, sq = self._make_server()
-        srv.shutdown = lambda: 0  # prevent actual shutdown
-        mock_client = MagicMock()
-        sq.put(('sim_name', 'running at 10 Hz'))
-        sq.put(('sim_name', None))
-        with patch('socketio.Client', return_value=mock_client):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
-        mock_client.emit.assert_called()
-        self.assertEqual(mock_client.emit.call_args[0][0], 'simul_update')
+    def test_handler_error_keeps_serving(self):
+        srv, _ = self._make_server()
+        seen = []
+        srv.response_handlers['data_response'] = MagicMock(side_effect=RuntimeError('boom'))
+        srv.response_handlers['terminator'] = lambda c, n, d: seen.append('done')
+        with patch.object(srv, 'shutdown') as mock_shutdown:
+            t = self._run_handler(srv, [('data_response', 'cli1', 'a', {}),
+                                        ('terminator', 'cli1', None, '')])
+        self.assertEqual(seen, ['done'])
+        self.assertTrue(t.is_alive())
+        mock_shutdown.assert_not_called()
 
-    def test_requeues_non_2tuple_items(self):
-        srv, sq = self._make_server()
-        srv.shutdown = lambda: 0  # prevent actual shutdown
-        sq.put(('image_terminator', 'cli1', None, '5 Hz'))  # 4-tuple → requeue
-        sq.put(('sim', None))
-        with patch('socketio.Client'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
-        items = _drain_queue(sq)
-        self.assertTrue(any(isinstance(i, tuple) and len(i) == 4 for i in items))
 
-    def test_connection_error_resets_frontend_flag(self):
-        import socketio.exceptions
-        srv, sq = self._make_server()
-        srv.frontend_connected = True
-        srv.shutdown = lambda: 0  # prevent actual shutdown
-        mock_client = MagicMock()
-        mock_client.emit.side_effect = socketio.exceptions.ConnectionError()
-        sq.put(('sim', 'running'))
-        sq.put(('sim', None))
-        with patch('socketio.Client', return_value=mock_client), \
-             patch('time.sleep'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
+# ---------------------------------------------------------------------------
+# Server lifetime: only the end of the simulation process stops the server
+# ---------------------------------------------------------------------------
+
+class TestFlaskServerLifetime(unittest.TestCase):
+
+    def _make_server(self):
+        from specula.lib.display_server_api import DataFlaskServer
+        with patch('threading.Thread'):
+            srv = DataFlaskServer(params_dict={}, status_queue=_queue_module.Queue(),
+                                  request_queue=_queue_module.Queue())
+        srv.SIMULATION_CHECK_INTERVAL = 0.01
+        return srv
+
+    def test_silent_queue_does_not_stop_the_server(self):
+        """A paused simulation (stepping mode) sends nothing: keep serving."""
+        srv = self._make_server()
+        with patch.object(srv, 'shutdown') as mock_shutdown:
+            t = threading.Thread(target=srv.handle_responses, daemon=True)
             t.start()
-            t.join(timeout=3.0)
-        self.assertFalse(srv.frontend_connected)
+            t.join(timeout=2.5)                      # more than one get() timeout
+        self.assertTrue(t.is_alive())
+        mock_shutdown.assert_not_called()
+
+    def test_closed_queue_stops_the_server(self):
+        srv = self._make_server()
+        srv.status_queue = MagicMock()
+        srv.status_queue.get.side_effect = EOFError()
+        with patch.object(srv, 'shutdown') as mock_shutdown:
+            t = threading.Thread(target=srv.handle_responses, daemon=True)
+            t.start()
+            t.join(timeout=2.0)
+        mock_shutdown.assert_called_once()
+        self.assertFalse(t.is_alive())
+
+    def test_watch_simulation_stops_when_simulation_ends(self):
+        srv = self._make_server()
+        alive = iter([True, True, True, False])
+        with patch.object(srv, 'simulation_alive', side_effect=lambda: next(alive)), \
+             patch.object(srv, 'shutdown') as mock_shutdown:
+            t = threading.Thread(target=srv.watch_simulation, daemon=True)
+            t.start()
+            t.join(timeout=2.0)
+        mock_shutdown.assert_called_once()
+
+    def test_watch_simulation_keeps_running_while_simulation_runs(self):
+        srv = self._make_server()
+        with patch.object(srv, 'simulation_alive', return_value=True), \
+             patch.object(srv, 'shutdown') as mock_shutdown:
+            t = threading.Thread(target=srv.watch_simulation, daemon=True)
+            t.start()
+            t.join(timeout=0.3)
+        self.assertTrue(t.is_alive())
+        mock_shutdown.assert_not_called()
+
+    def test_simulation_alive_follows_parent_process(self):
+        srv = self._make_server()
+        parent = MagicMock()
+        with patch('multiprocessing.parent_process', return_value=parent):
+            parent.is_alive.return_value = True
+            self.assertTrue(srv.simulation_alive())
+            parent.is_alive.return_value = False
+            self.assertFalse(srv.simulation_alive())
+        with patch('multiprocessing.parent_process', return_value=None):
+            self.assertTrue(srv.simulation_alive())   # not started by a DisplayServer
 
 
 # ---------------------------------------------------------------------------
@@ -1348,10 +1431,12 @@ class TestImageFlaskServerHandleResponsesActual(unittest.TestCase):
             time.sleep(0.3)
         self.assertIn('done', [c[0][0] for c in mock_emit.call_args_list])
 
-    def test_2tuple_item_requeued_thread_survives(self):
+    def test_status_item_forwarded_thread_survives(self):
         srv, sq = self._make_server()
-        sq.put(('status_name', 'running'))
-        time.sleep(0.3)
+        with patch.object(srv, 'forward_status') as mock_forward:
+            sq.put(('status_name', 'running'))
+            time.sleep(0.3)
+        mock_forward.assert_called_once_with('status_name', 'running')
         self.assertTrue(srv.response_handler_thread.is_alive())
 
 
@@ -1388,10 +1473,12 @@ class TestDataFlaskServerHandleResponsesActual(unittest.TestCase):
             time.sleep(0.3)
         self.assertIn('done', [c[0][0] for c in mock_emit.call_args_list])
 
-    def test_2tuple_item_requeued_thread_survives(self):
+    def test_status_item_forwarded_thread_survives(self):
         srv, sq = self._make_server()
-        sq.put(('sim_name', 'running'))
-        time.sleep(0.3)
+        with patch.object(srv, 'forward_status') as mock_forward:
+            sq.put(('sim_name', 'running'))
+            time.sleep(0.3)
+        mock_forward.assert_called_once_with('sim_name', 'running')
         self.assertTrue(srv.response_handler_thread.is_alive())
 
     def test_unknown_format_thread_survives(self):
@@ -1407,109 +1494,6 @@ class TestDataFlaskServerHandleResponsesActual(unittest.TestCase):
             sq.put(('data_response', 'ghost', 'slope', {}))
             time.sleep(0.3)
         self.assertEqual(len(mock_emit.call_args_list), 0)
-
-
-# ---------------------------------------------------------------------------
-# DataFlaskServer.status_update – logic branches
-# ---------------------------------------------------------------------------
-
-class TestDataFlaskServerStatusUpdate(unittest.TestCase):
-
-    def _make_server(self):
-        from specula.lib.display_server_api import DataFlaskServer
-        sq = _queue_module.Queue()
-        with patch('threading.Thread'):
-            srv = DataFlaskServer(params_dict={}, status_queue=sq,
-                                  request_queue=_queue_module.Queue())
-        srv.actual_port = 5000
-        return srv, sq
-
-    def test_breaks_on_none_data(self):
-        srv, sq = self._make_server()
-        sq.put(('sim', None))
-        with patch('socketio.Client'), patch('os._exit'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
-        self.assertFalse(t.is_alive())
-
-    def test_skips_data_response_2tuples(self):
-        srv, sq = self._make_server()
-        sq.put(('data_response', 'x'))   # must be requeued, not consumed
-        sq.put(('sim', None))            # then break
-        with patch('socketio.Client'), patch('os._exit'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
-        items = _drain_queue(sq)
-        self.assertIn(('data_response', 'x'), items)
-
-    def test_emits_simul_update_on_status(self):
-        srv, sq = self._make_server()
-        mock_client = MagicMock()
-        sq.put(('sim_name', 'running at 10 Hz'))
-        sq.put(('sim_name', None))
-        with patch('socketio.Client', return_value=mock_client), \
-             patch('os._exit'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
-        mock_client.emit.assert_called()
-
-    def test_requeues_non_2tuple_items(self):
-        srv, sq = self._make_server()
-        sq.put(('terminator', 'cli1', None, '5 Hz'))  # 4-tuple → requeue
-        sq.put(('sim', None))
-        with patch('socketio.Client'), patch('os._exit'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=3.0)
-        items = _drain_queue(sq)
-        self.assertTrue(any(isinstance(i, tuple) and len(i) == 4 for i in items))
-
-    def test_queue_empty_calls_shutdown(self):
-        srv, sq = self._make_server()
-        mock_q = MagicMock()
-        mock_q.get.side_effect = _queue_module.Empty()
-        srv.status_queue = mock_q
-        with patch.object(srv, 'shutdown') as mock_shutdown, \
-             patch('socketio.Client'):
-            
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=2.0)
-        mock_shutdown.assert_called()
-
-    def test_eoferror_calls_shutdown(self):
-        srv, sq = self._make_server()
-        mock_q = MagicMock()
-        mock_q.get.side_effect = EOFError()
-        srv.status_queue = mock_q
-        with patch.object(srv, 'shutdown') as mock_shutdown, \
-             patch('socketio.Client'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=2.0)
-        mock_shutdown.assert_called()
-
-    def test_generic_exception_calls_shutdown(self):
-        srv, sq = self._make_server()
-        mock_q = MagicMock()
-        mock_q.get.side_effect = RuntimeError('unexpected')
-        srv.status_queue = mock_q
-        with patch.object(srv, 'shutdown') as mock_shutdown, \
-             patch('socketio.Client'):
-            t = threading.Thread(target=srv.status_update,
-                                 args=(MagicMock(),), daemon=True)
-            t.start()
-            t.join(timeout=2.0)
-        mock_shutdown.assert_called()
 
 
 # ---------------------------------------------------------------------------

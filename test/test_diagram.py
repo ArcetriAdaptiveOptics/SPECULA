@@ -110,12 +110,14 @@ class TestDiagrams(unittest.TestCase):
 
     def test_build_in_subprocess_ignores_cwd(self):
         """Real build() in a separate process, started from a directory
-        containing another specula package, which must not be imported"""
+        containing other specula and iteras packages, which must not be imported"""
         os.remove(self.tmp_png_path)
         with tempfile.TemporaryDirectory() as tmpdir:
-            os.makedirs(os.path.join(tmpdir, 'specula'))
-            with open(os.path.join(tmpdir, 'specula', '__init__.py'), 'w') as f:
-                f.write('raise ImportError("wrong specula imported")\n')
+            # SimulDiagram is defined in iteras.simul_diagram
+            for package in ['specula', 'iteras']:
+                os.makedirs(os.path.join(tmpdir, package))
+                with open(os.path.join(tmpdir, package, '__init__.py'), 'w') as f:
+                    f.write(f'raise ImportError("wrong {package} imported")\n')
             os.chdir(tmpdir)
             self._make_diagram()
             os.chdir(self.cwd)

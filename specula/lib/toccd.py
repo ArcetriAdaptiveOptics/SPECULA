@@ -9,7 +9,10 @@
 #########################################################
 
 
-from specula import cp, cpuArray
+from functools import cache
+
+import specula
+from specula import cpuArray
 from specula.lib.rebin import rebin2d
 
 
@@ -60,7 +63,7 @@ def toccd(a, newshape, set_total=None, xp=None):
     if a.shape == newshape:
         return a
 
-    if xp == cp:
+    if xp == specula.cp:
         return toccd_gpu(a, newshape, set_total=set_total)
 
     if len(a.shape) != 2:
@@ -120,15 +123,17 @@ def toccd_gpu(a, newshape, set_total=None):
         numBlocks2d_tmp += 1
     grid_tmp = (numBlocks2d, numBlocks2d_tmp)  # Note second element is different
 
+    cp = specula.cp
+    kernels = _rebin2D_kernels()
     tmp = cp.empty_like(a, shape=(iny, outx))  # TODO this is a reallocation and could give problems with streams
     out = cp.empty_like(a, shape=(outy, outx))
 
     if a.dtype == cp.float32:
-        _rebin2D_step1_float(grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
-        _rebin2D_step2_float(grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float32(f)))
+        kernels[1, 'float'](grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
+        kernels[2, 'float'](grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float32(f)))
     elif a.dtype == cp.float64:
-        _rebin2D_step1_double(grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
-        _rebin2D_step2_double(grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float64(f)))
+        kernels[1, 'double'](grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
+        kernels[2, 'double'](grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float64(f)))
     else:
         raise TypeError(f'toccd_gpu(): unsupported dtype {a.dtype}. Valid dtypes are float32 and float64')
 
@@ -141,9 +146,8 @@ def toccd_gpu(a, newshape, set_total=None):
     return out
 
 
-# only define kernels if cupy has been loaded
-if cp:
-    kernel_step1 = r'''
+# CUDA kernels, created at the first GPU call (see _rebin2D_kernels())
+kernel_step1 = r'''
 extern "C" __global__
 void rebin2D_step1_TYPE(TYPE *g_in, TYPE *g_tmp, int inx, int iny, int outx, int outy,
                    int dx_out, int dx_in) {
@@ -171,7 +175,7 @@ void rebin2D_step1_TYPE(TYPE *g_in, TYPE *g_tmp, int inx, int iny, int outx, int
    }
 }
 '''
-    kernel_step2  = r'''
+kernel_step2 = r'''
 extern "C" __global__
 void rebin2D_step2_TYPE(TYPE *g_tmp, TYPE* g_out, int outx, int outy,
                    int dy_in, int dy_out, TYPE f) {
@@ -188,7 +192,18 @@ void rebin2D_step2_TYPE(TYPE *g_tmp, TYPE* g_out, int outx, int outy,
     }
 }
 '''
-    _rebin2D_step1_float = cp.RawKernel(kernel_step1.replace('TYPE', 'float'), name='rebin2D_step1_float')
-    _rebin2D_step2_float = cp.RawKernel(kernel_step2.replace('TYPE', 'float'), name='rebin2D_step2_float')
-    _rebin2D_step1_double = cp.RawKernel(kernel_step1.replace('TYPE', 'double'), name='rebin2D_step1_double')
-    _rebin2D_step2_double = cp.RawKernel(kernel_step2.replace('TYPE', 'double'), name='rebin2D_step2_double')
+
+
+@cache
+def _rebin2D_kernels():
+    '''
+    The rebin2D kernels for float and double, created at the first GPU call,
+    so that this module can be imported before init()
+    '''
+    cp = specula.cp
+    return {
+        (1, 'float'): cp.RawKernel(kernel_step1.replace('TYPE', 'float'), name='rebin2D_step1_float'),
+        (2, 'float'): cp.RawKernel(kernel_step2.replace('TYPE', 'float'), name='rebin2D_step2_float'),
+        (1, 'double'): cp.RawKernel(kernel_step1.replace('TYPE', 'double'), name='rebin2D_step1_double'),
+        (2, 'double'): cp.RawKernel(kernel_step2.replace('TYPE', 'double'), name='rebin2D_step2_double'),
+    }

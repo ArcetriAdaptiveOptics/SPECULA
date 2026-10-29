@@ -1,12 +1,13 @@
 
-from specula.base_data_obj import BaseDataObj
+from iteras.data_objects.sim_params import SimParams
 from typing import List
 
-class SimulParams(BaseDataObj):
+class SimulParams(SimParams):
     """
     Simulation Parameters data object.
     This class holds the parameters of the simulation, such as pixel size,
     time step, total time, zenith angle, etc.
+    The generic parameters are defined by iteras's SimParams.
     """
     def __init__(self,
                 pixel_pupil: int = None,
@@ -41,19 +42,13 @@ class SimulParams(BaseDataObj):
         add_modules: list of str
             Optional additional modules to add to the search path when importing processing objects
         """
-        super().__init__()
+        super().__init__(root_dir=root_dir,
+                         total_time=total_time,
+                         time_step=time_step,
+                         display_server=display_server,
+                         stepping=stepping,
+                         add_modules=add_modules)
 
-        if not isinstance(add_modules, list):
-            raise ValueError('add_modules parameter must be a list of strings')
-        for module_name in add_modules:
-            if not isinstance(module_name, str):
-                raise ValueError('add_modules parameter must be a list of strings')
         self.pixel_pupil = pixel_pupil
         self.pixel_pitch = pixel_pitch
-        self.root_dir = root_dir
-        self.total_time = total_time
-        self.time_step = time_step
         self.zenithAngleInDeg = zenithAngleInDeg
-        self.display_server = display_server
-        self.stepping = stepping
-        self.add_modules = add_modules

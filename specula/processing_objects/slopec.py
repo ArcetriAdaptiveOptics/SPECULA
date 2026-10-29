@@ -1,5 +1,5 @@
 
-from specula import cp, np
+from specula import np, fuse
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -8,10 +8,9 @@ from specula.data_objects.slopes import Slopes
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
 
-if cp is not None:
-    @cp.fuse(kernel_name='sum_product')
-    def _sum_product_gpu(a, b):
-        return cp.sum(a * b, axis=-1)
+@fuse(kernel_name='sum_product')
+def _sum_product_gpu(a, b, xp):
+    return xp.sum(a * b, axis=-1)
 
 
 def sum_product(a, b, xp):
@@ -22,7 +21,7 @@ def sum_product(a, b, xp):
     '''
     if xp is np:
         return np.einsum('...i,...i->...', a, b)
-    return _sum_product_gpu(a, b)
+    return _sum_product_gpu(a, b, xp=xp)
 
 
 class Slopec(BaseProcessingObj):

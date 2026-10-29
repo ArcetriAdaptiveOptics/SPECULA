@@ -1,110 +1,104 @@
 import numpy as np
-from specula import cp, to_xp
+from functools import cache
+
+import specula
+from specula import to_xp
 from scipy.interpolate import RegularGridInterpolator
 
 class Interp2D():
 
-    if cp: # pragma: no cover
-        # Definition of bilinear interpolation device function used by both kernels
-        bilinear_interp_device = r'''
-            __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
-                int xin = floor(xcoord);
-                int yin = floor(ycoord);
-                // Clamp neighbours at the last row/column: they get zero weight there,
-                // but reading past the edge would wrap to the next row or out of bounds.
-                int xin2 = min(xin + 1, in_dx - 1);
-                int yin2 = min(yin + 1, in_dy - 1);
+    # CUDA sources of the kernels, created at the first GPU call (see _interp2_kernels())
 
-                TYPE xdist = xcoord - xin;
-                TYPE ydist = ycoord - yin;
+    # Definition of bilinear interpolation device function used by both kernels
+    bilinear_interp_device = r'''
+        __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
+            int xin = floor(xcoord);
+            int yin = floor(ycoord);
+            // Clamp neighbours at the last row/column: they get zero weight there,
+            // but reading past the edge would wrap to the next row or out of bounds.
+            int xin2 = min(xin + 1, in_dx - 1);
+            int yin2 = min(yin + 1, in_dy - 1);
 
-                int idx_a = yin * in_dx + xin;
-                int idx_b = yin * in_dx + xin2;
-                int idx_c = yin2 * in_dx + xin;
-                int idx_d = yin2 * in_dx + xin2;
+            TYPE xdist = xcoord - xin;
+            TYPE ydist = ycoord - yin;
 
-                return g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                       g_in[idx_b] * xdist * (1 - ydist) +
-                       g_in[idx_c] * ydist * (1 - xdist) +
-                       g_in[idx_d] * xdist * ydist;
+            int idx_a = yin * in_dx + xin;
+            int idx_b = yin * in_dx + xin2;
+            int idx_c = yin2 * in_dx + xin;
+            int idx_d = yin2 * in_dx + xin2;
+
+            return g_in[idx_a] * (1 - xdist) * (1 - ydist) +
+                   g_in[idx_b] * xdist * (1 - ydist) +
+                   g_in[idx_c] * ydist * (1 - xdist) +
+                   g_in[idx_d] * xdist * ydist;
+        }
+        '''
+
+    interp2_kernel = bilinear_interp_device + r'''
+        extern "C" __global__
+        void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
+            int y = blockIdx.y * blockDim.y + threadIdx.y;
+            int x = blockIdx.x * blockDim.x + threadIdx.x;
+
+            if ((y < out_dy) && (x < out_dx)) {
+                TYPE xcoord = xx[y * out_dx + x];
+                TYPE ycoord = yy[y * out_dx + x];
+                g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
             }
-            '''
+        }
+        '''
 
-        interp2_kernel = bilinear_interp_device + r'''
-            extern "C" __global__
-            void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
-                int y = blockIdx.y * blockDim.y + threadIdx.y;
-                int x = blockIdx.x * blockDim.x + threadIdx.x;
+    interp2_kernel_onthefly = bilinear_interp_device + r'''
+        extern "C" __global__
+        void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
+                                        TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
+                                        TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y, 
+                                        TYPE magnification) {
+            int y = blockIdx.y * blockDim.y + threadIdx.y;
+            int x = blockIdx.x * blockDim.x + threadIdx.x;
 
-                if ((y < out_dy) && (x < out_dx)) {
-                    TYPE xcoord = xx[y * out_dx + x];
-                    TYPE ycoord = yy[y * out_dx + x];
-                    g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
+            if ((y < out_dy) && (x < out_dx)) {
+                // Compute coordinates on-the-fly
+                TYPE xcoord = x * scale_x;
+                TYPE ycoord = y * scale_y;
+                
+                // Center coordinates for rotation and magnification
+                TYPE xx_centered = xcoord - center_x;
+                TYPE yy_centered = ycoord - center_y;
+                
+                // Apply magnification
+                if (magnification != 1.0) {
+                    xx_centered /= magnification;
+                    yy_centered /= magnification;
                 }
-            }
-            '''
-        interp2_kernel_float = \
-            cp.RawKernel(interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float')
-        interp2_kernel_double = \
-            cp.RawKernel(interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double')
-
-        interp2_kernel_onthefly = bilinear_interp_device + r'''
-            extern "C" __global__
-            void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
-                                            TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
-                                            TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y, 
-                                            TYPE magnification) {
-                int y = blockIdx.y * blockDim.y + threadIdx.y;
-                int x = blockIdx.x * blockDim.x + threadIdx.x;
-
-                if ((y < out_dy) && (x < out_dx)) {
-                    // Compute coordinates on-the-fly
-                    TYPE xcoord = x * scale_x;
-                    TYPE ycoord = y * scale_y;
-                    
-                    // Center coordinates for rotation and magnification
-                    TYPE xx_centered = xcoord - center_x;
-                    TYPE yy_centered = ycoord - center_y;
-                    
-                    // Apply magnification
-                    if (magnification != 1.0) {
-                        xx_centered /= magnification;
-                        yy_centered /= magnification;
-                    }
-                    
-                    // Apply rotation if necessary
-                    if (cos_angle != 1.0 || sin_angle != 0.0) {
-                        TYPE xcoord_rot = xx_centered * cos_angle - yy_centered * sin_angle;
-                        TYPE ycoord_rot = xx_centered * sin_angle + yy_centered * cos_angle;
-                        xx_centered = xcoord_rot;
-                        yy_centered = ycoord_rot;
-                    }
-                    
-                    // Restore center
-                    xcoord = xx_centered + center_x;
-                    ycoord = yy_centered + center_y;
-                    
-                    // Apply shift
-                    xcoord += shift_x;
-                    ycoord += shift_y;
-                    
-                    // Clamp to limits
-                    if (xcoord < 0) xcoord = 0;
-                    if (ycoord < 0) ycoord = 0;
-                    if (xcoord > in_dx - 1) xcoord = in_dx - 1;
-                    if (ycoord > in_dy - 1) ycoord = in_dy - 1;
-                    
-                    // Call bilinear interpolation
-                    g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
+                
+                // Apply rotation if necessary
+                if (cos_angle != 1.0 || sin_angle != 0.0) {
+                    TYPE xcoord_rot = xx_centered * cos_angle - yy_centered * sin_angle;
+                    TYPE ycoord_rot = xx_centered * sin_angle + yy_centered * cos_angle;
+                    xx_centered = xcoord_rot;
+                    yy_centered = ycoord_rot;
                 }
+                
+                // Restore center
+                xcoord = xx_centered + center_x;
+                ycoord = yy_centered + center_y;
+                
+                // Apply shift
+                xcoord += shift_x;
+                ycoord += shift_y;
+                
+                // Clamp to limits
+                if (xcoord < 0) xcoord = 0;
+                if (ycoord < 0) ycoord = 0;
+                if (xcoord > in_dx - 1) xcoord = in_dx - 1;
+                if (ycoord > in_dy - 1) ycoord = in_dy - 1;
+                
+                // Call bilinear interpolation
+                g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
             }
-            '''
-        interp2_kernel_onthefly_float = \
-            cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'float'),
-                         name='interp2_kernel_onthefly_float')
-        interp2_kernel_onthefly_double = \
-            cp.RawKernel(interp2_kernel_onthefly.replace('TYPE', 'double'),
-                         name='interp2_kernel_onthefly_double')
+        }
+        '''
 
     def __init__(self, input_shape, output_shape,
                  rotInDeg=0, rowShiftInPixels=0,
@@ -166,7 +160,7 @@ class Interp2D():
         # Use on-the-fly ONLY when:
         # 1. On GPU (xp is cp)
         # 2. No custom coordinates provided (xx, yy are None)
-        use_onthefly = (self.xp is cp and xx is None and yy is None)
+        use_onthefly = (self.xp is specula.cp and xx is None and yy is None)
 
         if use_onthefly:
             self.use_precomputed = False
@@ -272,7 +266,9 @@ class Interp2D():
         if out is None:
             out = self.xp.empty(shape=self.output_shape, dtype=self.dtype)
 
-        if self.xp == cp: # pragma: no cover
+        if self.xp == specula.cp: # pragma: no cover
+            cp = specula.cp
+            kernels = _interp2_kernels()
             block = (16, 16)
             # Calculate grid size for non-square arrays correctly
             grid_x = (self.output_shape[1] + block[0] - 1) // block[0]
@@ -282,7 +278,7 @@ class Interp2D():
             if not self.use_precomputed:
                 # Use on-the-fly coordinate calculation kernel
                 if self.dtype == cp.float32:
-                    self.interp2_kernel_onthefly_float(grid, block, (
+                    kernels['interp2_kernel_onthefly_float'](grid, block, (
                         value, out,
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
@@ -292,7 +288,7 @@ class Interp2D():
                         self.center_x, self.center_y,
                         self.magnification))
                 elif self.dtype == cp.float64:
-                    self.interp2_kernel_onthefly_double(grid, block, (
+                    kernels['interp2_kernel_onthefly_double'](grid, block, (
                         value, out,
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
@@ -305,11 +301,11 @@ class Interp2D():
                     raise ValueError(f'Unsupported dtype {self.dtype}')
             else:
                 if self.dtype == cp.float32:
-                    self.interp2_kernel_float(grid, block,
+                    kernels['interp2_kernel_float'](grid, block,
                         (value, out, self.output_shape[1], self.output_shape[0],
                          self.input_shape[1], self.input_shape[0], self.xx, self.yy))
                 elif self.dtype == cp.float64:
-                    self.interp2_kernel_double(grid, block,
+                    kernels['interp2_kernel_double'](grid, block,
                         (value, out, self.output_shape[1], self.output_shape[0],
                          self.input_shape[1], self.input_shape[0], self.xx, self.yy))
                 else:
@@ -323,3 +319,18 @@ class Interp2D():
             interp = RegularGridInterpolator(points,value, method='linear')
             out[:] = interp((self.yy, self.xx)).reshape(self.output_shape)
             return out
+
+
+@cache
+def _interp2_kernels():  # pragma: no cover
+    '''
+    The interpolation kernels for float and double, created at the first
+    GPU call, so that this module can be imported before init()
+    '''
+    cp = specula.cp
+    return {
+        'interp2_kernel_float': cp.RawKernel(Interp2D.interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float'),
+        'interp2_kernel_double': cp.RawKernel(Interp2D.interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double'),
+        'interp2_kernel_onthefly_float': cp.RawKernel(Interp2D.interp2_kernel_onthefly.replace('TYPE', 'float'), name='interp2_kernel_onthefly_float'),
+        'interp2_kernel_onthefly_double': cp.RawKernel(Interp2D.interp2_kernel_onthefly.replace('TYPE', 'double'), name='interp2_kernel_onthefly_double'),
+    }

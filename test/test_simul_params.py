@@ -4,6 +4,8 @@ specula.init(0)  # Default target device
 import unittest
 
 from specula.data_objects.simul_params import SimulParams
+from specula.simul import Simul
+from iteras.data_objects.sim_params import SimParams
 
 
 class TestSimulParams(unittest.TestCase):
@@ -51,3 +53,30 @@ class TestSimulParams(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = SimulParams(add_modules=[3.1415, 42])
+
+    def test_positional_arguments(self):
+        """pixel_pupil and pixel_pitch are still the first two arguments"""
+        params = SimulParams(160, 0.05)
+        self.assertEqual(params.pixel_pupil, 160)
+        self.assertEqual(params.pixel_pitch, 0.05)
+
+    def test_is_iteras_sim_params(self):
+        """SimulParams adds the AO parameters to the generic iteras SimParams"""
+        self.assertTrue(issubclass(SimulParams, SimParams))
+        params = SimParams(total_time=1.0, time_step=0.01)
+        self.assertEqual(params.total_time, 1.0)
+        self.assertEqual(params.time_step, 0.01)
+        self.assertFalse(hasattr(params, 'pixel_pupil'))
+
+    def test_simul_finds_main_params_by_class(self):
+        """Simul uses the section whose class is SimParams or a subclass as main parameters"""
+        for classname in ['SimulParams', 'SimParams']:
+            params = {'other': {'class': 'BaseValue'},
+                      'main': {'class': classname, 'root_dir': 'dummy'},
+                      'broken': {'not_a_class': 1}}
+            simul = Simul('dummy.yml')
+            self.assertTrue(simul.is_main_params(params, 'main'))
+            self.assertFalse(simul.is_main_params(params, 'other'))
+            self.assertFalse(simul.is_main_params(params, 'broken'))
+            simul.setSimulParams(params)
+            self.assertIs(simul.mainParams, params['main'])

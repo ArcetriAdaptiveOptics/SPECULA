@@ -13,10 +13,12 @@ from specula.data_objects.slopes import Slopes
 from specula.processing_objects.modalrec_multirate import ModalrecMultirate
 from specula.simul import Simul
 from specula.lib.utils import import_class as real_import_class
+from iteras.data_objects.sim_params import SimParams
 
 from test.specula_testlib import cpu_and_gpu
 
-class DummySimulParams:
+class DummySimulParams(SimParams):
+    # Does not call SimParams.__init__(): only root_dir is needed
     def __init__(self, root_dir='dummy', **_kwargs):
         self.root_dir = root_dir
     def init_logging(self, *args):

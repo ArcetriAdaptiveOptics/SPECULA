@@ -21,6 +21,7 @@ from specula.connections import InputValue, InputList
 from specula.data_objects.recmat import Recmat
 from specula.base_data_obj import BaseDataObj
 from specula.lib.utils import import_class as real_import_class
+from iteras.data_objects.sim_params import SimParams
 from specula.processing_objects.modalrec_multirate import ModalrecMultirate
 from specula.data_objects.iir_filter_data import IirFilterData
 from specula.scalar_values import IntValue
@@ -37,7 +38,8 @@ class DummyOutput:
 class DummyOutputDerived(DummyOutput):
     pass
 
-class DummySimulParams:
+class DummySimulParams(SimParams):
+    # Does not call SimParams.__init__(): only root_dir is needed
     def __init__(self, root_dir='dummy', **_kwargs):
         self.root_dir = root_dir
     def init_logging(self, *args):
@@ -757,7 +759,7 @@ class TestSimul(unittest.TestCase):
     def test_build_targeted_replay_warn_mode_logs_without_raising(self):
         params = self._ef_combinator_shadowing_prop_params()
 
-        with self.assertLogs('specula.simul', level='WARNING') as cm:
+        with self.assertLogs('iteras.simul', level='WARNING') as cm:
             replay = Simul('dummy.yaml').build_targeted_replay(
                 params, 'prop', on_missing_downstream_consumers='warn')
 

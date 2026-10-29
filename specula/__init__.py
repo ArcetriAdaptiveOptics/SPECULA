@@ -1,297 +1,55 @@
-import os
+'''
+SPECULA: adaptive optics simulations built on the iteras simulation framework.
+
+The framework (device and precision setup, base classes, connections,
+loop control, MPI support, ...) lives in the iteras package. This module
+registers SPECULA as an iteras plugin and keeps the historical names,
+so that ``specula.init()``, ``from specula import cpuArray, cp, xp`` and
+``specula.global_precision`` work as before.
+'''
 import numpy as np
-import logging
-import traceback
-import functools
-from functools import wraps
 
-from specula.log import get_specula_logger, init_logging
+import iteras
+from iteras import registry as _registry
+from iteras import (init, main_simul, cpuArray, to_xp, fuse,
+                   cpu_float_dtype_list, cpu_complex_dtype_list)
+from specula.calib_subdirs import CALIB_SUBDIRS as _CALIB_SUBDIRS
 
-cpu_float_dtype_list = [np.float64, np.float32]
-cpu_complex_dtype_list = [np.complex128, np.complex64]
-array_types = []
-
-gpuEnabled = False
-cp = None
-xp = None
-global_precision = None
-float_dtype_list = None
-complex_dtype_list = None
-gpu_float_dtype_list = cpu_float_dtype_list
-gpu_complex_dtype_list = cpu_complex_dtype_list
-float_dtype = None
-complex_dtype = None
-default_target_device_idx = None
-default_target_device = None
-process_comm = None
-process_rank = None
 ASEC2RAD = np.pi / (3600 * 180)
 RAD2ASEC = 1.0 / ASEC2RAD
 
-# precision = 0 -> double precision
-# precision = 1 -> single precision
+_registry.register_plugin(
+    'specula',
+    packages=['specula.processing_objects',
+              'specula.data_objects',
+              'specula.display'],
+    calib_subdirs=_CALIB_SUBDIRS,
+    env_aliases={'ITERAS_DISABLE_GPU': 'SPECULA_DISABLE_GPU',
+                 'ITERAS_PORT': 'SPECULA_PORT'},
+)
 
-# target_device = -1 -> CPU
-# target_device = i>-1 -> GPUi
-
-# you might have a GPU working and cupy installed
-# and still want to use the CPU (idx==-1) as default_target_device
-# in this case you might still want to allocate some objects on
-# a GPU device (idx>=0).
-# This can be checked later looking at the value of gpuEnabled.
-
-
-def init(device_idx=-1,
-         precision=0,
-         rank=None,
-         comm=None,
-         log_level=logging.INFO,
-         ):
-    global xp
-    global cp
-    global gpuEnabled
-    global global_precision
-    global float_dtype_list
-    global complex_dtype_list
-    global gpu_float_dtype_list
-    global gpu_complex_dtype_list
-    global array_types
-    global float_dtype
-    global complex_dtype
-    global default_target_device_idx
-    global default_target_device
-    global process_comm
-    global process_rank
-
-    process_comm = comm
-    process_rank = rank
-
-    init_logging(log_level=log_level, process_rank=rank)
-    logger = get_specula_logger(__name__)
-
-    default_target_device_idx = device_idx
-    systemDisable = os.environ.get('SPECULA_DISABLE_GPU', 'FALSE')
-    if systemDisable == 'FALSE':
-        try:
-            import cupy as cp
-            logger.info("Cupy import successfull. Installed version is: "+ cp.__version__)
-            gpuEnabled = True
-            cp = cp
-        except:
-            logger.warning("Cupy import failed. SPECULA will fall back to CPU use.")
-            cp = None
-            xp = np
-            default_target_device_idx = -1
-    else:
-        logger.info("env variable SPECULA_DISABLE_GPU prevents using the GPU.")
-        cp = None
-        xp = np
-        default_target_device_idx = -1
-
-    if default_target_device_idx >= 0:
-        xp = cp
-        gpu_float_dtype_list = [cp.float64, cp.float32]
-        gpu_complex_dtype_list = [cp.complex128, cp.complex64]
-        default_target_device = cp.cuda.Device(default_target_device_idx)
-        default_target_device.use()
-        logger.info(f'Default device is GPU number {default_target_device_idx}')
-        # self.logger.debug('Using device: ', cp.cuda.runtime.getDeviceProperties(default_target_device)['name'])
-        # attributes = default_target_device.attributes
-        # properties = cp.cuda.runtime.getDeviceProperties(default_target_device)
-        # self.logger.debug('Number of multiprocessors:', attributes['MultiProcessorCount'])
-        # self.logger.debug('Global memory size (GB):', properties['totalGlobalMem'] / (1024**3))
-    else:
-        logger.info('Default device is CPU')
-        xp = np
-
-    if cp is not None:
-        array_types = [np.ndarray, cp.ndarray]
-    else:
-        array_types = [np.ndarray]
-
-    float_dtype_list = [xp.float64, xp.float32]
-    complex_dtype_list = [xp.complex128, xp.complex64]
-    global_precision = precision
-    float_dtype = float_dtype_list[global_precision]
-    complex_dtype = complex_dtype_list[global_precision]
-
-    # Patch cupy's missing RandomState.random() method
-    if cp is not None:
-        cp.random.RandomState.random = cp.random.RandomState.random_sample
+# Values set by init(): they are read from iteras when accessed,
+# so that they are always up to date.
+_ITERAS_RUNTIME_NAMES = frozenset([
+    'gpuEnabled',
+    'cp',
+    'xp',
+    'global_precision',
+    'float_dtype_list',
+    'complex_dtype_list',
+    'gpu_float_dtype_list',
+    'gpu_complex_dtype_list',
+    'array_types',
+    'float_dtype',
+    'complex_dtype',
+    'default_target_device_idx',
+    'default_target_device',
+    'process_comm',
+    'process_rank',
+])
 
 
-# should be used as less as a possible and preferably outside time critical computations
-def cpuArray(v, dtype=None, force_copy=False):
-    return to_xp(np, v, dtype=dtype, force_copy=force_copy)
-
-
-def to_xp(xp, v, dtype=None, force_copy=False):
-    '''
-    Make sure that v is allocated as an array on this object's device.
-    Works for all combinations of np and cp, whether installed or not.
-
-    Optionally casts to the required dtype (no copy is made if
-    the dtype is already the correct one)
-
-    The main trigger for this function is that np.array() cannot
-    be used on a cupy array.
-    '''
-    if xp is cp:
-        if isinstance(v, cp.ndarray) and not force_copy:
-            retval = v
-        else:
-            retval = cp.array(v)
-    else:
-        if cp is not None and isinstance(v, cp.ndarray):
-            retval = v.get()
-        elif isinstance(v, np.ndarray) and not force_copy:
-            # Avoid extra copy (enabled by numpy default)
-            retval = v
-        else:
-            retval = np.array(v)
-    if dtype is None and not force_copy:
-        return retval
-    else:
-        return retval.astype(dtype, copy=force_copy)
-
-
-def fuse(kernel_name=None):
-    '''
-    Replacement of cupy.fuse() allowing runtime
-    dispatch to cupy or numpy.
-
-    Fused function takes an xp argument that will
-    cause it to run as a fused kernel or a standard
-    numpy function. The xp argument can be used
-    inside the function as usual.
-
-    Parameters are the same as cp.fuse()
-    '''
-    def decorator(f):
-        f_cp = functools.partial(f, xp=cp)
-        f_np = functools.partial(f, xp=np)
-        f_cpu = f_np
-        if cp:
-            f_gpu = cp.fuse(kernel_name=kernel_name)(f_cp)
-        else:
-            f_gpu = None
-
-        @wraps(f)
-        def wrapper(*args, xp, **kwargs):
-            if xp == cp:
-                return f_gpu(*args, **kwargs)
-            else:
-                return f_cpu(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
-def main_simul(yml_files: list,
-               nsimul=1,
-               cpu: bool=False,
-               overrides: str=None,
-               target: int=0,
-               precision: int=1,
-               profile: bool=False,
-               mpi: bool=False,
-               stepping: bool=False,
-               async_displays: bool=False,
-               diagram: bool=False,
-               diagram_title: str=None,
-               diagram_filename: str=None,
-               diagram_colors_on: bool=False,
-               no_speed_report: bool=False,
-               log_level: str='INFO',
-               trace_file: str=None,
-               trace_sync: bool=False,
-               trace_skip: int=0,
-               trace_gpu_events: bool=False,
-               ):
-
-    # Set logging level for the "parent" specula logger
-    logger = logging.getLogger('specula')
-    logger.setLevel(log_level.upper())
-
-    if mpi:
-        try:
-            from mpi4py import MPI
-            from mpi4py.util import pkl5
-            logger.info(f"mpi4py import successfull. Installed version is: {MPI.Get_version()}")
-        except ImportError:
-            logger.error("mpi4py import failed.")
-            raise
-
-        comm = pkl5.Intracomm(MPI.COMM_WORLD)
-        rank = comm.Get_rank()
-        N = 10000000
-        datatype = MPI.FLOAT
-        num_bytes = N * (datatype.Pack_size(count=1, comm=comm) + MPI.BSEND_OVERHEAD)
-
-        logger.debug(f'MPI buffer size: {num_bytes/1024**2:.2f} MB')
-        attached_buf = bytearray(num_bytes)
-        MPI.Attach_buffer(attached_buf)
-    else:
-        rank = None
-        comm = None
-
-    if cpu:
-        target_device_idx = -1
-    else:
-        target_device_idx = target
-
-    init(target_device_idx, precision=precision, rank=rank, comm=comm)
-    from specula.simul import Simul
-
-    if profile:
-        import cProfile
-        import pstats
-        pr = cProfile.Profile()
-        pr.enable()
-
-    from specula.tracing import tracer
-    if trace_file:
-        tracer.open(trace_file, sync=trace_sync, rank=rank, skip=trace_skip,
-                    gpu_events=trace_gpu_events)
-    elif trace_sync or trace_skip or trace_gpu_events:
-        logger.warning('--trace-sync, --trace-skip and --trace-gpu-events '
-                       'have no effect without --trace-file')
-
-    try:
-        for simul_idx in range(nsimul):
-            logger.debug(f'{yml_files=}')
-            Simul(*yml_files,
-                simul_idx=simul_idx,
-                overrides=overrides,
-                stepping=stepping,
-                async_displays=async_displays,
-                diagram=diagram,
-                diagram_filename=diagram_filename,
-                diagram_title=diagram_title,
-                diagram_colors_on=diagram_colors_on,
-                speed_report=not no_speed_report,
-                log_level=log_level,
-            ).run()
-    except Exception:
-        if mpi:
-            traceback.print_exc()
-            # Force other ranks to abort as well,
-            # otherwise they might remain stuck indefinitely
-            # waiting for input from this rank
-            MPI.COMM_WORLD.Abort(1)
-        else:
-            raise
-    finally:
-        # Print summary only if tracer was enabled
-        summary = tracer.close()
-        if summary:
-            logger.info('Timing summary:\n' + summary)
-
-    if profile:
-        pr.disable()
-        stats = pstats.Stats(pr).sort_stats("cumtime")
-        stats.print_stats(r"\((?!\_).*\)$", 200)
-        
-    if mpi:
-        MPI.Detach_buffer()
-
-
+def __getattr__(name):
+    if name in _ITERAS_RUNTIME_NAMES:
+        return getattr(iteras, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

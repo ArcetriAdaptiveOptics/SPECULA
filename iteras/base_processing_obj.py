@@ -1,0 +1,559 @@
+from collections import defaultdict, namedtuple
+import contextlib
+import fnmatch
+import re
+import weakref
+
+import iteras
+from iteras import cpuArray
+from iteras.tracing import tracer
+from iteras.base_time_obj import BaseTimeObj
+from iteras.connections import InputList, InputValue
+from iteras.log import MPI_DBG_LEVEL
+
+
+InputDesc = namedtuple('InputDesc', 'type desc')
+OutputDesc = namedtuple('OutputDesc', 'type desc')
+
+_PLACEHOLDER_PATTERN = re.compile(r'\{[^{}]+\}')
+
+
+class BaseProcessingObj(BaseTimeObj):
+
+    _streams = {}
+
+    def __init__(self, target_device_idx=None, precision=None):
+        """
+        Initialize the base processing object.
+
+        Parameters:
+        precision (int, optional): if None will use the global_precision, otherwise pass 0 for double, 1 for single
+        target_device_idx (int, optional): if None will use the default_target_device_idx, otherwise pass -1 for cpu, i for GPU of index i
+        """
+        BaseTimeObj.__init__(self, target_device_idx=target_device_idx, precision=precision)
+
+        self.current_time = 0
+        self.current_time_seconds = 0
+
+        # Stream/input management
+        self.stream = None
+        self.inputs_changed = False
+        self.cuda_graph = None
+
+        # Set by invalidate_graph(): the CUDA graph is captured again at the next trigger()
+        self._cuda_graph_invalid = False
+
+        # Memory pool for the arrays allocated while capturing the CUDA graph
+        self._graph_mempool = None
+
+        # Addresses of the input arrays when the CUDA graph was captured
+        self._captured_input_ptrs = {}
+
+        # Will be populated by derived class
+        self.inputs = {}
+        self.local_inputs = {}
+        self.outputs = {}
+        self.remote_outputs = defaultdict(list)
+        self.sent_valid = {}
+
+        # Use the correct CUDA device for allocations in derived classes'  __init__
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
+        # Default name is the class name, a more specific one
+        # can be given externally by the Simul class
+        self.name = self.__class__.__name__
+
+    # Use the correct CUDA device for allocations in derived classes' prepare_trigger()
+    def prepare_trigger(self, t):
+        self.current_time_seconds = self.t_to_seconds(self.current_time)
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
+    def addRemoteOutput(self, name, remote_output):
+        self.remote_outputs[name].append(remote_output)
+
+    def checkInputTimes(self):
+        '''
+        Determine whether this processing object needs to execute
+        the trigger method, based on the input states
+        '''
+        # No inputs: always trigger
+        if len(self.inputs) == 0:
+            return True
+
+        self.get_all_inputs()
+
+        # Inputs are all optional, and none of them is set: always trigger
+        if all((self.inputs[k].optional is True and
+                self.local_inputs[k] is None)
+               for k in self.inputs):
+            return True
+
+        # Otherwise, only trigger if at least one input has been refreshed.
+        for input_name, input_obj in self.local_inputs.items():
+            if type(input_obj) is not list:
+                input_obj = [input_obj]
+
+            tt_list = [x.generation_time for x in input_obj if x is not None]
+            for tt in tt_list:
+                if tt is not None and tt >= self.current_time:
+                    return True
+        else:
+            return False
+
+    def get_all_inputs(self):
+        '''
+        Perform get() on all inputs.
+        Remote inputs, if any, are received via MPI.
+        Data is transferred between devices if necessary.
+        '''
+        for input_name, input_obj in self.inputs.items():
+            self.logger.mpi_debug(f'- get_all_inputs(): '
+                                  f'getting InputValue: {input_name}')
+            # Set additional info for better error messages
+            input_obj.requesting_obj_name = self.name
+            input_obj.input_name = input_name
+            self.local_inputs[input_name] = input_obj.get(self.target_device_idx)
+
+        # Normal object creation by Simul sets the correct log level,
+        # but tests may create objects on the fly and the logger level
+        # may end up NOTSET, so add a check to avoid expensive string formatting
+        # that may be discarded by the logging module.
+        if self.logger.isEnabledFor(MPI_DBG_LEVEL):
+            self.logger.mpi_debug(f'My inputs are:')
+            for in_name, in_value in self.local_inputs.items():
+                if type(in_value) is list:
+                    self.logger.mpi_debug(f'- {in_name}' +
+                                str([(x.generation_time, x.debug_summary()) for x in in_value]))
+                else:
+                    self.logger.mpi_debug(f'- {in_name}' + 
+                            str(in_value.generation_time if in_value is not None else None) +
+                            f'{in_value} type: {type(in_value)}')
+
+    def trigger_code(self):
+        '''
+                Implementations in derived classes should run GPU operations using
+                the xp module on arrays allocated with self.xp.
+
+                Avoid explicit numpy or pure-Python operations and avoid using values
+                from variables that are reallocated by prepare_trigger() or
+                post_trigger().
+
+                When stream capture is enabled, a CUDA graph is generated, non-GPU
+                operations are skipped, and GPU memory addresses from the first run
+                are reused.
+        '''
+        pass
+
+    def post_trigger(self):
+        '''
+        Make sure we are using the correct device and that any previous
+        CUDA graph has been synchronized
+        '''
+        # Double check that we can execute
+        if not self.inputs_changed:
+            raise RuntimeError("post_trigger() called when the object's inputs have not changed")
+
+        # Reset inputs flag
+        self.inputs_changed = False
+
+        if self.target_device_idx>=0:
+            self._target_device.use()
+            if self.cuda_graph:
+                self.stream.synchronize()
+
+    def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
+        self.logger.mpi_send_debug(f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})')
+        if first_mpi_send or not dest_tag in self.sent_valid:
+            self.logger.mpi_send_debug(f'SEND with Pickle: {dest_tag=}')
+            xp_orig = item.xp
+            item.xp = 0            
+            iteras.process_comm.ibsend(item, dest=dest_rank, tag=dest_tag)
+            item.xp = xp_orig
+        else:
+            buffer = item.get_value()
+            self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device {buffer.device}')
+            self.logger.mpi_send_debug(f'SEND with Buffe {dest_tag=}, {type(buffer)=}, {buffer=}')
+            self.logger.mpi_send_debug(f'SEND with Buffer type {dest_tag=} {buffer.dtype=}')
+
+            iteras.process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
+
+            iteras.process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
+        if item.get_value() is not None:
+            self.sent_valid[dest_tag] = True
+
+    # this method implements the mpi send call of the outputs connected to remote inputs
+    def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
+        '''
+        Send all remote outputs via MPI.
+        If *skip_delayed* is True, skip sending delayed outputs.
+        This is used during the last iteration when the simulation is ending
+        and no one would receive delayed inputs.
+
+        If *delayed_only* is True, only send delayed outputs.
+        This is used while setting up the simulation to initialize outputs
+        that are delayed and would not be received otherwise.
+        '''
+        self.logger.mpi_debug(f'My outputs are:')
+        for out_name, out_value in self.outputs.items():
+            self.logger.mpi_debug(f'{out_name=}, {out_value=}')
+
+        self.logger.mpi_debug(f'send_outputs')
+        for out_name, remote_specs in self.remote_outputs.items():
+            for remote_spec in remote_specs:
+                dest_rank, dest_tag, delay = remote_spec
+                # avoid sending outputs that will not be received
+                # because the simulation is ending
+                if delay < 0 and skip_delayed:
+                    self.logger.mpi_send_debug(f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}')
+                    continue
+                if delay >= 0 and delayed_only:
+                    self.logger.mpi_send_debug(f'SKIPPED SEND to rank {dest_rank} {dest_tag=} due to delay={delay}')
+                    continue
+                self.logger.mpi_debug(f'Sending {out_name} to {dest_rank} with tag {dest_tag} {type(self.outputs[out_name])}')
+                # workaround because module objects cannot be pickled
+                for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
+                    self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send, out_name)
+
+    @classmethod
+    def device_stream(cls, target_device_idx):
+        if not target_device_idx in cls._streams:
+            cls._streams[target_device_idx] = iteras.cp.cuda.Stream(non_blocking=False)
+        return cls._streams[target_device_idx]
+
+    def build_stream(self, allow_parallel=True, capture=True):
+        '''
+        Create the CUDA stream and capture the CUDA graph.
+        If *capture* is False, the graph is captured at the first trigger() instead,
+        for objects whose trigger_code() needs data that is only available then.
+        '''
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+            if allow_parallel:
+                self.stream = iteras.cp.cuda.Stream(non_blocking=False)
+            else:
+                self.stream = self.device_stream(self.target_device_idx)
+            if capture:
+                self.capture_stream()
+            else:
+                self._cuda_graph_invalid = True
+            iteras.default_target_device.use()
+
+    def capture_stream(self):
+        # The temporary arrays allocated by trigger_code() are released when it
+        # returns, but the CUDA graph keeps using their memory at each launch.
+        # Taken from the default memory pool, that memory could be given to other
+        # arrays (overwritten by the graph) or freed (illegal address at launch).
+        # It is taken instead from a pool used only for this graph.
+        if iteras.cp is not None:  # pragma: gpu
+            if self._graph_mempool is None:
+                self._graph_mempool = iteras.cp.cuda.MemoryPool()
+                # A deleted MemoryPool does not release its memory to the device,
+                # free it explicitly when this object is garbage collected
+                weakref.finalize(self, self._graph_mempool.free_all_blocks)
+            else:
+                # Recapture: the old graph is not launched anymore
+                self.cuda_graph = None
+                self._graph_mempool.free_all_blocks()
+            allocator = iteras.cp.cuda.using_allocator(self._graph_mempool.malloc)
+        else:
+            allocator = contextlib.nullcontext()
+
+        with self.stream, allocator:
+            # First execution is needed to build the FFT plan cache
+            # See for example https://github.com/cupy/cupy/issues/7559
+            self.trigger_code()
+            self.stream.begin_capture()
+            self.trigger_code()
+            self.cuda_graph = self.stream.end_capture()
+        self._cuda_graph_invalid = False
+        self._captured_input_ptrs = self.graph_input_ptrs()
+
+    def graph_input_ptrs(self):
+        '''
+        Addresses of the GPU arrays of the local inputs, as a dictionary
+        {(input name, list index, attribute name): address}, checked by
+        check_input_ptrs(). Derived classes whose CUDA graph does not read
+        some inputs (for example copied by prepare_trigger()) can override
+        this method to exclude them.
+        '''
+        ptrs = {}
+        for name, value in self.local_inputs.items():
+            values = value if type(value) is list else [value]
+            for i, obj in enumerate(values):
+                if obj is None:
+                    continue
+                for attr, array in getattr(obj, '__dict__', {}).items():
+                    if isinstance(array, iteras.cp.ndarray):
+                        ptrs[(name, i, attr)] = array.data.ptr
+        return ptrs
+
+    def check_input_ptrs(self):
+        '''
+        The CUDA graph reads the inputs at the addresses they had when it was
+        captured: raise an error if an input array has been reallocated since,
+        instead of silently reading stale data. Host-side check, no synchronization.
+        '''
+        if not self._captured_input_ptrs:
+            return
+        current = self.graph_input_ptrs()
+        for key, ptr in self._captured_input_ptrs.items():
+            if current.get(key) != ptr:
+                name, i, attr = key
+                where = f'{name}[{i}]' if type(self.local_inputs[name]) is list else name
+                raise RuntimeError(f'{self.name}: input {where} has been reallocated after the'
+                                   f' CUDA graph capture (attribute {attr}), its producer must'
+                                   f' update its value in place')
+
+    def invalidate_graph(self):
+        '''
+        Mark the CUDA graph as invalid, so that it is captured again at the next trigger().
+        To be called by the methods that change something frozen in the graph
+        at capture time, like kernel parameters passed by value.
+        Does nothing if the object does not use a CUDA graph.
+
+        In the trigger() that captures the graph, the GPU work of trigger_code()
+        is executed only once: the graph is not launched, since the warm-up run in
+        capture_stream() already computes the results of that step. The Python code
+        of trigger_code() runs twice (warm-up and capture), so trigger_code() must
+        not keep state in Python variables, as for any code in a CUDA graph.
+        '''
+        if self.stream is not None:
+            self._cuda_graph_invalid = True
+
+    def check_ready(self, t):
+        self.current_time = t
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+        with tracer('inputs', self):
+            ready = self.checkInputTimes()
+        if ready:
+            self.inputs_changed = True  # Signal ready for trigger and post_trigger()
+            with tracer('prepare_trigger', self):
+                self.prepare_trigger(t)
+        else:
+            self.inputs_changed = False
+            self.logger.debug('No inputs have been refreshed, skipping trigger')
+        return self.inputs_changed
+
+    def trigger(self):
+        # Double check that we can execute
+        if not self.inputs_changed:
+            raise RuntimeError("trigger() called when the object's inputs have not changed")
+
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+        if self.target_device_idx >= 0 and self._cuda_graph_invalid:
+            # Capture the graph. The warm-up run in capture_stream() computes
+            # the results of this step, so the new graph is not launched.
+            self.logger.debug('Capturing the CUDA graph')
+            self.capture_stream()
+        elif self.target_device_idx >= 0 and self.cuda_graph:
+            self.check_input_ptrs()
+            # NVTX range only, to mark the graph kernels in Nsight Systems
+            with tracer.no_record(), tracer('cuda_graph', self):
+                self.cuda_graph.launch(stream=self.stream)
+        else:
+            self.trigger_code()
+
+    def setup(self):
+        """
+        Override this method to perform any setup
+        just before the simulation is started.
+
+        The base class implementation also checks that
+        all non-optional inputs have been set.
+        """
+        if self.target_device_idx >= 0:
+            self._target_device.use()
+
+        self.get_all_inputs()
+        for input_name, input in self.inputs.items():
+            if self.local_inputs[input_name] is None and not input.optional:
+                raise ValueError(f'Input {input_name} for object {self} has not been set')
+
+    def finalize(self):
+        '''
+        Override this method to perform any actions after
+        the simulation is completed
+        '''
+        pass
+
+    @classmethod
+    def accepts_input_list(cls):
+        '''
+        Override to return True if this class accepts the "input_list" entry in
+        the inputs section of the parameter file (a list of "alias-obj.output"
+        strings), for objects whose inputs are not known in advance, like
+        DataStore and DataBuffer. Simul then creates one input per list item,
+        named after its alias, and calls input_list_created().
+        '''
+        return False
+
+    def input_list_created(self):
+        '''
+        Called by Simul after creating the inputs listed in "input_list",
+        for classes whose accepts_input_list() returns True. Override to
+        create the outputs that depend on them, for example.
+        '''
+        pass
+
+    def set_simulation_params(self, params):
+        '''
+        Called by Simul after building this object, with the dictionary of
+        the parameters of the whole simulation. Override to use it, for
+        example to save it together with the results (as DataStore does).
+        '''
+        pass
+
+    def set_replay_params(self, replay_params):
+        '''
+        Called by Simul before the simulation starts, with the parameters of
+        a simulation that would replay this one from the stored data (see
+        Simul.build_replay()). Override to use it (as DataStore does).
+        '''
+        pass
+
+    def get_resolved_seed(self):
+        '''
+        Override for objects that resolve a random seed at construction time,
+        so that a replay of this run can reproduce the same values.
+        Return None (default) if this object has no seed to record.
+        '''
+        return None
+
+    def sanity_check(self):
+        '''
+        Check that all inputs and outputs have been setup correctly.
+        '''
+        self.check_input_names()
+        self.check_output_names()
+
+    @staticmethod
+    def _normalize_declared_pattern(pattern):
+        """Normalize declared I/O names to a fnmatch-compatible pattern.
+
+        Declaration grammar accepted by sanity checks:
+        - Exact names: ``out_comm``
+                - Placeholder-like names: ``out_modes_{sensor_idx}``
+                    (used in ``ModalrecMultirate.output_names``)
+                - Placeholder-like names: ``out_{source_name_}ef``
+                    (used in ``AtmoRandomPhase.output_names``)
+
+                Placeholder segments delimited by ``{...}`` are treated as wildcards and
+                internally converted to ``*``. Matching is delegated to
+        :func:`fnmatch.fnmatchcase`.
+        """
+        normalized = _PLACEHOLDER_PATTERN.sub('*', str(pattern))
+        return normalized
+
+    @classmethod
+    def _match_declared_name(cls, actual_name, declared_name):
+        normalized = cls._normalize_declared_pattern(declared_name)
+        return fnmatch.fnmatchcase(actual_name, normalized)
+
+    @classmethod
+    def _best_declared_match(cls, actual_name, declared_map):
+        # Prefer exact match when available, then fallback to first pattern match.
+        if actual_name in declared_map:
+            return actual_name, declared_map[actual_name]
+
+        for declared_name, declared_desc in declared_map.items():
+            if cls._match_declared_name(actual_name, declared_name):
+                return declared_name, declared_desc
+
+        return None, None
+
+    def check_input_names(self):
+        '''
+        Check that all input names declared in self.input_names are present in self.inputs
+                with the correct type (InputValue or InputList).
+
+                Supported declaration grammar for input names:
+                - Exact names, e.g. ``in_ef``
+                - Placeholder patterns, e.g. ``in_sensor_{idx}``
+
+                Notes
+                -----
+                - Placeholder segments ``{...}`` are treated as wildcards.
+                                - In project classes, placeholder-style declarations are mandatory;
+                                    do not use raw ``*`` declarations in ``input_names()``.
+                - Optional declarations are identified by descriptions ending with
+                    ``(optional)``.
+                - Exact-key matches take precedence over pattern matches.
+        '''
+        if not hasattr(self, 'input_names'):
+            return
+        input_dict = self.input_names()
+        for declared_name, declared_desc in input_dict.items():
+            optional_decl = declared_desc[1].endswith("(optional)")
+            declared_matches = [
+                name for name in self.inputs
+                if self._match_declared_name(name, declared_name)
+            ]
+            if not optional_decl and not declared_matches:
+                raise ValueError(
+                    f"Input {declared_name} declared in input_names but not present in inputs"
+                )
+
+        for input_name, input_obj in self.inputs.items():
+            declared_name, declared_desc = self._best_declared_match(input_name, input_dict)
+            if declared_name is None:
+                raise ValueError(f"Input {input_name} present in inputs but not declared in input_names")
+
+            if not isinstance(input_obj, (InputValue, InputList)):
+                raise TypeError(f"Input {input_name} must be an InputValue or an InputList")
+
+            expected_type = declared_desc[0]
+            if input_obj.type is not expected_type:
+                raise TypeError(
+                    f"Input {input_name} must be of type {expected_type}, "
+                    f"but got {input_obj.type}"
+                )
+
+    def check_output_names(self):
+        '''
+        Check that all output names declared in self.output_names are present in self.outputs
+
+        Supported declaration grammar for output names:
+        - Exact names, e.g. ``out_ef``
+                - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
+                    (``ModalrecMultirate``)
+                - Placeholder patterns, e.g. ``out_{source_name_}layer``
+                    (``AtmoRandomPhase``)
+
+        Notes
+        -----
+        - Placeholder segments ``{...}`` are treated as wildcards.
+                                - In project classes, placeholder-style declarations are mandatory;
+                                    do not use raw ``*`` declarations in ``output_names()``.
+        - Exact-key matches take precedence over pattern matches.
+        '''
+        if not hasattr(self, 'output_names'):
+            return
+        output_list = self.output_names()
+        for declared_name, declared_desc in output_list.items():
+            declared_matches = [
+                name for name in self.outputs
+                if self._best_declared_match(name, output_list)[0] == declared_name
+            ]
+            if not declared_matches:
+                raise ValueError(
+                    f"Output {declared_name} declared in output_names but not present in outputs"
+                )
+
+            expected_type = declared_desc[0]
+            for output_name in declared_matches:
+                if not isinstance(self.outputs[output_name], expected_type):
+                    raise TypeError(
+                        f"Output {output_name} must be of type {expected_type}, "
+                        f"but got {type(self.outputs[output_name])}"
+                    )
+
+        for output_name in self.outputs:
+            declared_name, _ = self._best_declared_match(output_name, output_list)
+            if declared_name is None:
+                raise ValueError(
+                    f"Output {output_name} present in outputs but not declared in output_names"
+                )
