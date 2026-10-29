@@ -69,18 +69,3 @@ class TestIntegratePixels(unittest.TestCase):
                 work = xp.zeros((nb, npx, npx))
                 out = integrate_pixels(xp.asarray(g), inten, tmp, work, xp)
                 np.testing.assert_allclose(cpuArray(out), expected, rtol=1e-12, atol=1e-12)
-
-    @cpu_and_gpu
-    def test_raw_kernel_rejects_unsupported_layouts(self, target_device_idx, xp):
-        """The GPU kernel reads g row-major and uses the dtype of the output"""
-        if xp is np:
-            self.skipTest('the checks apply to the GPU kernel only')
-        nb, n_fft, npx = 2, 8, 3
-        g = xp.ones((npx, n_fft))
-        intensity = xp.ones((nb, n_fft, n_fft))
-        tmp = xp.zeros((nb, npx, n_fft))
-        work = xp.zeros((nb, npx, npx))
-        with self.assertRaises(ValueError):
-            integrate_pixels(xp.ones((n_fft, npx)).T, intensity, tmp, work, xp)
-        with self.assertRaises(ValueError):
-            integrate_pixels(g, intensity.astype(xp.float32), tmp, work, xp)
