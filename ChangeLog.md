@@ -13,7 +13,7 @@
 
 ### Other
 
-- ...
+- Docs: added the science camera tutorial (a single-lenslet `SH` and a `CCD` for pixel-integrated, noisy images with a chosen pixel scale and field), added a "Static Aberrations" section to the generators tutorial (common path aberrations, NCPA with a second propagation or an `ElectricFieldCombinator`, field-dependent aberrations, phase diversity and LIFT, conversion from focus in nm RMS to a focal plane shift), fixed two toctree entries of the tutorial index.
 
 ## [1.1.0] - 2026-10-20
 

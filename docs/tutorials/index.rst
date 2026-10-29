@@ -12,10 +12,11 @@ A comprehensive collection of tutorials to help you get started with SPECULA and
    SCAO simulation tutorial <scao_tutorial>
    Deformable Mirror actuator step response tutorial <step_response_tutorial>
    Control stability and performance analysis tutorial <control_stability_analysis>
-   Field Analyser (deferred computation of PSF, modal analysis and phase cube) tutorial <tutorials/field_analyser_tutorial>
-   EfReplay (exact replay of existing electric field / layer outputs) tutorial <tutorials/ef_replay_tutorial>
+   Field Analyser (deferred computation of PSF, modal analysis and phase cube) tutorial <field_analyser_tutorial>
+   EfReplay (exact replay of existing electric field / layer outputs) tutorial <ef_replay_tutorial>
    Pyramid WFS calibration in partial correction regime tutorial <pwfs_calib_pc_tutorial>
-   Generators for vibrations and time histories tutorial <generators_tutorial>
+   Generators for vibrations, time histories and static aberrations tutorial <generators_tutorial>
+   Science camera images with a single-lenslet SH and a CCD tutorial <science_camera_tutorial>
    Fresnel Propagation tutorial <fresnel_propagation_tutorial>
    Bi-directional Optical Feeder Link tutorial <bi_directional_optical_feeder_link_tutorial>
    Segmented Pupil and Soft-Limiter Tutorial <segmented_pupil_soft_limiter_tutorial>
