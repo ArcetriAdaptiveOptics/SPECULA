@@ -1083,3 +1083,73 @@ class TestIirFilterDataUnusedRoots(unittest.TestCase):
         data = IirFilterData.from_gain_and_ff([0.5], target_device_idx=-1)
         np.testing.assert_allclose(cpuArray(data.get_zeros()), [[0.0]], atol=1e-12)
         np.testing.assert_allclose(cpuArray(data.get_poles()), [[1.0]], atol=1e-12)
+
+
+class TestIirFilterDataExactStability(unittest.TestCase):
+
+    def test_max_stable_gain_of_integrator_with_delay(self):
+        """Integrator g z / (z - 1), plant z^-d: z^d - z^(d-1) + g = 0 is at the stability limit for
+        g = 2 (d = 1), g = 1 (d = 2), g = (sqrt(5) - 1) / 2 (d = 3). The result does not depend on the
+        current gain of the filter (normalized filter)"""
+        expected = {1: 2.0, 2: 1.0, 3: (np.sqrt(5) - 1) / 2}
+        for gain in (1.0, 0.3):
+            data = IirFilterData.from_gain_and_ff([gain], target_device_idx=-1)
+            for d, g_max in expected.items():
+                with self.subTest(gain=gain, delay=d):
+                    np.testing.assert_allclose(data.max_stable_gain(mode=0, delay=d), g_max,
+                                               rtol=1e-9)
+
+    def test_max_stable_gain_is_the_stability_limit(self):
+        """Fractional delay and a low-pass filter in the plant: the loop is stable just below the
+        result and unstable just above it (checked with is_stable)"""
+        data = IirFilterData.from_gain_and_ff([1.0], [0.99], target_device_idx=-1)
+        lpf = IirFilterData.lpf_from_fc(200.0, 1000.0, n_ord=2, target_device_idx=-1)
+        nw, dw = data.discrete_delay_tf(2.4)
+        plant = dict(nw=np.convolve(nw, cpuArray(lpf.num[0])), dm=cpuArray(lpf.den[0]), dw=dw)
+        g_max = data.max_stable_gain(mode=0, **plant)
+        self.assertTrue(0 < g_max < 20)
+        for factor, stable in ((1 - 1e-6, True), (1 + 1e-6, False)):
+            probe = IirFilterData.from_gain_and_ff([g_max * factor], [0.99], target_device_idx=-1)
+            self.assertEqual(probe.is_stable(0, **plant), stable)
+
+    def test_always_stable_loop_returns_max_gain(self):
+        """Integrator with P = 1: z (1 + g) - 1 = 0 has its root 1 / (1 + g) inside the unit
+        circle for all positive gains"""
+        data = IirFilterData.from_gain_and_ff([1.0], target_device_idx=-1)
+        self.assertEqual(data.max_stable_gain(mode=0, unity_plant=True), 20.0)
+        self.assertEqual(data.max_stable_gain(mode=0, unity_plant=True, max_gain=5.0), 5.0)
+
+    def test_zero_gain_filter_cannot_be_normalized(self):
+        data = IirFilterData(ordnum=[2], ordden=[2], num=[[0.5, 0.0]], den=[[-1.0, 1.0]],
+                             target_device_idx=-1)
+        with self.assertRaisesRegex(ValueError, 'normalized'):
+            data.max_stable_gain(mode=0, delay=1)
+
+    def test_resonance_is_the_rtf_peak(self):
+        """Integrator 0.5 z / (z - 1), plant z^-2: L = 0.5 / (z (z - 1)). The resonance is the
+        maximum of |1 / (1 + L)|, here computed directly on the same grid"""
+        data = IirFilterData.from_gain_and_ff([0.5], target_device_idx=-1)
+        fs = 1000.0
+        freq = np.linspace(0, fs / 2, 10001)[1:]
+        z = np.exp(2j * np.pi * freq / fs)
+        rtf = np.abs(1 / (1 + 0.5 / (z * (z - 1))))
+        f_res, peak = data.resonance_frequency(0, delay=2, fs=fs)
+        self.assertAlmostEqual(f_res, freq[np.argmax(rtf)])
+        np.testing.assert_allclose(peak, rtf.max(), rtol=1e-10)
+        ntf = np.abs(0.5 / (z * (z - 1)) / (1 + 0.5 / (z * (z - 1))))
+        f_ntf, peak_ntf = data.resonance_frequency(0, delay=2, fs=fs, transfer_function='ntf')
+        self.assertAlmostEqual(f_ntf, freq[np.argmax(ntf)])
+        np.testing.assert_allclose(peak_ntf, ntf.max(), rtol=1e-10)
+
+    def test_stability_analysis_resonance_near_the_limit(self):
+        """Integrator with gain 0.5 and plant z^-2: g_max = 1, and at 0.99 g_max the closed-loop
+        poles z^2 - z + 0.99 = 0 are close to the unit circle at the angle
+        arccos(1 / (2 sqrt(0.99))): the RTF peaks at that frequency. The current gain (0.5) must
+        not be applied twice."""
+        data = IirFilterData.from_gain_and_ff([0.5], target_device_idx=-1)
+        fs = 1000.0
+        result = data.stability_analysis(mode=0, delay=2, fs=fs)
+        np.testing.assert_allclose(result['max_stable_gain'], 1.0, rtol=1e-9)
+        f_pole = np.arccos(1 / (2 * np.sqrt(0.99))) / (2 * np.pi) * fs
+        self.assertAlmostEqual(result['resonance_frequency'], f_pole, delta=1.0)
+        self.assertGreater(result['resonance_amplitude'], 10)

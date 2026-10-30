@@ -1,5 +1,4 @@
 import numpy as np
-from functools import lru_cache
 
 from iteras import cpuArray
 from iteras.base_data_obj import BaseDataObj
@@ -465,62 +464,95 @@ class IirFilterData(BaseDataObj):
             self.logger.error(f"Error computing poles: {e}")
             return False
 
-    @lru_cache(maxsize=16384)
-    def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, p_num_tuple, p_den_tuple,
-                                          max_gain=20.0, n_gain=10000, tolerance=1e-6):
-        """Internal computation of maximum stable gain."""
+    @staticmethod
+    def _closed_loop_is_stable(a, b, gain):
+        """True if all the roots of b + gain * a (lowest order first) are inside the unit circle"""
+        den = np.trim_zeros((b + gain * a)[::-1], 'f')
+        if len(den) < 2:
+            return False    # constant denominator
+        return bool(np.all(np.abs(np.roots(den)) < 1.0))
 
-        num_coeffs = np.array(num_tuple)
-        den_coeffs = np.array(den_tuple)
-        p_num = np.array(p_num_tuple)
-        p_den = np.array(p_den_tuple)
+    @staticmethod
+    def _max_stable_normalized_gain(num, den, p_num, p_den, max_gain, n_freq=20000):
+        """
+        Upper limit of the range of stable gains starting from 0 of the closed loop
+        with controller g * C0, C0 = num / num[-1] (the filter with unit gain), and
+        plant P = p_num / p_den (all coefficients lowest order first).
 
-        # Test range of gains
-        gains = np.linspace(tolerance, max_gain, n_gain)
-        max_stable = 0.0
+        With A = num(C0 P) and B = den(C0 P), the closed-loop poles are the roots of
+        D(z) = B(z) + g A(z). A root crosses the unit circle only at a gain
+        g = -B / A real and positive on the circle, i.e. where the phase of C0 P is
+        -180 deg (Im(B conj(A)) = 0), or at z = 1, z = -1. These gains split the
+        positive gains into intervals of constant stability: each interval is
+        checked with the roots of D at one gain inside it.
+        """
+        if num[-1] == 0:
+            raise ValueError('max_stable_gain: the highest order numerator coefficient (the gain '
+                             'of the filter) is zero, the filter cannot be normalized')
+        a = np.convolve(num / num[-1], p_num)
+        b = np.convolve(den, p_den)
+        n = max(len(a), len(b))
+        a = np.pad(a, (0, n - len(a)))
+        b = np.pad(b, (0, n - len(b)))
 
-        for gain in gains:
-            # Scale controller by gain after normalization of last coefficient (i.e. current gain)
-            c_num = num_coeffs/num_coeffs[-1] * gain
-            c_den = den_coeffs
+        def values(w):
+            z = np.exp(1j * np.asarray(w))
+            return np.polyval(a[::-1], z), np.polyval(b[::-1], z)
 
-            closed_loop_den = self.closed_loop_denominator(c_num, c_den, p_num, p_den)
+        def crossing_gain(w):
+            av, bv = values(w)
+            if np.abs(av) <= 1e-12 * max(np.abs(bv), 1e-300):
+                return None     # a zero of C0 P on the circle: no finite gain
+            g = -np.real(bv * np.conj(av)) / np.abs(av) ** 2
+            return g if g > 1e-12 else None
 
-            # Check stability
-            try:
-                if len(closed_loop_den) > 1:
-                    poles = np.roots(closed_loop_den[::-1])
-                    if np.all(np.abs(poles) < 1.0):
-                        max_stable = gain
-                    else:
-                        break  # Found unstable gain, no need to test higher gains
-                else:
-                    # Constant denominator
-                    break
-            except:
+        def im_part(w):
+            av, bv = values(w)
+            return np.imag(bv * np.conj(av))
+
+        from scipy.optimize import brentq
+        w = np.linspace(0, np.pi, n_freq)
+        f = im_part(w)
+        candidates = [crossing_gain(0.0), crossing_gain(np.pi)]
+        for i in np.nonzero(np.sign(f[:-1]) * np.sign(f[1:]) < 0)[0]:
+            candidates.append(crossing_gain(brentq(im_part, w[i], w[i + 1], xtol=1e-14)))
+        candidates += [crossing_gain(wi) for wi in w[1:-1][f[1:-1] == 0]]
+        gains = sorted(set(g for g in candidates if g is not None and np.isfinite(g)))
+
+        # Walk the intervals of constant stability from gain 0 upwards
+        bounds = [0.0] + gains
+        for lo, hi in zip(bounds, bounds[1:] + [np.inf]):
+            test = 0.5 * (lo + hi) if np.isfinite(hi) else 2 * lo + 1.0
+            if not IirFilterData._closed_loop_is_stable(a, b, test):
+                return min(lo, max_gain)
+            if lo >= max_gain:
                 break
-
-        return max_stable
+        return max_gain     # stable up to max_gain
 
     def max_stable_gain(self, mode=None, delay=None, dm=None, nw=None, dw=None, 
-                              max_gain=20.0, n_gain=10000, tolerance=1e-6, unity_plant=False):
+                              max_gain=20.0, n_gain=None, tolerance=None, unity_plant=False):
         """Calculate maximum stable gain for closed-loop system.
         
-        This function finds the maximum controller gain that maintains stability
-        in a closed-loop system with the given plant dynamics.
+        The maximum gain g such that the closed loop with controller g * C0 and plant P
+        is stable for all gains in (0, g], where C0 is the filter normalized to a unit
+        gain (num / num[-1]): for an integrator it is directly the maximum integrator
+        gain. It is computed exactly from the gains at which a closed-loop pole crosses
+        the unit circle (see _max_stable_normalized_gain()), not by scanning gains.
         
         Args:
             mode: Filter mode index. If None, calculates for all modes
             delay: Plant P = discrete_delay_tf(delay), delay in frames
             dm, nw, dw: Plant P = nw / (dm * dw), alternative to delay
-            max_gain: Maximum gain to test (default: 20.0)
-            n_gain: Number of gain values to test (default: 10000)
-            tolerance: Minimum gain to test (default: 1e-6)
+            max_gain: Upper limit of the result (default: 20.0): returned if the loop
+                      is stable up to it
+            n_gain, tolerance: No longer used (the gains are not scanned any more),
+                               kept for compatibility
             unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
                          unity_plant must be given.
             
         Returns:
-            float or array: Maximum stable gain(s)
+            float or array: Maximum stable gain(s), 0 if the loop is unstable for
+            small gains
             
         Examples:
             # Single mode with delay
@@ -533,65 +565,56 @@ class IirFilterData(BaseDataObj):
             max_gains = filter_data.max_stable_gain(delay=1.0)
         """
         p_num, p_den = self._plant(delay=delay, dm=dm, nw=nw, dw=dw, unity_plant=unity_plant)
-        p_num_tuple, p_den_tuple = tuple(p_num), tuple(p_den)
 
         if mode is not None and mode >= self.nfilter:
             raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
         modes = [mode] if mode is not None else range(self.nfilter)
         max_gains = np.zeros(len(modes))
         for k, i in enumerate(modes):
-            max_gains[k] = self._compute_max_stable_gain_internal(
-                tuple(cpuArray(self.num[i, :])), tuple(cpuArray(self.den[i, :])),
-                p_num_tuple, p_den_tuple, max_gain=max_gain, n_gain=n_gain, tolerance=tolerance)
+            max_gains[k] = self._max_stable_normalized_gain(
+                cpuArray(self.num[i, :]).astype(float), cpuArray(self.den[i, :]).astype(float),
+                p_num, p_den, max_gain)
         return max_gains[0] if mode is not None else max_gains
 
     def resonance_frequency(self, mode, gain_factor=1.0, delay=None, dm=None, nw=None, dw=None,
-                                  fs=1000.0, freq=None, unity_plant=False):
-        """Calculate resonance frequency of closed-loop system.
+                                  fs=1000.0, freq=None, unity_plant=False, transfer_function='rtf'):
+        """Frequency and value of the peak of a closed-loop transfer function.
+        
+        The peak of the rejection transfer function |RTF| = |1 / (1 + C P)| is where
+        the loop amplifies the disturbances most; it is 1 / (minimum distance of C P
+        from -1), the inverse of the modulus margin.
         
         Args:
             mode: Filter mode index
-            gain_factor: Factor to multiply the filter gain (default: 1.0)
+            gain_factor: Factor to multiply the filter (its current gain) by (default: 1.0)
             delay: Plant P = discrete_delay_tf(delay), delay in frames
             dm, nw, dw: Plant P = nw / (dm * dw), alternative to delay
             fs: Sampling frequency in Hz (default: 1000.0)
-            freq: Frequency vector for analysis (default: auto-generated)
+            freq: Frequency vector for analysis (default: 10000 points up to fs/2)
             unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
                          unity_plant must be given.
+            transfer_function: 'rtf' (default) for the peak of the RTF, 'ntf' for the
+                               peak of the NTF = C P / (1 + C P)
             
         Returns:
-            tuple: (resonance_frequency, resonance_amplitude)
+            tuple: (resonance_frequency, resonance_amplitude): frequency [Hz] and
+            magnitude of the peak
         """
 
         if mode >= self.nfilter:
             raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
+        if transfer_function not in ('rtf', 'ntf'):
+            raise ValueError(f"transfer_function must be 'rtf' or 'ntf', got {transfer_function!r}")
 
-        # Generate frequency vector if not provided
         if freq is None:
-            freq = np.logspace(-1, np.log10(fs/2), 1000)
+            freq = np.linspace(0, fs / 2, 10001)[1:]
 
         cp_num, cp_den = self._loop_tf(mode, gain_factor=gain_factor, delay=delay,
                                        dm=dm, nw=nw, dw=dw, unity_plant=unity_plant)
-
-        # Calculate closed-loop transfer function denominator
-        closed_loop_den = cp_den + cp_num
-
-        # Calculate frequency response of denominator
-        x = freq / (fs/2) * self.dtype(np.pi)
-        z = np.exp(self.complex_dtype(1j) * x, dtype=self.complex_dtype)
-
-        denominator_response = np.zeros(len(freq), dtype=self.complex_dtype)
-        for i, zi in enumerate(z):
-            denominator_response[i] = np.polyval(closed_loop_den[::-1], zi)
-
-        # Find minimum magnitude (resonance point)
-        denominator_magnitude = np.abs(denominator_response)
-        resonance_idx = np.argmin(denominator_magnitude)
-
-        resonance_freq = freq[resonance_idx]
-        resonance_amplitude = 1.0 / denominator_magnitude[resonance_idx]  # Peak amplitude
-
-        return resonance_freq, resonance_amplitude
+        num = cp_den if transfer_function == 'rtf' else cp_num
+        mag = np.abs(self.frequency_response(num, cp_den + cp_num, fs, freq=freq))
+        peak = int(np.argmax(mag))
+        return freq[peak], mag[peak]
 
     def stability_analysis(self, mode=None, delay=None, dm=None, nw=None, dw=None,
                                  fs=1000.0, max_gain=20.0, n_gain=10000, unity_plant=False):
@@ -616,10 +639,13 @@ class IirFilterData(BaseDataObj):
                                                               n_gain=n_gain, **plant))
         results = []
         for k, i in enumerate(modes):
-            # Calculate resonance frequency at 99% of max stable gain
+            # Resonance at 99% of the maximum stable gain. That is a gain of the
+            # normalized filter, while gain_factor multiplies the current filter
             if max_stable_gains[k] > 0:
+                current_gain = float(cpuArray(self.num[i, -1]))
                 resonance_freq, resonance_amp = self.resonance_frequency(
-                    mode=i, gain_factor=max_stable_gains[k] * 0.99, fs=fs, **plant)
+                    mode=i, gain_factor=max_stable_gains[k] * 0.99 / current_gain, fs=fs,
+                    **plant)
             else:
                 resonance_freq, resonance_amp = 0.0, 0.0
             results.append({
