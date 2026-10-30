@@ -942,3 +942,49 @@ class TestIirFilterDataZerosPoles(unittest.TestCase):
                              den=[[0.0, -1.0, 1.0]], target_device_idx=-1)
         with self.assertRaises(ValueError):
             data.set_poles(np.array([[0.5 + 0.5j, 0.2]]))
+
+
+class TestIirFilterDataWidths(unittest.TestCase):
+
+    def test_num_shorter_than_den_is_padded(self):
+        """num = [0.5], den = [-1, 1]: IirFilter runs y[n] = y[n-1] + 0.5 x[n], i.e.
+        H(z) = 0.5 z / (z - 1). num is padded to [0, 0.5], so that the analysis
+        methods give the same transfer function as the simulation."""
+        data = IirFilterData(ordnum=[1], ordden=[2], num=[[0.5]], den=[[-1.0, 1.0]],
+                             target_device_idx=-1)
+        np.testing.assert_array_equal(cpuArray(data.num), [[0.0, 0.5]])
+        np.testing.assert_array_equal(cpuArray(data.gain), [0.5])
+        fs, f = 1000.0, 300.0
+        z = np.exp(2j * np.pi * f / fs)
+        h = data.frequency_response(data.num[0], data.den[0], fs, freq=np.array([f]))[0]
+        np.testing.assert_allclose(h, 0.5 * z / (z - 1), rtol=1e-12)
+
+    def test_padding_does_not_change_the_simulation(self):
+        """Impulse response of IirFilter with num = [0.5] and with num = [0, 0.5]"""
+        from specula.base_value import BaseValue
+        from specula.processing_objects.iir_filter import IirFilter
+
+        def impulse_response(num):
+            data = IirFilterData(ordnum=[len(num[0])], ordden=[2], num=num, den=[[-1.0, 1.0]],
+                                 target_device_idx=-1)
+            flt = IirFilter(data, target_device_idx=-1)
+            inp = BaseValue(value=np.zeros(1), target_device_idx=-1)
+            flt.inputs['delta_comm'].set(inp)
+            flt.setup()
+            out = []
+            for t in range(1, 6):
+                inp.value[:] = 1.0 if t == 1 else 0.0
+                inp.generation_time = t
+                flt.check_ready(t)
+                flt.trigger()
+                flt.post_trigger()
+                out.append(float(cpuArray(flt.outputs['out_comm'].value)[0]))
+            return out
+
+        np.testing.assert_allclose(impulse_response([[0.5]]), [0.5] * 5)
+        np.testing.assert_allclose(impulse_response([[0.0, 0.5]]), [0.5] * 5)
+
+    def test_den_shorter_than_num_is_padded(self):
+        data = IirFilterData(ordnum=[3], ordden=[2], num=[[0.1, 0.2, 0.3]], den=[[-0.5, 1.0]],
+                             target_device_idx=-1)
+        np.testing.assert_array_equal(cpuArray(data.den), [[0.0, -0.5, 1.0]])

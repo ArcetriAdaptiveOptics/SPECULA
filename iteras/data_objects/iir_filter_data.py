@@ -138,6 +138,7 @@ class IirFilterData(BaseDataObj):
         self._num_normalized = self.to_xp(num_normalized, dtype=self.dtype)
         self.zeros = None
         self.num = self.to_xp(mynum, dtype=self.dtype)
+        self._match_widths()
 
     def set_den(self, den):
         myden = cpuArray(den).copy()
@@ -150,6 +151,24 @@ class IirFilterData(BaseDataObj):
 
         self.den = self.to_xp(myden, dtype=self.dtype)
         self.poles = None
+        self._match_widths()
+
+    def _match_widths(self):
+        '''
+        Give num and den the same number of columns, adding zeros on the
+        lowest order side of the shorter one. IirFilter aligns the two arrays
+        on their last (highest order) coefficient, while the analysis methods
+        (frequency_response(), RTF(), stability...) align them on the first one:
+        with the same width the two conventions agree. Multiplying both by the
+        same power of z does not change the filter.
+        '''
+        if self.num is None or self.den is None:
+            return
+        wnum, wden = self.num.shape[1], self.den.shape[1]
+        if wnum < wden:
+            self.set_num(np.pad(cpuArray(self.num), ((0, 0), (wden - wnum, 0))))
+        elif wden < wnum:
+            self.set_den(np.pad(cpuArray(self.den), ((0, 0), (wnum - wden, 0))))
 
     def set_zeros(self, zeros):
         zeros_cpu = cpuArray(zeros)
