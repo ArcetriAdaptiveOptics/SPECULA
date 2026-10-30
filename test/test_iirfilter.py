@@ -1062,3 +1062,24 @@ class TestIirFilterDataExplicitPlant(unittest.TestCase):
             self.skipTest('control library not installed')
         gm_db, pm, wg, wp = self.data.stability_margins(0, delay=2)
         np.testing.assert_allclose(gm_db, 20 * np.log10(2.0), atol=1e-6)
+
+
+class TestIirFilterDataUnusedRoots(unittest.TestCase):
+
+    def test_unused_entries_are_nan(self):
+        """Second-order Butterworth filter in arrays of width 5 (n_coeff = 2 n_ord + 1): two
+        poles (a complex pair inside the unit circle) and two zeros at z = -1, then NaN"""
+        data = IirFilterData.lpf_from_fc(50.0, 1000.0, n_ord=2, target_device_idx=-1)
+        poles = cpuArray(data.get_poles())[0]
+        zeros = cpuArray(data.get_zeros())[0]
+        self.assertEqual(poles.shape, (4,))
+        self.assertTrue(np.all(np.isfinite(poles[:2])) and np.all(np.isnan(poles[2:])))
+        self.assertTrue(np.all(np.abs(poles[:2]) < 1))
+        np.testing.assert_allclose(zeros[:2], [-1.0, -1.0], atol=1e-6)
+        self.assertTrue(np.all(np.isnan(zeros[2:])))
+
+    def test_true_zero_at_origin_is_kept(self):
+        """The integrator 0.5 z / (z - 1) has a true zero at z = 0, which is not NaN"""
+        data = IirFilterData.from_gain_and_ff([0.5], target_device_idx=-1)
+        np.testing.assert_allclose(cpuArray(data.get_zeros()), [[0.0]], atol=1e-12)
+        np.testing.assert_allclose(cpuArray(data.get_poles()), [[1.0]], atol=1e-12)

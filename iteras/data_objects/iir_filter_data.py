@@ -97,27 +97,34 @@ class IirFilterData(BaseDataObj):
         return len(self.num)
 
     def get_zeros(self):
+        '''
+        Zeros of each filter, as a complex array of shape (nfilter, width - 1).
+        Each row has the ordnum - 1 zeros of its filter, followed by NaN.
+        '''
         if self.zeros is None:
             num_cpu = cpuArray(self.num)
             ordnum_cpu = cpuArray(self.ordnum)
             snum1 = num_cpu.shape[1]
-            zeros_cpu = np.zeros((self.nfilter, snum1 - 1), dtype=complex)
+            zeros_cpu = np.full((self.nfilter, snum1 - 1), np.nan, dtype=complex)
             for i in range(self.nfilter):
                 oi = int(ordnum_cpu[i])
                 if oi > 1:
                     # Coefficients are lowest order first, np.roots wants highest first
                     roots = np.roots(num_cpu[i, snum1 - oi:][::-1])
-                    if np.sum(np.abs(roots)) > 0:
-                        zeros_cpu[i, :len(roots)] = roots
+                    zeros_cpu[i, :len(roots)] = roots
             self.zeros = self.to_xp(zeros_cpu, dtype=self.complex_dtype)
         return self.zeros
 
     def get_poles(self):
+        '''
+        Poles of each filter, as a complex array of shape (nfilter, width - 1).
+        Each row has the ordden - 1 poles of its filter, followed by NaN.
+        '''
         if self.poles is None:
             den_cpu = cpuArray(self.den)
             ordden_cpu = cpuArray(self.ordden)
             sden1 = den_cpu.shape[1]
-            poles_cpu = np.zeros((self.nfilter, sden1 - 1), dtype=complex)
+            poles_cpu = np.full((self.nfilter, sden1 - 1), np.nan, dtype=complex)
             for i in range(self.nfilter):
                 oi = int(ordden_cpu[i])
                 if oi > 1:
