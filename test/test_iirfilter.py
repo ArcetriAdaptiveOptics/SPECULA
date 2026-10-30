@@ -912,3 +912,33 @@ class TestIirFilterDataZerosPoles(unittest.TestCase):
         data.set_poles(np.array([[0.9]]))
         np.testing.assert_allclose(cpuArray(data.num), [[-0.3, 1.0]], atol=1e-12)
         np.testing.assert_allclose(cpuArray(data.den), [[-0.9, 1.0]], atol=1e-12)
+
+    def test_complex_poles_of_second_order_filter(self):
+        """Poles 0.9 exp(+-i pi/4): den = z^2 - 2 r cos(theta) z + r^2"""
+        r, theta = 0.9, np.pi / 4
+        data = IirFilterData(ordnum=[3], ordden=[3], num=[[0.0, 0.0, 1.0]],
+                             den=[[r ** 2, -2 * r * np.cos(theta), 1.0]], target_device_idx=-1)
+        poles = cpuArray(data.get_poles())[0]
+        self.assertTrue(np.iscomplexobj(poles))
+        np.testing.assert_allclose(sorted(poles, key=lambda p: p.imag),
+                                   [r * np.exp(-1j * theta), r * np.exp(1j * theta)], atol=1e-12)
+
+    def test_set_complex_poles(self):
+        """set_poles() with a conjugate pair gives the real coefficients, and the poles back"""
+        r, theta = 0.9, np.pi / 4
+        pair = np.array([[r * np.exp(1j * theta), r * np.exp(-1j * theta)]])
+        data = IirFilterData(ordnum=[3], ordden=[3], num=[[0.0, 0.0, 1.0]],
+                             den=[[0.0, -1.0, 1.0]], target_device_idx=-1)
+        data.set_poles(pair)
+        np.testing.assert_allclose(cpuArray(data.den), [[r ** 2, -2 * r * np.cos(theta), 1.0]],
+                                   atol=1e-12)
+        self.assertFalse(np.iscomplexobj(cpuArray(data.den)))
+        data.poles = None   # recompute them from the coefficients
+        np.testing.assert_allclose(sorted(cpuArray(data.get_poles())[0], key=lambda p: p.imag),
+                                   sorted(pair[0], key=lambda p: p.imag), atol=1e-12)
+
+    def test_set_poles_rejects_unpaired_complex_roots(self):
+        data = IirFilterData(ordnum=[3], ordden=[3], num=[[0.0, 0.0, 1.0]],
+                             den=[[0.0, -1.0, 1.0]], target_device_idx=-1)
+        with self.assertRaises(ValueError):
+            data.set_poles(np.array([[0.5 + 0.5j, 0.2]]))

@@ -15,6 +15,22 @@ except ImportError:
     CONTROL_AVAILABLE = False
     control = None
 
+
+def _real_poly(roots, what):
+    """
+    Coefficients, lowest order first, of the monic polynomial with the given
+    roots. The coefficients of a filter are real, so complex roots must come
+    in conjugate pairs: a ValueError is raised otherwise.
+    """
+    coeffs = np.poly(roots)[::-1]     # np.poly: highest order first
+    if np.iscomplexobj(coeffs):
+        if np.max(np.abs(coeffs.imag)) > 1e-9 * np.max(np.abs(coeffs)):
+            raise ValueError(f'IirFilterData: complex {what} must come in conjugate pairs, '
+                             f'got {roots}')
+        coeffs = coeffs.real
+    return coeffs
+
+
 class IirFilterData(BaseDataObj):
     """
     Infinite Impulse Response (IIR) Filter Data object.
@@ -80,7 +96,7 @@ class IirFilterData(BaseDataObj):
             num_cpu = cpuArray(self.num)
             ordnum_cpu = cpuArray(self.ordnum)
             snum1 = num_cpu.shape[1]
-            zeros_cpu = np.zeros((self.nfilter, snum1 - 1))
+            zeros_cpu = np.zeros((self.nfilter, snum1 - 1), dtype=complex)
             for i in range(self.nfilter):
                 oi = int(ordnum_cpu[i])
                 if oi > 1:
@@ -88,7 +104,7 @@ class IirFilterData(BaseDataObj):
                     roots = np.roots(num_cpu[i, snum1 - oi:][::-1])
                     if np.sum(np.abs(roots)) > 0:
                         zeros_cpu[i, :len(roots)] = roots
-            self.zeros = self.to_xp(zeros_cpu, dtype=self.dtype)
+            self.zeros = self.to_xp(zeros_cpu, dtype=self.complex_dtype)
         return self.zeros
 
     def get_poles(self):
@@ -96,13 +112,13 @@ class IirFilterData(BaseDataObj):
             den_cpu = cpuArray(self.den)
             ordden_cpu = cpuArray(self.ordden)
             sden1 = den_cpu.shape[1]
-            poles_cpu = np.zeros((self.nfilter, sden1 - 1))
+            poles_cpu = np.zeros((self.nfilter, sden1 - 1), dtype=complex)
             for i in range(self.nfilter):
                 oi = int(ordden_cpu[i])
                 if oi > 1:
                     roots = np.roots(den_cpu[i, sden1 - oi:][::-1])
                     poles_cpu[i, :len(roots)] = roots
-            self.poles = self.to_xp(poles_cpu, dtype=self.dtype)
+            self.poles = self.to_xp(poles_cpu, dtype=self.complex_dtype)
         return self.poles
 
     def set_num(self, num):
@@ -143,10 +159,9 @@ class IirFilterData(BaseDataObj):
         for i in range(self.nfilter):
             oi = int(ordnum_cpu[i])
             if oi > 1:
-                # np.poly returns the coefficients highest order first
-                num_cpu[i, snum1 - oi:] = np.poly(zeros_cpu[i, :oi - 1])[::-1]
+                num_cpu[i, snum1 - oi:] = _real_poly(zeros_cpu[i, :oi - 1], 'zeros')
         self.set_num(num_cpu)  # resets self.zeros = None internally
-        self.zeros = self.to_xp(zeros_cpu, dtype=self.dtype)
+        self.zeros = self.to_xp(zeros_cpu, dtype=self.complex_dtype)
 
     def set_poles(self, poles):
         poles_cpu = cpuArray(poles)
@@ -156,8 +171,8 @@ class IirFilterData(BaseDataObj):
         for i in range(self.nfilter):
             oi = int(ordden_cpu[i])
             if oi > 1:
-                den_cpu[i, sden1 - oi:] = np.poly(poles_cpu[i, :oi - 1])[::-1]
-        self.poles = self.to_xp(poles_cpu, dtype=self.dtype)
+                den_cpu[i, sden1 - oi:] = _real_poly(poles_cpu[i, :oi - 1], 'poles')
+        self.poles = self.to_xp(poles_cpu, dtype=self.complex_dtype)
         self.den = self.to_xp(den_cpu, dtype=self.dtype)
 
     def set_gain(self, gain):
