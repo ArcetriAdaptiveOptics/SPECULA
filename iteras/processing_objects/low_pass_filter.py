@@ -28,6 +28,8 @@ class LowPassFilter(IirFilter):
             iir_filter_data = IirFilterData.lpf_from_fc_and_ampl(cutoff_freq, amplif_fact,
                                                samp_freq, target_device_idx=target_device_idx)
         else:
+            if n_ord is None:
+                n_ord = 2   # the default of lpf_from_fc()
             iir_filter_data = IirFilterData.lpf_from_fc(cutoff_freq, samp_freq, n_ord=n_ord,
                                                         target_device_idx=target_device_idx)
 
