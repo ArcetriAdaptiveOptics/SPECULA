@@ -897,12 +897,14 @@ class IirFilterData(BaseDataObj):
             omega = np.tan(np.pi * fr)
 
             if n_ord == 1:
-                # Butterworth filter of order 1
+                # Butterworth filter of order 1: bilinear transform of 1 / (1 + s / wc),
+                # with the prewarped wc, so that the -3 dB point is exactly at fc:
+                # H(z) = a0 (1 + z) / (z + b0)
                 a0 = omega / (1 + omega)
-                b1 = -(1 - a0)
+                b0 = (omega - 1) / (omega + 1)
 
-                num_total = np.asarray([0, a0.item()], dtype=float)
-                den_total = np.asarray([b1.item(), 1], dtype=float)
+                num_total = np.asarray([a0.item(), a0.item()], dtype=float)
+                den_total = np.asarray([b0.item(), 1], dtype=float)
             else:
                 #Butterworth filter of order >=2
                 num_total = np.array([1.0])

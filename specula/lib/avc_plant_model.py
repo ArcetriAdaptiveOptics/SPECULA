@@ -47,8 +47,9 @@ def _lpf_response(f, fc, T):
     w = 2 * np.pi * f
     omega = np.tan(np.pi * fc * T)
     a0 = omega / (1 + omega)
+    b0 = (omega - 1) / (omega + 1)
     z_inv = np.exp(-1j * w * T)
-    return a0 / (1 - (1 - a0) * z_inv)
+    return a0 * (1 + z_inv) / (1 + b0 * z_inv)
 
 
 def open_loop_transfer_function(f, T, loop_gain, loop_delay,

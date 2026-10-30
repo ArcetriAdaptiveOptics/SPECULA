@@ -988,3 +988,17 @@ class TestIirFilterDataWidths(unittest.TestCase):
         data = IirFilterData(ordnum=[3], ordden=[2], num=[[0.1, 0.2, 0.3]], den=[[-0.5, 1.0]],
                              target_device_idx=-1)
         np.testing.assert_array_equal(cpuArray(data.den), [[0.0, -0.5, 1.0]])
+
+
+class TestIirFilterDataLowPass(unittest.TestCase):
+
+    def test_butterworth_cutoff(self):
+        """Butterworth low-pass filters (bilinear transform with prewarping): unit DC gain,
+        |H| = 1/sqrt(2) exactly at fc, zero at the Nyquist frequency, for orders 1, 2, 4"""
+        fs, fc = 1000.0, 50.0
+        for n_ord in (1, 2, 4):
+            with self.subTest(n_ord=n_ord):
+                data = IirFilterData.lpf_from_fc(fc, fs, n_ord=n_ord, target_device_idx=-1)
+                h = np.abs(data.frequency_response(data.num[0], data.den[0], fs,
+                                                   freq=np.array([1e-6, fc, fs / 2])))
+                np.testing.assert_allclose(h, [1.0, 1 / np.sqrt(2), 0.0], atol=1e-9)
