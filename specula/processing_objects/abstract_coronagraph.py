@@ -84,7 +84,7 @@ class Coronagraph(BaseProcessingObj):
         self.ef_pad = None  # padded electric field in pupil plane
 
         # Prepare centered focal plane mask
-        self.fp_mask_centered = self.xp.fft.fftshift(self.fp_mask)
+        self.fp_mask_centered = self.fft.fftshift(self.fp_mask)
 
         # Allocate padded array once
         self.ef_pad = self.xp.zeros((self.fft_totsize, self.fft_totsize),
@@ -130,7 +130,7 @@ class Coronagraph(BaseProcessingObj):
         # it depends on self.phase_shift
         self.ef_pad *= self.phase_shift
 
-        return self.xp.fft.fft2(self.ef_pad)
+        return self.fft.fft2(self.ef_pad)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -150,7 +150,7 @@ class Coronagraph(BaseProcessingObj):
         ef_fp_masked = ef_fp * self.fp_mask_centered
 
         # Step 4: Return to the pupil plane with IFFT
-        self.ef_pad[:] = self.xp.fft.ifft2(ef_fp_masked)
+        self.ef_pad[:] = self.fft.ifft2(ef_fp_masked)
         self.ef_pad *= self.xp.conj(self.phase_shift)
 
         pad_start = self.fft_padding // 2

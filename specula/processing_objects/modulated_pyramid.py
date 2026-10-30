@@ -216,6 +216,10 @@ class ModulatedPyramid(BaseProcessingObj):
         self.mod_type = mod_type
         # Add iteration counter for alternating modulation
         self.iter = self.to_xp([0])
+        # Photons per unit of masked area of the input field (S0 * pixel_pitch**2):
+        # a host value, given to the GPU work of trigger_code() through this array
+        self._s0_area = self.xp.zeros((), dtype=self.dtype)
+        self._s0_area_host = None
 
         if mod_step is None:
             if mod_type == 'circular':
@@ -290,7 +294,7 @@ class ModulatedPyramid(BaseProcessingObj):
         iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
         myexp = self.xp.exp(-2 * self.xp.pi * iu * self.pyr_tlt, dtype=self.complex_dtype)
         # FFT shifted complex phase delay of the pyramid prism and field stop
-        self.shifted_masked_exp = self.xp.fft.fftshift(myexp * self.fp_mask)
+        self.shifted_masked_exp = self.fft.fftshift(myexp * self.fp_mask)
 
         self.pup_pyr_tot = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
 
@@ -569,6 +573,16 @@ class ModulatedPyramid(BaseProcessingObj):
         self.ef_interpolator.interpolate()
         self.ef_interpolator.interpolated_ef().ef_at_lambda(self.wavelength_in_nm, out=self.ef)
 
+        self._update_s0_area()
+
+    def _update_s0_area(self):
+        '''Copy S0 * pixel_pitch**2 of the input field to the GPU, when it changes'''
+        in_ef = self.local_inputs['in_ef']
+        s0_area = in_ef.S0 * in_ef.pixel_pitch ** 2
+        if s0_area != self._s0_area_host:
+            self._s0_area_host = s0_area
+            self._s0_area.fill(s0_area)
+
     def trigger_code(self):
         # Select rotation based on current iteration for alternating modulation
         rotation_idx = self.iter[0] % 2
@@ -587,7 +601,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
         for i in range(0, self.mod_steps):
             # Fourier Transform to propagate to the Focal Plane
-            u_fp = self.xp.fft.fft2(self.u_tlt[i], axes=(-2, -1))
+            u_fp = self.fft.fft2(self.u_tlt[i], axes=(-2, -1))
 
             # Apply the 'fft shifted phase delay' of the pyramid and field stop
             # Also accumulates the focal plane PSF
@@ -595,13 +609,13 @@ class ModulatedPyramid(BaseProcessingObj):
 
             # Inverse Fourier Transform to return to the Pupil Plane
             # 'forward' normalization is faster and we normalize correctly later in pyr1_abs2()
-            pyr_ef = self.xp.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
+            pyr_ef = self.fft.ifft2(u_fp_pyr, axes=(-2, -1), norm='forward')
 
             # Calculate intensity and apply weighted accumulation for flux correction
             self.pyr_image += pyr1_abs2(pyr_ef, self.ifft_norm , self.ffv[i], xp=self.xp)
 
         # Extract PSF before and after the focal plane mask
-        self.psf_bfm.value[:] = self.xp.fft.fftshift(self.fpsf)
+        self.psf_bfm.value[:] = self.fft.fftshift(self.fpsf)
         self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
 
         # Re-center the four pupils within the final array
@@ -614,12 +628,17 @@ class ModulatedPyramid(BaseProcessingObj):
         # Calculate the total optical transmission of the system
         self.transmission.value[:] = self.xp.sum(self.psf_tot.value) / self.xp.sum(self.psf_bfm.value)
 
-    def post_trigger(self):
-        super().post_trigger()
+        self._pupils_to_ccd()
 
-        # Always use the working field (like SH always uses self._wf1)
-        in_ef = self.local_inputs['in_ef']
-        phot = in_ef.S0 * in_ef.masked_area()
+    def _pupils_to_ccd(self):
+        '''
+        Normalize the pupils to the photons of the input field and the
+        transmission, and rebin them to the CCD (out_i). GPU work only, part of
+        trigger_code() (and of its CUDA graph): derived classes that override
+        trigger_code() call it at its end.
+        '''
+        # Photons of the input field: S0 times its masked area (ElectricField.masked_area())
+        phot = self._s0_area * self.xp.sum(self.local_inputs['in_ef'].field[0])
 
         self.pup_pyr_tot *= (phot / self.xp.sum(self.pup_pyr_tot)) * self.transmission.value
 #        if phot == 0: slows down?
@@ -644,16 +663,20 @@ class ModulatedPyramid(BaseProcessingObj):
             self.flux_frac_inside_ccd.value[:] = self.xp.sum(self.out_i.i[:])/self.xp.sum(ccd_internal)
         else:
             self.out_i.i[:] = ccd_internal
-        
+
+    def post_trigger(self):
+        super().post_trigger()
+
+        if self.mod_type == 'alternating':
+            # Increment iteration counter at the end (not in trigger_code(): the
+            # capture of a CUDA graph runs trigger_code() once more)
+            self.iter[0] += 1
+
         self.flux_frac_inside_ccd.generation_time = self.current_time
         self.out_i.generation_time = self.current_time
         self.psf_tot.generation_time = self.current_time
         self.psf_bfm.generation_time = self.current_time
         self.transmission.generation_time = self.current_time
-
-        if self.mod_type == 'alternating':
-            # Increment iteration counter at the end
-            self.iter[0] += 1
 
     def setup(self):
         super().setup()
@@ -701,6 +724,7 @@ class ModulatedPyramid(BaseProcessingObj):
         else:
             self._do_pup_shift = False
 
+        self._update_s0_area()
         if self.stream_enable:
             super().build_stream()
 

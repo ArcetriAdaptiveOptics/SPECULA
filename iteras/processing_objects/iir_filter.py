@@ -85,6 +85,10 @@ class IirFilter(BaseFilter):
             for j in range(self._ost.shape[1]):
                 self._ost[:, j] -= ost_update_array
 
+    def can_accelerate(self):
+        # trigger_code() only launches GPU work on arrays updated in place
+        return True
+
     def trigger_code(self):
         """IIR filter computation."""
         sden = self.iir_filter_data.den.shape

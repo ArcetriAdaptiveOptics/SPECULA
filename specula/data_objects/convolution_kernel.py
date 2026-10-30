@@ -318,7 +318,7 @@ class ConvolutionKernel(BaseDataObj):
             dst = slice(j * self.dimx, (j + 1) * self.dimx)
             if return_fft:
                 # Non-redundant half of the FFT, see _kernels_shape()
-                self.kernels[dst] = self.xp.fft.ifft2(subap_kern)[:, :, :self.dimension // 2 + 1]
+                self.kernels[dst] = self.fft.ifft2(subap_kern)[:, :, :self.dimension // 2 + 1]
             else:
                 self.kernels[dst] = subap_kern
 

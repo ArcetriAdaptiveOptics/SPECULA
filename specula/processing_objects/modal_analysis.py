@@ -10,6 +10,7 @@ from specula.lib.compute_zern_ifunc import compute_zern_ifunc
 import logging
 import warnings
 import numpy as np
+from specula.lib.graph_matmul import matmul
 
 class ModalAnalysis(BaseProcessingObj):
     """
@@ -223,6 +224,10 @@ class ModalAnalysis(BaseProcessingObj):
             if self._n_inputs != len(input_list):
                 raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
 
+    def can_accelerate(self):
+        # The product uses graph_matmul.matmul(), which can be captured
+        return True
+
     def trigger_code(self):
         # Each input mode only updates its own outputs
         if self.in_ef:
@@ -244,7 +249,7 @@ class ModalAnalysis(BaseProcessingObj):
                 ph[i] = current_ef.phaseInNm[idx]
 
         # modes and rms are views on the output values
-        modes[:] = ph @ self.phase2modes.ifunc_inv
+        modes[:] = matmul(ph, self.phase2modes.ifunc_inv, self.xp)
         rms[:] = self.xp.std(ph, axis=1)
         for output in outputs:
             output.generation_time = self.current_time

@@ -463,16 +463,16 @@ class SH(BaseProcessingObj):
                              out=self.ef_row)
             self._wf3_view[:] = self._subap_cube_view
 
-            fp4 = xp.fft.fft2(self._wf3, axes=(1, 2))
+            fp4 = self.fft.fft2(self._wf3, axes=(1, 2))
             abs2(fp4, self._intensity, xp=xp)
 
             if self._kernelobj is None:
                 psf, g = self._intensity, self._pix_int_matrix
             else:
                 subap_kern_fft = self._kernelobj.kernels[i * dimx: (i + 1) * dimx]
-                psf_fft = xp.fft.rfft2(self._intensity)
+                psf_fft = self.fft.rfft2(self._intensity)
                 psf_fft *= subap_kern_fft
-                psf = xp.fft.irfft2(psf_fft, s=(self._fft_size, self._fft_size), norm='forward')
+                psf = self.fft.irfft2(psf_fft, s=(self._fft_size, self._fft_size), norm='forward')
                 g = self._pix_int_matrix_kernel
 
             # Detector pixels: G @ PSF @ G.T for each subaperture

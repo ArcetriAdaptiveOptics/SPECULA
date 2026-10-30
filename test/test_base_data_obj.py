@@ -32,6 +32,29 @@ class TestBaseDataObj(unittest.TestCase):
         assert b.target_device_idx == -1
         np.testing.assert_array_equal(b.value, [0, 1])
 
+    def test_update_scalar_from_cpu_to_cpu(self):
+        '''
+        Test that transferDataTo() also copies 0-dimensional arrays in place
+        '''
+        a = BaseValue(value=np.array(3.0), target_device_idx=-1)
+        b = BaseValue(value=np.array(0.0), target_device_idx=-1)
+        dest = b.value
+        a.transferDataTo(b)
+        assert b.value is dest
+        assert float(b.value) == 3.0
+
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_update_scalar_from_gpu_to_gpu(self):
+        '''
+        Test that transferDataTo() copies 0-dimensional GPU arrays in place
+        '''
+        a = BaseValue(value=cp.array(3.0), target_device_idx=0)
+        b = BaseValue(value=cp.array(0.0), target_device_idx=0)
+        dest = b.value
+        a.transferDataTo(b)
+        assert b.value is dest
+        assert float(b.value) == 3.0
+
     @unittest.skipIf(cp is None, 'GPU not available')
     def test_copy_from_cpu_to_gpu(self):
         '''
@@ -115,3 +138,22 @@ class TestBaseDataObj(unittest.TestCase):
         assert type(b.value) == cp.ndarray
         np.testing.assert_array_equal(b.value.get(), [2, 3])
         assert b.target_device_idx == 1
+
+    @unittest.skipIf(cp is None or cp.cuda.runtime.getDeviceCount() < 2, 'at least 2 GPUs are needed')
+    def test_non_contiguous_from_gpu_to_gpu(self):
+        '''
+        Arrays that are not contiguous (views) are copied between GPUs too, the
+        first time and in place, after the work that produces them
+        '''
+        with cp.cuda.Device(0):
+            data = cp.arange(12, dtype=cp.float32).reshape(3, 4)
+        a = BaseValue(value=data.T, target_device_idx=0)
+        self.assertFalse(a.value.flags.c_contiguous)
+        b = a.copyTo(target_device_idx=1)
+        np.testing.assert_array_equal(b.value.get(), data.T.get())
+        self.assertEqual(b.value.device.id, 1)
+        with cp.cuda.Device(0):
+            # Queued on the GPU just before the copy
+            a.value *= 2
+        _ = a.transferDataTo(b)
+        np.testing.assert_array_equal(b.value.get(), 2 * data.T.get())

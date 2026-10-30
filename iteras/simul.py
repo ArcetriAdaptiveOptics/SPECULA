@@ -42,6 +42,9 @@ class Simul():
                  diagram_colors_on=False,
                  speed_report=True,
                  log_level: str='info',
+                 allocate=False,
+                 reallocate=False,
+                 accelerate=False,
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
@@ -61,6 +64,11 @@ class Simul():
         self.stepping = stepping
         self.async_displays = async_displays
         self.speed_report = speed_report
+        self.allocate = allocate
+        self.reallocate = reallocate
+        self.allocation = None
+        self.accelerate = accelerate
+        self.accelerator = None
         self.logger = get_iteras_logger(__name__)
         self.logger.setLevel(log_level.upper())
         if diagram or diagram_title or diagram_filename or diagram_colors_on:
@@ -420,6 +428,7 @@ class Simul():
                 raise ValueError(f'Package {module_name} listed in add_modules cannot be found')
 
         self.logger.mpi_debug(f'building objects')
+        self._ref_copies = {}
 
         for key in self.build_order(params):
 
@@ -433,11 +442,21 @@ class Simul():
             args = inspect.getfullargspec(getattr(klass, '__init__')).args
             hints = get_type_hints(klass)
             target_device_idx = pars.get('target_device_idx', None)
+            if isinstance(target_device_idx, dict):
+                # Device per rank (data objects placed by the allocator)
+                target_device_idx = target_device_idx.get(iteras.process_rank or 0)
+                pars['target_device_idx'] = target_device_idx
             self.all_target_device_idxs[key] = target_device_idx
  
             par_target_rank = pars.pop('target_rank', None)
+            # A list of ranks is allowed for data objects: they are built on each of them
+            rank_list = par_target_rank if isinstance(par_target_rank, list) else None
+            if rank_list is not None and not issubclass(klass, BaseDataObj):
+                raise ValueError(f'Object {key}: a list of target ranks is only allowed for data objects')
             if par_target_rank is None:
                 target_rank = 0
+            elif rank_list is not None:
+                target_rank = rank_list[0]
             else:
                 target_rank = par_target_rank
             self.all_objs_ranks[key] = target_rank
@@ -449,13 +468,16 @@ class Simul():
             build_this_object = (iteras.process_rank == target_rank) or \
                                 (issubclass(klass, BaseDataObj) and (par_target_rank == None)) or \
                                 (issubclass(klass, BaseDataObj) and (par_target_rank == iteras.process_rank)) or \
+                                (rank_list is not None and iteras.process_rank in rank_list) or \
                                 (iteras.process_rank == None)
 
             # If not build, remember the remote rank of this object (needed for connections setup)
             if not build_this_object:
                 self.remote_objs_ranks[key] = target_rank
 
-            if 'tag' in pars and build_this_object:
+            if 'tag' in pars:
+                if not build_this_object:       # restored on another rank
+                    continue
                 if 'target_device_idx' in pars:
                     del pars['target_device_idx']
                 extra_pars = set(pars.keys()) - {'class', 'tag', 'gui_pos'}
@@ -489,7 +511,7 @@ class Simul():
                     if not isinstance(value, (list, tuple)):
                         raise ValueError(f'Parameter {name} must be a list of object names')
                     if build_this_object:
-                        pars2[parname] = [self.objs[x] for x in value]
+                        pars2[parname] = [self.ref_on_device(x, target_device_idx) for x in value]
                     if self.diagram:
                         for x in value:
                             self.diagram.add_reference(start=key, end=x)
@@ -497,7 +519,7 @@ class Simul():
                 # dict_ref field contains a dictionary of names and associated data objects (defined in the same yml file)
                 elif name.endswith('_dict_ref') and parname != name:
                     if build_this_object:
-                        data = {x : self.objs[x] for x in value}
+                        data = {x : self.ref_on_device(x, target_device_idx) for x in value}
                         pars2[parname] = data
                     if self.diagram:
                         for x in value:
@@ -536,7 +558,7 @@ class Simul():
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
                 elif name.endswith('_ref') and parname != name:
                     if build_this_object:
-                        data = self.objs[value]
+                        data = self.ref_on_device(value, target_device_idx)
                         pars2[parname] = data
                     if self.diagram:
                         self.diagram.add_reference(start=key, end=value)
@@ -597,6 +619,28 @@ class Simul():
                 raise
             if isinstance(self.objs[key], BaseProcessingObj):
                 self.objs[key].set_simulation_params(params)
+        self._ref_copies = {}
+
+    def ref_on_device(self, name, target_device_idx):
+        '''
+        Object *name*, referenced (with a "_ref" parameter) by an object that
+        will be built on *target_device_idx*. A data object on another device
+        is duplicated on that device, once per device: objects on different
+        devices then use different copies, which are not kept in sync.
+        '''
+        obj = self.objs[name]
+        if not isinstance(obj, BaseDataObj):
+            return obj
+        if target_device_idx is None:
+            target_device_idx = iteras.default_target_device_idx
+        if obj.target_device_idx == target_device_idx:
+            return obj
+        copy_key = (name, target_device_idx)
+        if copy_key not in self._ref_copies:
+            self.logger.info(f'Data object {name} is on device {obj.target_device_idx}: '
+                             f'duplicated on device {target_device_idx}')
+            self._ref_copies[copy_key] = obj.copyTo(target_device_idx)
+        return self._ref_copies[copy_key]
 
     def connect(self, output_name, input_name, dest_object, tag):
         '''
@@ -612,6 +656,14 @@ class Simul():
         '''
         output = self.split_output(output_name, get_ref=True)
         local_dest_object = dest_object in self.objs.keys()
+
+        # Data objects used as inputs are not sent: each rank uses its own copy
+        if self.is_dataobj.get(output.obj_name):
+            if not local_dest_object:
+                return
+            if output.ref is None:
+                raise ValueError(f'Data object {output.obj_name}, input of {dest_object}, is not built on '
+                                 f'rank {iteras.process_rank}: add this rank to its target_rank')
 
         send = output.ref is not None and local_dest_object is False
         recv = output.ref is None and local_dest_object is True
@@ -1076,6 +1128,12 @@ class Simul():
         self.validate_section_names(params)
         self.check_time_base(params)
 
+        if self.accelerate:
+            self.add_accelerator_section(params)
+        if not self.run_allocator(params):
+            return
+        accelerator_options = self.take_accelerator_section(params)
+
         self.trigger_order, self.trigger_order_idx = self.build_trigger_order(params)
         self.logger.info(f'{self.trigger_order=}')
         self.logger.info(f'{self.trigger_order_idx=}')
@@ -1092,6 +1150,7 @@ class Simul():
         self.build_objects(params)
         self.create_input_list_inputs(params)
         self.connect_objects(params)
+        self.on_objects_built()
 
         if (iteras.process_rank == 0 or iteras.process_rank is None) and self.diagram:
             self.diagram.build(trigger_order = self.trigger_order,
@@ -1132,6 +1191,12 @@ class Simul():
                                    if name not in self.remote_objs_ranks
                                    and isinstance(self.objs.get(name), BaseProcessingObj)])
 
+        if accelerator_options is not None:
+            from iteras.accelerator import Accelerator
+            self.accelerator = Accelerator(accelerator_options)
+            self.accelerator.apply([el for i in sorted(self.loop.trigger_lists)
+                               for el in self.loop.trigger_lists[i]])
+
         # Default display web server
         if 'display_server' in self.mainParams and self.mainParams['display_server'] and iteras.process_rank in [0, None]:
             from iteras.processing_objects.display_server import DisplayServer
@@ -1157,11 +1222,73 @@ class Simul():
                           preroll_objs=preroll_objs)
         finally:
             display_process.stop(self.logger)
+        if self.accelerator is not None:
+            self.accelerator.finish()
 
         self.logger.debug(f'Simulation finished')
 
     #        if data_store.has_key('sr'):
     #            self.logger.info(f"Mean Strehl Ratio (@{params['psf']['wavelengthInNm']}nm) : {store.mean('sr', init=min([50, 0.1 * self.mainParams['total_time'] / self.mainParams['time_step']])) * 100.}")
+
+    def on_objects_built(self):
+        '''
+        Called by run() after the objects have been built and connected,
+        before the simulation loop is set up. Does nothing: derived classes
+        (like the allocator profiler) override it.
+        '''
+        pass
+
+    def run_allocator(self, params):
+        '''
+        If *params* contains a section whose class is Architecture, remove it
+        and run the allocator, which writes the placement of the objects into
+        *params*. Return False if the simulation must not run (planning only).
+        '''
+        from iteras.data_objects.architecture import Architecture
+        keys = [key for key in params if self.param_is(params, key, Architecture)]
+        if not keys:
+            if self.allocate:
+                raise ValueError('Allocation requested, but the parameter files do not contain '
+                                 'a section whose class is Architecture')
+            return True
+        if len(keys) > 1:
+            raise ValueError(f'More than one Architecture section: {keys}')
+        arch_pars = params.pop(keys[0])
+        from iteras.allocator import Allocator
+        allocator = Allocator(self, arch_pars, plan_only=self.allocate, recompute=self.reallocate,
+                              accelerate=bool(self.accelerator_keys(params)))
+        allocator.allocate(params)
+        self.allocation = allocator.allocation
+        return not allocator.plan_only
+
+    def accelerator_keys(self, params):
+        '''Keys of the sections of *params* whose class is Accelerator'''
+        from iteras.data_objects.accelerator import Accelerator
+        return [key for key in params if self.param_is(params, key, Accelerator)]
+
+    def add_accelerator_section(self, params):
+        '''Add a Accelerator section with the default options, unless there is one already'''
+        if not self.accelerator_keys(params):
+            key = 'accelerator'
+            while key in params:
+                key += '_'
+            params[key] = {'class': 'Accelerator'}
+
+    def take_accelerator_section(self, params):
+        '''
+        Remove the Accelerator section from *params*, if any, and return its options
+        (an iteras.data_objects.accelerator.Accelerator), otherwise None. The section is
+        removed after the allocator has run, so that the allocator profiles the
+        objects as accelerated.
+        '''
+        from iteras.data_objects.accelerator import Accelerator
+        keys = self.accelerator_keys(params)
+        if not keys:
+            return None
+        if len(keys) > 1:
+            raise ValueError(f'More than one Accelerator section: {keys}')
+        pars = params.pop(keys[0])
+        return Accelerator(**{k: v for k, v in pars.items() if k != 'class'})
 
     def gpu_mem_report(self, title):
         '''Log the GPU memory used by the objects of this simulation'''

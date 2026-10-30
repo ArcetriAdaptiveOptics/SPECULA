@@ -54,6 +54,15 @@ def build_parser():
     parser.add_argument('--trace-gpu-events', action='store_true',
                         help='With --trace-file, also measure the GPU time of each trigger with CUDA '
                              'events, written as a "trigger_gpu" phase. Usually lighter than --trace-sync.')
+    parser.add_argument('--allocate', action='store_true',
+                        help='Only compute the placement of the objects on the resources described '
+                             'by the Architecture section, write it and its report, and exit '
+                             '(see iteras.allocator)')
+    parser.add_argument('--reallocate', action='store_true',
+                        help='Recompute the placement of the objects even if a saved one exists')
+    parser.add_argument('--accelerate', action='store_true',
+                        help='Run the GPU work of the objects as CUDA graphs chained without '
+                             'waiting for the GPU (see iteras.accelerator), as with a Accelerator section')
     parser.add_argument('yml_files', nargs='+', type=str,
                         help='YAML parameter files')
     return parser

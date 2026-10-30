@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Measure the MORFEO objects on one A100, then plan their placement on 1 to 4
+# nodes (files allocation_MORFEO_<n>nodes.yml and their reports). Each plan
+# says how many nodes and MPI ranks to launch; run it with, for example:
+#   srun --mpi=none bash -c "specula --mpi params_morfeo_full.yml ov_MORFEO_leonardo_paths.yml allocation_MORFEO_2nodes.yml"
+# with --nodes and --ntasks-per-node as in the report (ranks are numbered node by node).
+
+#SBATCH --job-name=spAlloc                    # Descriptive job name
+#SBATCH --time=00:30:00                       # Maximum wall time (hh:mm:ss)
+#SBATCH --nodes=1                             # Number of nodes to use
+#SBATCH --ntasks-per-node=1                   # One process: profiling and planning
+#SBATCH --cpus-per-task=8                     # Number of CPU cores per task
+#SBATCH --gres=gpu:4                          # Number of GPUs per node
+#SBATCH --partition=boost_usr_prod            # GPU-enabled partition
+#SBATCH --qos=boost_qos_dbg                   # Quality of Service
+#SBATCH --output=speculaJobMorfeoAllocate.out # File for standard output
+#SBATCH --error=speculaJobMorfeoAllocate.err  # File for standard error
+#SBATCH --account=try25_rossi                 # Project account number
+
+module load cuda/12.3                         # Load CUDA toolkit
+module load openmpi/4.1.6--nvhpc--23.11       # Load MPI implementation
+module load nvhpc/23.11
+
+cd $WORK/SPECULA/config/leonardo
+for n in 1 2 3 4; do
+    sed -e "s/count: 1$/count: $n/" -e "s/allocation_MORFEO.yml/allocation_MORFEO_${n}nodes.yml/" \
+        arch_MORFEO_leonardo.yml > arch_MORFEO_leonardo_${n}nodes.yml
+    # The first plan measures the objects on this node's A100; the others reuse the profile
+    specula --allocate $WORK/SPECULA/config/MORFEO/params_morfeo_full.yml \
+        overrides/ov_MORFEO_leonardo_paths.yml arch_MORFEO_leonardo_${n}nodes.yml
+done

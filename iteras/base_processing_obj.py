@@ -5,11 +5,12 @@ import re
 import weakref
 
 import iteras
-from iteras import cpuArray
+from iteras import cpuArray, np
+from iteras import mpi_progress
 from iteras.tracing import tracer
 from iteras.base_time_obj import BaseTimeObj
 from iteras.connections import InputList, InputValue
-from iteras.log import MPI_DBG_LEVEL
+from iteras.log import MPI_DBG_LEVEL, MPI_SEND_DBG_LEVEL
 
 
 InputDesc = namedtuple('InputDesc', 'type desc')
@@ -48,6 +49,9 @@ class BaseProcessingObj(BaseTimeObj):
 
         # Addresses of the input arrays when the CUDA graph was captured
         self._captured_input_ptrs = {}
+
+        # Set by the accelerator (iteras.accelerator.GraphRunner) if this object is accelerated
+        self._accel = None
 
         # Will be populated by derived class
         self.inputs = {}
@@ -148,8 +152,10 @@ class BaseProcessingObj(BaseTimeObj):
 
     def post_trigger(self):
         '''
-        Make sure we are using the correct device and that any previous
-        CUDA graph has been synchronized
+        Make sure we are using the correct device and that the GPU work of
+        trigger() is ordered before what follows: the host waits for the own
+        CUDA graph of the object; when accelerated, the order is kept on the GPU
+        and the host does not wait.
         '''
         # Double check that we can execute
         if not self.inputs_changed:
@@ -160,8 +166,12 @@ class BaseProcessingObj(BaseTimeObj):
 
         if self.target_device_idx>=0:
             self._target_device.use()
-            if self.cuda_graph:
-                self.stream.synchronize()
+            if self._accel is not None:
+                # Accelerated: the GPU work stays in order on the GPU, the host does not wait
+                self._accel.after_trigger()
+            elif self.cuda_graph:
+                # Like stream.synchronize(), but MPI sends in flight keep moving
+                mpi_progress.wait_stream(self.stream)
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         self.logger.mpi_send_debug(f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})')
@@ -173,15 +183,29 @@ class BaseProcessingObj(BaseTimeObj):
             item.xp = xp_orig
         else:
             buffer = item.get_value()
-            self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device {buffer.device}')
-            self.logger.mpi_send_debug(f'SEND with Buffe {dest_tag=}, {type(buffer)=}, {buffer=}')
-            self.logger.mpi_send_debug(f'SEND with Buffer type {dest_tag=} {buffer.dtype=}')
+            # Formatting the array would copy it to the host: only when the message is printed
+            if self.logger.isEnabledFor(MPI_SEND_DBG_LEVEL):
+                self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device {buffer.device}')
+                self.logger.mpi_send_debug(f'SEND with Buffe {dest_tag=}, {type(buffer)=}, {buffer=}')
+                self.logger.mpi_send_debug(f'SEND with Buffer type {dest_tag=} {buffer.dtype=}')
 
-            iteras.process_comm.Ibsend(cpuArray(buffer), dest=dest_rank, tag=dest_tag)
+            mpi_progress.isend(self._host_copy(buffer), dest_rank, dest_tag, self.current_time)
 
             iteras.process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
         if item.get_value() is not None:
             self.sent_valid[dest_tag] = True
+
+    @staticmethod
+    def _host_copy(buffer):
+        '''
+        Copy of *buffer* in host memory, which can be sent while the object
+        goes on. For a GPU array, the work that produces it is waited for with
+        MPI sends in flight kept moving (see mpi_progress).
+        '''
+        if isinstance(buffer, np.ndarray):
+            return buffer.copy()
+        mpi_progress.wait_current_stream(buffer.device.id)
+        return cpuArray(buffer)
 
     # this method implements the mpi send call of the outputs connected to remote inputs
     def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
@@ -195,9 +219,10 @@ class BaseProcessingObj(BaseTimeObj):
         This is used while setting up the simulation to initialize outputs
         that are delayed and would not be received otherwise.
         '''
-        self.logger.mpi_debug(f'My outputs are:')
-        for out_name, out_value in self.outputs.items():
-            self.logger.mpi_debug(f'{out_name=}, {out_value=}')
+        if self.logger.isEnabledFor(MPI_DBG_LEVEL):
+            self.logger.mpi_debug(f'My outputs are:')
+            for out_name, out_value in self.outputs.items():
+                self.logger.mpi_debug(f'{out_name=}, {out_value=}')
 
         self.logger.mpi_debug(f'send_outputs')
         for out_name, remote_specs in self.remote_outputs.items():
@@ -319,8 +344,34 @@ class BaseProcessingObj(BaseTimeObj):
         of trigger_code() runs twice (warm-up and capture), so trigger_code() must
         not keep state in Python variables, as for any code in a CUDA graph.
         '''
-        if self.stream is not None:
+        if self._accel is not None:
+            self._accel.invalidate()
+        elif self.stream is not None:
             self._cuda_graph_invalid = True
+
+    def can_accelerate(self):
+        '''
+        Called by the accelerator (iteras.accelerator) just before it captures the
+        trigger_code() of this object in a CUDA graph, which is then launched at
+        each trigger instead of running trigger_code(). Return True if that
+        graph does the same as trigger_code() at all the following triggers,
+        otherwise False, or a string saying why not (it is called again at the
+        next trigger).
+
+        This is the case if trigger_code() only launches GPU work whose
+        parameters do not change from one step to the next: the Python code
+        runs only once, at the capture. Values that change at each step must
+        reach the GPU through arrays (for example written by prepare_trigger(),
+        which runs at each step), not as Python numbers passed to kernels or
+        used in Python conditions; the arrays must stay the same (updated in
+        place, not reallocated). The output generation times set by
+        trigger_code() are set by the accelerator at each launch.
+
+        The default is True for objects that build their own CUDA graph (see
+        build_stream()), whose trigger_code() already follows these rules, and
+        False otherwise. Derived classes override it.
+        '''
+        return self.stream is not None
 
     def check_ready(self, t):
         self.current_time = t
@@ -338,24 +389,39 @@ class BaseProcessingObj(BaseTimeObj):
         return self.inputs_changed
 
     def trigger(self):
+        '''
+        The computation of the step, in one of three ways:
+
+        * accelerated (see iteras.accelerator): the accelerator runs trigger_code()
+          or launches the CUDA graph it captured for it;
+        * with the own CUDA graph of the object (see build_stream()): capture it
+          if needed, otherwise launch it;
+        * otherwise, trigger_code() as Python code.
+        '''
         # Double check that we can execute
         if not self.inputs_changed:
             raise RuntimeError("trigger() called when the object's inputs have not changed")
 
         if self.target_device_idx >= 0:
             self._target_device.use()
-        if self.target_device_idx >= 0 and self._cuda_graph_invalid:
+        if self._accel is not None:
+            self._accel.trigger()
+        elif self.target_device_idx >= 0 and (self._cuda_graph_invalid or self.cuda_graph):
+            self._trigger_own_graph()
+        else:
+            self.trigger_code()
+
+    def _trigger_own_graph(self):
+        if self._cuda_graph_invalid:
             # Capture the graph. The warm-up run in capture_stream() computes
             # the results of this step, so the new graph is not launched.
             self.logger.debug('Capturing the CUDA graph')
             self.capture_stream()
-        elif self.target_device_idx >= 0 and self.cuda_graph:
+        else:
             self.check_input_ptrs()
             # NVTX range only, to mark the graph kernels in Nsight Systems
             with tracer.no_record(), tracer('cuda_graph', self):
                 self.cuda_graph.launch(stream=self.stream)
-        else:
-            self.trigger_code()
 
     def setup(self):
         """
@@ -388,6 +454,53 @@ class BaseProcessingObj(BaseTimeObj):
         strings), for objects whose inputs are not known in advance, like
         DataStore and DataBuffer. Simul then creates one input per list item,
         named after its alias, and calls input_list_created().
+        '''
+        return False
+
+    @classmethod
+    def runs_on_cpu_only(cls):
+        '''
+        Override to return True for classes that must run on the CPU, like
+        those writing files or interacting with the user. The allocator
+        (iteras.allocator) never places them on a GPU.
+        '''
+        return False
+
+    @classmethod
+    def runs_on_main_process_only(cls):
+        '''
+        Override to return True for classes that must run in the main process
+        (MPI rank 0), like those interacting with the user. Used by the allocator.
+        '''
+        return False
+
+    @classmethod
+    def devices_used(cls, params):
+        '''
+        Number of devices used by an object of this class built with the
+        parameters *params* (a dictionary, as in the parameter file): the device
+        given by target_device_idx and the following ones, modulo the number of
+        devices of the node. Override for objects that split their work over
+        several devices. Used by the allocator.
+        '''
+        return 1
+
+    @classmethod
+    def single_device_params(cls, params):
+        '''
+        Parameters that build an equivalent object on a single device, for
+        objects whose devices_used() is more than 1: the allocator measures it
+        this way and divides its work among its devices.
+        '''
+        return params
+
+    @classmethod
+    def is_schedule_barrier(cls):
+        '''
+        Override to return True for classes whose position in the trigger order
+        must never change, relative to all the other objects, because they
+        interact with the outside world or modify shared state. Used by the
+        allocator when it changes the execution order.
         '''
         return False
 

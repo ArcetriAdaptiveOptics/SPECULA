@@ -7,7 +7,7 @@ from specula.data_objects.electric_field import ElectricField
 from specula.connections import InputList, InputValue
 from specula.data_objects.layer import Layer
 from specula.lib.air_refraction import MatharAirRefraction
-from specula import cpuArray
+from specula import cpuArray, xp_fft
 from specula.data_objects.simul_params import SimulParams
 
 import numpy as np
@@ -741,10 +741,10 @@ def fraunhofer_far_field_propagation(ef, propagator, buffer):
 def angular_spectrum_propagation(ef, propagator, buffer, xp):
     if propagator[0] is not None:
         ef[:] *= propagator[0]
-    buffer[:] = xp.fft.fft2(xp.fft.fftshift(ef, axes=(-2, -1)), axes=(-2, -1),
+    buffer[:] = xp_fft(xp).fft2(xp_fft(xp).fftshift(ef, axes=(-2, -1)), axes=(-2, -1),
                             norm="ortho")
-    ef[:] = xp.fft.fftshift(
-        xp.fft.ifft2(buffer * xp.fft.fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
+    ef[:] = xp_fft(xp).fftshift(
+        xp_fft(xp).ifft2(buffer * xp_fft(xp).fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
                      axes=(-2, -1)), axes=(-2, -1))
     if propagator[2] is not None:
         ef[:] *= propagator[2]

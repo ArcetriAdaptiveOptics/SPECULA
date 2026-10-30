@@ -2,7 +2,7 @@ from specula.log import get_specula_logger
 import numpy as np
 from collections import namedtuple
 
-from specula import fuse
+from specula import fuse, xp_fft
 
 
 @fuse(kernel_name='psf_abs2')
@@ -52,10 +52,10 @@ def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normal
     else:
         u_ef = amp * xp.exp(complex_dtype(1j) * phase)
     # Compute FFT (forward)
-    u_fp = xp.fft.fft2(u_ef)
+    u_fp = xp_fft(xp).fft2(u_ef)
     # Center the PSF if required
     if not nocenter:
-        u_fp = xp.fft.fftshift(u_fp)
+        u_fp = xp_fft(xp).fftshift(u_fp)
     # Compute the PSF as the square modulus of the Fourier transform
     psf = psf_abs2(u_fp, xp=xp)
 

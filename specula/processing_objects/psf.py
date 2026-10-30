@@ -14,6 +14,8 @@ from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 
+import logging
+
 import numpy as np
 
 
@@ -111,6 +113,9 @@ class PSF(BaseProcessingObj):
         self.ref = None
         self.count = 0
         self.first = True
+        # Strehl ratio being copied to the host for the log: (buffer, event)
+        self._sr_log = None
+        self._sr_buffer = None
         self._sum_psf_squared = None # For std dev calculation
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
@@ -187,7 +192,35 @@ class PSF(BaseProcessingObj):
         self.sr.value = self.psf.value[self.out_size[0] // 2, \
                                        self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
                                        self.out_size[1] // 2]
-        self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
+
+    def can_accelerate(self):
+        # trigger_code() only launches GPU work (the Strehl ratio is logged in post_trigger())
+        return True
+
+    def _log_sr(self):
+        '''
+        Log the Strehl ratio. On the GPU, without waiting for it: the value of this
+        step is copied to the host now, and logged at the next step (or at the end).
+        '''
+        if not self.logger.isEnabledFor(logging.INFO):
+            return
+        if self.target_device_idx < 0:
+            self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
+            return
+        self._flush_sr_log()
+        if self._sr_buffer is None:
+            import cupyx
+            self._sr_buffer = cupyx.empty_pinned((), dtype=self.sr.value.dtype)
+        stream = self.xp.cuda.get_current_stream()
+        self.sr.value.get(stream=stream, out=self._sr_buffer, blocking=False)
+        self._sr_log = (self._sr_buffer, stream.record())
+
+    def _flush_sr_log(self):
+        if self._sr_log is not None:
+            buffer, event = self._sr_log
+            event.synchronize()
+            self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {buffer[()]}')
+            self._sr_log = None
 
     def _compute_radial_profile_data(self, psf, peak:float=None):
 
@@ -256,6 +289,7 @@ class PSF(BaseProcessingObj):
             self._sum_psf_squared += self.psf.value ** 2
         self.psf.generation_time = self.current_time
         self.sr.generation_time = self.current_time
+        self._log_sr()
 
         if self.compute_profile_metrics and self.compute_metrics_in_trigger:
             self._set_profile_outputs(
@@ -267,6 +301,7 @@ class PSF(BaseProcessingObj):
             )
 
     def finalize(self):
+        self._flush_sr_log()
         if self.count > 0:
             self.int_psf.value /= self.count
             self.int_sr.value /= self.count

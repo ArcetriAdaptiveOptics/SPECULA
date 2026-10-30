@@ -3,7 +3,7 @@ from specula.log import get_specula_logger
 from specula.processing_objects.abstract_coronagraph import Coronagraph
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
-from specula import RAD2ASEC
+from specula import RAD2ASEC, xp_fft
 
 
 class APPCoronagraph(Coronagraph):
@@ -144,7 +144,7 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
 
     old_image = None
     for i in range(max_iterations):
-        image = xp.fft.fftshift(xp.fft.fft2(app)) # calculate image plane electric field
+        image = xp_fft(xp).fftshift(xp_fft(xp).fft2(app)) # calculate image plane electric field
 
         if not xp.any(xp.abs(image)**2 / xp.max(xp.abs(image)**2) > target_contrast):
             break
@@ -156,14 +156,14 @@ def generate_app_keller(pupil, target_contrast, max_iterations:int,
             new_image[dark_zone] = 0
         old_image = new_image.copy()
 
-        app = xp.fft.ifft2(xp.fft.ifftshift(new_image)) # determine pupil electric field
+        app = xp_fft(xp).ifft2(xp_fft(xp).ifftshift(new_image)) # determine pupil electric field
         app[~pupil.astype(bool)] = 0 # enforce pupil
         # app[pupil.astype(bool)] /= xp.abs(app[pupil.astype(bool)]) # enforce unity transmission within pupil
         app = xp.asarray(pupil) * xp.exp(iu*xp.angle(app),dtype=complex_dtype)
 
     psf = xp.abs(image)**2
     contrast =  psf / xp.max(psf)
-    ref_psf = xp.abs(xp.fft.fftshift(xp.fft.fft2(pupil)))**2
+    ref_psf = xp.abs(xp_fft(xp).fftshift(xp_fft(xp).fft2(pupil)))**2
 
     if i == max_iterations-1:
         raise Warning(f'Maximum number of iterations ({max_iterations:1.0f})'

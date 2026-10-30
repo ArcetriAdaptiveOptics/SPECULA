@@ -172,13 +172,13 @@ class CurvatureSensor(BaseProcessingObj):
     def trigger_code(self):
         # Intrafocal propagation
         ef_plus = self.ef_resampled * self.exp_plus
-        self.fp_plus[:] = self.xp.fft.fftshift(self.xp.fft.fft2(ef_plus))
+        self.fp_plus[:] = self.fft.fftshift(self.fft.fft2(ef_plus))
         abs2_cwfs(self.fp_plus, self._temp_i1, xp=self.xp)
         self._temp_i1 *= self.detector_mask
 
         # Extrafocal propagation
         ef_minus = self.ef_resampled * self.exp_minus
-        self.fp_minus[:] = self.xp.fft.fftshift(self.xp.fft.fft2(ef_minus))
+        self.fp_minus[:] = self.fft.fftshift(self.fft.fft2(ef_minus))
         abs2_cwfs(self.fp_minus, self._temp_i2, xp=self.xp)
         self._temp_i2 *= self.detector_mask
 

@@ -59,6 +59,22 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
 
         self.assertEqual(result.stdout.splitlines()[-1].strip(), "0,0")
         
+    def test_default_device(self):
+        # Without target_device_idx, the object and its first slice are on the default device
+        sh = DistributedSH(wavelengthInNm=500,
+                subap_wanted_fov=3,
+                sensor_pxscale=0.5,
+                subap_on_diameter=20,
+                subap_npx=6,
+                n_slices=2)
+        self.assertEqual(sh.sub_sh[0].target_device_idx, sh.target_device_idx)
+
+    def test_allocator_hooks(self):
+        params = {'class': 'DistributedSH', 'n_slices': 4, 'target_device_idx': 0}
+        self.assertEqual(DistributedSH.devices_used(params), 4)
+        self.assertEqual(DistributedSH.single_device_params(params)['n_slices'], 1)
+        self.assertEqual(params['n_slices'], 4)
+
     @cpu_and_gpu
     def test_distributed_sh_flux(self, target_device_idx, xp):
         

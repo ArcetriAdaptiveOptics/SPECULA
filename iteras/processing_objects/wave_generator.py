@@ -50,6 +50,10 @@ class WaveGenerator(BaseGenerator):
             names=['amp', 'freq', 'offset', 'slope', 'constant']
         )
 
+    def can_accelerate(self):
+        # The time reaches trigger_code() through current_time_gpu, set in prepare_trigger()
+        return True
+
     def trigger_code(self):
         phase = self.freq * 2 * self.xp.pi * self.current_time_gpu + self.offset
 

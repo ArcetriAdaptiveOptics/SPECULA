@@ -1,5 +1,5 @@
 
-from specula import np, fuse
+from specula import np, fuse, capturing
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -187,7 +187,7 @@ class Slopec(BaseProcessingObj):
         Vector-matrix product v @ m. cuBLAS cannot be used in a CUDA graph,
         so objects using one use sum_product() instead.
         '''
-        if self.stream is not None:
+        if self.stream is not None or capturing():
             return sum_product(m.T, v, xp=self.xp)
         return v @ m
 

@@ -17,6 +17,32 @@ def get_properties(cls):
     return result
 
 
+def _peer_source(array, target_device_idx):
+    '''
+    *array*, or a contiguous copy of it on its own device if it must be copied
+    to another device: CuPy copies only contiguous arrays between devices.
+    '''
+    if array.device.id == target_device_idx or array.flags.c_contiguous:
+        return array
+    with array.device:
+        copy = iteras.cp.ascontiguousarray(array)
+    # The copy to the other device must follow this one
+    _stream_wait(target_device_idx, array.device.id)
+    return copy
+
+
+def _stream_wait(waiting_device, device):
+    '''
+    Make the current stream of *waiting_device* wait (on the GPU, the host goes
+    on) for the work queued so far on the current stream of *device*.
+    '''
+    cp = iteras.cp
+    with cp.cuda.Device(device):
+        event = cp.cuda.get_current_stream().record()
+    with cp.cuda.Device(waiting_device):
+        cp.cuda.get_current_stream().wait_event(event)
+
+
 class BaseDataObj(BaseTimeObj):
 
     def __init__(self, target_device_idx: int=None, precision: int=None):
@@ -61,9 +87,16 @@ class BaseDataObj(BaseTimeObj):
         Destination (CPU or GPU device) is inferred by *destobj.target_device_idx*,
         which must be set correctly before calling this method.
         '''
-        # Get a list of all attributes, but skip properties
-        pp = get_properties(type(self))
-        attr_list = [attr for attr in dir(self) if attr not in pp]
+        # Copy between two GPUs: the copy, queued on the destination device, must
+        # follow the work that produces the data on the source device
+        peer = iteras.cp is not None and self.target_device_idx >= 0 \
+            and destobj.target_device_idx >= 0 and self.target_device_idx != destobj.target_device_idx
+        if peer:
+            _stream_wait(destobj.target_device_idx, self.target_device_idx)
+
+        # The arrays are attributes of the instance (dir() would also list the
+        # class attributes and the properties, and is slow: this runs at each step)
+        attr_list = list(self.__dict__)
 
         for attr in attr_list:
             self_attr = getattr(self, attr)
@@ -94,9 +127,10 @@ class BaseDataObj(BaseTimeObj):
                         if self.PerformanceWarning:
                             warnings.simplefilter("ignore", category=self.PerformanceWarning)
                         try:
-                            dest_attr[:] = self_attr
-                        except:
-                            dest_attr = self_attr
+                            dest_attr[...] = _peer_source(self_attr, destobj.target_device_idx)
+                        except Exception:
+                            self.logger.warning(f'copy between devices failed, forcing reallocation ({destobj}.{attr})')
+                            force_reallocation = True
                 elif DtH:
                     # Do not set blocking=True for cupy 12.x compatibility.
                     # Blocking is True by default in later versions anyway
@@ -104,7 +138,7 @@ class BaseDataObj(BaseTimeObj):
                 elif HtD:
                     dest_attr.set(self_attr)
                 elif HtH:
-                    dest_attr[:] = self_attr
+                    dest_attr[...] = self_attr
                 else:
                     self.logger.warning(f'mismatch between target_device_idx and array allocation, forcing reallocation ({destobj}.{attr})')
                     force_reallocation = True
@@ -122,7 +156,9 @@ class BaseDataObj(BaseTimeObj):
                     with warnings.catch_warnings():
                         if self.PerformanceWarning:
                             warnings.simplefilter("ignore", category=self.PerformanceWarning)
-                        setattr(destobj, attr, iteras.cp.asarray(self_attr))
+                        with iteras.cp.cuda.Device(destobj.target_device_idx):
+                            setattr(destobj, attr, iteras.cp.asarray(
+                                _peer_source(self_attr, destobj.target_device_idx)))
                 if DtH:
                     # Do not set blocking=True for cupy 12.x compatibility.
                     # Blocking is True by default in later versions anyway
@@ -132,6 +168,9 @@ class BaseDataObj(BaseTimeObj):
                 if HtH:
                     setattr(destobj, attr, np.asarray(self_attr))
 
+        if peer:
+            # ... and the source device must not overwrite the data before it is copied
+            _stream_wait(self.target_device_idx, destobj.target_device_idx)
         destobj.generation_time = self.generation_time
 
     def copyTo(self, target_device_idx):

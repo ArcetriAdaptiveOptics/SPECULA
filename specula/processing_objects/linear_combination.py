@@ -57,6 +57,10 @@ class LinearCombination(BaseProcessingObj):
     def output_names(cls):
         return {'out_vector': OutputDesc(BaseValue, 'Output combined command vector')}
 
+    def can_accelerate(self):
+        # trigger_code() only launches GPU work on arrays updated in place
+        return True
+
     def trigger_code(self):
         in_vectors = self.local_inputs['in_vectors_list']
         idx = 0

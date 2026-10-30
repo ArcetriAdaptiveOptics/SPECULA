@@ -2,6 +2,7 @@ import warnings
 
 from specula.processing_objects.base_modalrec import BaseModalrec
 from specula.data_objects.recmat import Recmat
+from specula.lib.graph_matmul import matmul
 
 
 class Modalrec(BaseModalrec):
@@ -30,6 +31,10 @@ class Modalrec(BaseModalrec):
         self.recmat = recmat
         self.modes.value = self.xp.zeros(self.recmat.nmodes, dtype=self.dtype)
 
+    def can_accelerate(self):
+        # The product uses graph_matmul.matmul(), which can be captured
+        return True
+
     def trigger_code(self):
-        self.modes.value[:] = self.recmat.recmat @ self.slopes
+        self.modes.value[:] = matmul(self.recmat.recmat, self.slopes, self.xp)
         self.modes.generation_time = self.current_time

@@ -9,6 +9,10 @@ class DataPrint(BaseProcessingObj):
     Data print processing object.
     Print data values to screen at regular intervals
     """
+    @classmethod
+    def runs_on_cpu_only(cls):
+        return True
+
     def __init__(self,
                  print_dt: float = 1.0,      # Print interval in seconds
                  range_slice: tuple = None,      # Range of values to print (e.g., (0, 5))

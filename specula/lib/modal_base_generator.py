@@ -1,5 +1,6 @@
 import numpy as np
 import specula
+from specula import xp_fft
 from specula.lib.utils import make_orto_modes
 from specula.lib.zernike_generator import ZernikeGenerator
 from specula.log import get_specula_logger
@@ -61,8 +62,8 @@ def generate_distance_grid(N, M=None, xp=np, dtype=np.float32):
         M = N
 
     # "wrap" style indices like FFT: 0..N/2, -(N/2-1)..-1
-    kx = xp.abs(xp.fft.fftfreq(N) * N).astype(dtype)  # (N,)
-    ky = xp.abs(xp.fft.fftfreq(M) * M).astype(dtype)  # (M,)
+    kx = xp.abs(xp_fft(xp).fftfreq(N) * N).astype(dtype)  # (N,)
+    ky = xp.abs(xp_fft(xp).fftfreq(M) * M).astype(dtype)  # (M,)
 
     KX, KY = xp.meshgrid(kx, ky, indexing='xy')
     R = xp.sqrt(KX*KX + KY*KY, dtype=dtype)
@@ -130,8 +131,8 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
     logger.debug("Step 1: Generating RFFT2 distance grid and phase spectrum...")
 
     # Generate Distance Grid strictly for the RFFT2 shape
-    freq_x = xp.abs(xp.fft.rfftfreq(M) * M).astype(dtype)
-    freq_y = xp.abs(xp.fft.fftfreq(M) * M).astype(dtype)
+    freq_x = xp.abs(xp_fft(xp).rfftfreq(M) * M).astype(dtype)
+    freq_y = xp.abs(xp_fft(xp).fftfreq(M) * M).astype(dtype)
     FX, FY = xp.meshgrid(freq_x, freq_y, indexing='xy')
     sp_freq_rfft = xp.sqrt(FX*FX + FY*FY) / (oversampling * diameter)
 
@@ -173,7 +174,7 @@ def compute_ifs_covmat(pupil_mask, diameter, influence_functions, r0, L0,
         support[:mask_shape[0], :mask_shape[1]] = if_2d
 
         # Use rfft2 instead of fft2
-        ft_support = xp.fft.rfft2(support).ravel()
+        ft_support = xp_fft(xp).rfft2(support).ravel()
 
         # Extract Real and Imaginary parts and immediately weight them
         R_prime[:, act_idx] = ft_support.real * sqrt_phi[:, 0]

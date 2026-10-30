@@ -24,6 +24,8 @@ Getting Started
    Simulation parameters <simulation_parameters>
    Running simulations <running_simulations>
    Profiling and timing <profiling>
+   Automatic allocation <allocator>
+   Accelerating objects (CUDA graphs) <accelerator>
    Displays <simul_displays>
    Diagrams <simul_diagrams>
    Calibration manager <calibration_manager>

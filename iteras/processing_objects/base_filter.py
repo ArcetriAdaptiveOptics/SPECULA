@@ -38,6 +38,7 @@ class BaseFilter(BaseProcessingObj):
 
         self.delta_comm = None
         self._gain_mod = None
+        self._gain_mod_from_input = False
 
         # Outputs
         self.out_comm = BaseValue(
@@ -64,40 +65,39 @@ class BaseFilter(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        # Process delta_comm input
+        # Process delta_comm input. The inputs are copied into the same arrays at
+        # each step: the CUDA graph of a accelerated object keeps using them
         delta_comm = self.local_inputs['delta_comm'].value
-        delta_comm_array = self.xp.asarray(delta_comm, dtype=self.dtype)
-        self.delta_comm = self.xp.atleast_1d(delta_comm_array).ravel()
+        delta_comm_array = self.xp.atleast_1d(self.xp.asarray(delta_comm, dtype=self.dtype)).ravel()
 
         # Validate/broadcast delta_comm size
-        if self.delta_comm.size != self._nfilter:
-            if self.delta_comm.size == 1:
-                self.delta_comm = self.xp.full(self._nfilter, self.delta_comm[0],
-                                              dtype=self.dtype)
-            else:
-                raise ValueError(f"Input delta_comm has size {self.delta_comm.size} "
-                               f"but filter expects {self._nfilter} inputs")
+        if delta_comm_array.size != self._nfilter and delta_comm_array.size != 1:
+            raise ValueError(f"Input delta_comm has size {delta_comm_array.size} "
+                             f"but filter expects {self._nfilter} inputs")
+        if self.delta_comm is None:
+            self.delta_comm = self.xp.empty(self._nfilter, dtype=self.dtype)
+        self.delta_comm[:] = delta_comm_array
 
         # Update delay buffer
         if self.delay > 0:
             self.output_buffer[:, 1:] = self.output_buffer[:, :-1]
 
         # Process gain_mod input
+        if self._gain_mod is None:
+            self._gain_mod = self.xp.ones(self._nfilter, dtype=self.dtype)
         if self.local_inputs['gain_mod'] is not None:
             gain_mod = self.local_inputs['gain_mod'].value
-            gain_mod_array = self.xp.asarray(gain_mod, dtype=self.dtype)
-            self._gain_mod = self.xp.atleast_1d(gain_mod_array).ravel()
+            gain_mod_array = self.xp.atleast_1d(self.xp.asarray(gain_mod, dtype=self.dtype)).ravel()
 
             # Validate/broadcast gain_mod size
-            if self._gain_mod.size != self._nfilter:
-                if self._gain_mod.size == 1:
-                    self._gain_mod = self.xp.full(self._nfilter, self._gain_mod[0],
-                                                 dtype=self.dtype)
-                else:
-                    raise ValueError(f"gain_mod size {self._gain_mod.size} doesn't match "
-                                   f"nfilter {self._nfilter}")
-        else:
-            self._gain_mod = self.xp.ones(self._nfilter, dtype=self.dtype)
+            if gain_mod_array.size != self._nfilter and gain_mod_array.size != 1:
+                raise ValueError(f"gain_mod size {gain_mod_array.size} doesn't match "
+                                 f"nfilter {self._nfilter}")
+            self._gain_mod[:] = gain_mod_array
+            self._gain_mod_from_input = True
+        elif self._gain_mod_from_input:
+            self._gain_mod[:] = 1
+            self._gain_mod_from_input = False
 
     @classmethod
     def input_names(cls):

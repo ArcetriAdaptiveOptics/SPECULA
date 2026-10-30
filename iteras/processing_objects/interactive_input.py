@@ -18,6 +18,18 @@ class InteractiveInput(BaseProcessingObj):
     at each trigger call, so that new values are applied only at step
     boundaries and their generation_time matches the current step.
     """
+    @classmethod
+    def runs_on_cpu_only(cls):
+        return True
+
+    @classmethod
+    def runs_on_main_process_only(cls):
+        return True
+
+    @classmethod
+    def is_schedule_barrier(cls):
+        return True
+
     def __init__(self,
                  output_list: list,
                  target_device_idx: int=None,

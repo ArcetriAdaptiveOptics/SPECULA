@@ -174,7 +174,7 @@ class Lift(BaseProcessingObj):
         if self.padded is None:
             self.padded = self.xp.zeros((self.fftSize, self.fftSize), dtype=x.dtype)
         self.padded[pad:pad+self.gridSize, pad:pad+self.gridSize] = x
-        result = self.xp.fft.fftshift(self.xp.fft.fft2(self.padded)) * (1.0 / self.fftSize)
+        result = self.fft.fftshift(self.fft.fft2(self.padded)) * (1.0 / self.fftSize)
         return result
 
     def computeCoG(self, frame, thFactor = 0.05):

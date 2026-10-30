@@ -216,6 +216,14 @@ class BaseOperation(BaseProcessingObj):
             if self.mul or self.div:
                 self.v2[:] = 1.0
 
+    def can_accelerate(self):
+        # trigger_code() replaces inputs not produced yet (delayed) with zeros
+        for name in ('in_value1', 'in_value2'):
+            value = self.local_inputs.get(name)
+            if value is not None and value.generation_time < 0:
+                return f'input {name} not produced yet'
+        return True
+
     def trigger_code(self):
 
         value1 = self.local_inputs['in_value1'].value

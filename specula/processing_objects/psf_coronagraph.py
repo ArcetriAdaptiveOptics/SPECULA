@@ -1,4 +1,6 @@
 
+import logging
+
 from specula import fuse
 from specula.processing_objects.psf import PSF
 from specula.base_processing_obj import OutputDesc
@@ -147,19 +149,19 @@ class PsfCoronagraph(PSF):
         # if self.use_average_field is False, we apply the perfect coronagraph formula.
         # The two formulas are equivalent at high angular separations, but the average field
         # removal produces infinite contrast near the PSF core.
+        # With an empty pupil, the subtracted terms are zero (no Python condition on
+        # GPU values: this code is part of the CUDA graph when accelerated)
         pupil_mask = amp > 0
-        if self.xp.sum(pupil_mask) > 0:
-            if self.use_average_field is True: # average field removal
-                avg_electric_field = self.xp.sum(electric_field * pupil_mask) / self.xp.sum(pupil_mask)
-                electric_field_corrected = electric_field - avg_electric_field * pupil_mask
-            else: # perfect coronagraph formula (Cavarroc et al. 2006, Eq. 1)
-                mean_phase = self.xp.sum(phase * pupil_mask) / self.xp.sum(pupil_mask)
-                var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / self.xp.sum(pupil_mask)
-                ec = self.xp.exp(-var_phase, dtype=self.dtype)
-                coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase, dtype=self.complex_dtype) * amp
-                electric_field_corrected = electric_field - coherent_core * pupil_mask
-        else:
-            electric_field_corrected = electric_field
+        n_pupil = self.xp.maximum(self.xp.sum(pupil_mask), 1)
+        if self.use_average_field is True: # average field removal
+            avg_electric_field = self.xp.sum(electric_field * pupil_mask) / n_pupil
+            electric_field_corrected = electric_field - avg_electric_field * pupil_mask
+        else: # perfect coronagraph formula (Cavarroc et al. 2006, Eq. 1)
+            mean_phase = self.xp.sum(phase * pupil_mask) / n_pupil
+            var_phase = self.xp.sum(((phase - mean_phase) ** 2) * pupil_mask) / n_pupil
+            ec = self.xp.exp(-var_phase, dtype=self.dtype)
+            coherent_core = self.xp.sqrt(ec) * self.xp.exp(1j * mean_phase, dtype=self.complex_dtype) * amp
+            electric_field_corrected = electric_field - coherent_core * pupil_mask
 
         # Set up the complex array based on input dimensions and data type
         if imwidth is not None:
@@ -170,11 +172,11 @@ class PsfCoronagraph(PSF):
             u_ef = electric_field_corrected
 
         # Step 3: Optical Fourier transform to focal plane
-        focal_field = self.xp.fft.fft2(u_ef)
+        focal_field = self.fft.fft2(u_ef)
 
         # Center if required
         if not nocenter:
-            focal_field = self.xp.fft.fftshift(focal_field)
+            focal_field = self.fft.fftshift(focal_field)
 
         # Calculate PSF as square modulus
         coronagraph_psf = psf_abs2(focal_field, xp=self.xp)
@@ -184,6 +186,10 @@ class PsfCoronagraph(PSF):
             coronagraph_psf /= self.total_psf
 
         return coronagraph_psf
+
+    def can_accelerate(self):
+        # trigger_code() only launches GPU work (the peak suppression is logged in post_trigger())
+        return True
 
     def trigger_code(self):
         # Call parent trigger_code for standard PSF calculation
@@ -198,9 +204,6 @@ class PsfCoronagraph(PSF):
             imwidth=self.out_size[0],
             normalize=True
         )
-        
-        self.logger.info(f'Coronagraph peak suppression: '
-                f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}')
 
     def post_trigger(self):
         super().post_trigger()
@@ -210,6 +213,11 @@ class PsfCoronagraph(PSF):
             self._sum_coronagraph_psf_squared += self.coronagraph_psf.value ** 2
 
         self.coronagraph_psf.generation_time = self.current_time
+
+        # Reading GPU values makes the host wait for the GPU: only when debugging
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f'Coronagraph peak suppression: '
+                              f'{self.coronagraph_psf.value.max()/self.psf.value.max():.2e}')
 
         if self.compute_profile_metrics and self.compute_metrics_in_trigger:
             self._set_radial_profile_output(

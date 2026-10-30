@@ -1,0 +1,9 @@
+# Paths and options of MORFEO on Leonardo, without any placement
+# (target_rank, target_device_idx): to be used with the allocator.
+
+main_override:
+  root_dir:        '/leonardo_work/try25_rossi/MORFEO_DATA0'         # Root directory for calibration manager
+  total_time:      0.100
+  display_server:  false
+
+subtract_ref_override: { value2_remap_data: 'ref_input_index2.fits' }

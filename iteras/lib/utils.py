@@ -5,6 +5,7 @@ import typing
 import importlib
 
 from iteras import registry
+from iteras import xp_fft
 
 
 def camelcase_to_snakecase(s):
@@ -268,7 +269,7 @@ def psd_to_signal(psd, fs, xp, dtype, complex_dtype, seed=1):
     ph = rng.uniform(0, 2 * xp.pi, 2 * n)
     pspectrum *= xp.exp(1j * ph, dtype=complex_dtype)
     # Inverse FFT
-    temp = xp.fft.ifft(pspectrum) * 2 * n
+    temp = xp_fft(xp).ifft(pspectrum) * 2 * n
     out = xp.real(temp).astype(dtype)
     im = xp.imag(temp).astype(dtype)
     return out, im

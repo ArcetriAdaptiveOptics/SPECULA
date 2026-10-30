@@ -11,7 +11,7 @@ import numpy as np
 
 import iteras
 from iteras import registry as _registry
-from iteras import (init, main_simul, cpuArray, to_xp, fuse,
+from iteras import (init, main_simul, cpuArray, to_xp, xp_fft, capturing, fuse,
                    cpu_float_dtype_list, cpu_complex_dtype_list)
 from specula.calib_subdirs import CALIB_SUBDIRS as _CALIB_SUBDIRS
 

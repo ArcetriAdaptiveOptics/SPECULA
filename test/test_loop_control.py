@@ -234,3 +234,23 @@ class TestSteppingFeature(unittest.TestCase):
 
         # should have updated threshold
         self.assertNotEqual(self.obj.next_time_to_stop, 0)
+
+
+class MockProcessingObjFinalize(BaseProcessingObj):
+    '''Remembers the current CUDA device when finalize() is called'''
+    def finalize(self):
+        import cupy
+        self.finalize_device = cupy.cuda.Device().id
+
+
+class TestFinalizeDevice(unittest.TestCase):
+
+    @unittest.skipIf(specula.cp is None or specula.cp.cuda.runtime.getDeviceCount() < 2,
+                     'at least 2 GPUs are needed')
+    def test_finalize_on_the_device_of_the_object(self):
+        obj = MockProcessingObjFinalize(target_device_idx=1)
+        loop = LoopControl()
+        loop.add(obj, 0)
+        specula.cp.cuda.Device(0).use()
+        loop.finish()
+        self.assertEqual(obj.finalize_device, 1)

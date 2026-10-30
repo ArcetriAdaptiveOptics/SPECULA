@@ -6,6 +6,7 @@ from collections import OrderedDict, defaultdict
 import pickle
 import yaml
 
+import iteras
 from iteras import cpuArray
 from iteras.base_processing_obj import BaseProcessingObj
 from iteras.lib import utils
@@ -26,7 +27,9 @@ class DataStore(BaseProcessingObj):
                 start_time: float=0,
                 create_tn: bool=True,
                 downsample_factor: int=1,
-                downsample_factor_by_input: dict=None):
+                downsample_factor_by_input: dict=None,
+                target_device_idx: int=None,
+                precision: int=None):
         """
         Parameters
         ----------
@@ -60,8 +63,12 @@ class DataStore(BaseProcessingObj):
             values are integers >= 1. When using ``input_list``, the key is the
             alias before the dash, e.g. ``'comm'`` for ``'comm-control.out_comm'``.
             This option is mutually exclusive with ``downsample_factor != 1``.
+        target_device_idx : int [1], optional
+            Device of the object. The data is always stored in host memory.
+        precision : int [1], optional
+            Precision (0 = double, 1 = single).
         """
-        super().__init__()
+        super().__init__(target_device_idx=target_device_idx, precision=precision)
         self.data_filename = ''
         self.today = utils.make_tn()
         self.tn_dir = store_dir
@@ -124,6 +131,22 @@ class DataStore(BaseProcessingObj):
 
     def init_storage(self):
         self.storage = defaultdict(OrderedDict)
+
+    @property
+    def storage(self):
+        '''Stored values, by input name and time (the pending GPU copies are completed first)'''
+        self._store_pending_copies()
+        return self._storage
+
+    @storage.setter
+    def storage(self, value):
+        # GPU values being copied to the host: (input, time, pinned buffer, event)
+        self._pending_copies = []
+        # Page-locked buffer of each input, where its GPU values are copied
+        self._staging = {}
+        # Host block of each input where its values are stored: [array, next free row]
+        self._blocks = {}
+        self._storage = value
 
     def set_simulation_params(self, params):
         self.params = params
@@ -238,17 +261,65 @@ class DataStore(BaseProcessingObj):
                 iter += 1
         self.tn_dir = fullpath
 
+    def _copy_to_host(self, k, value):
+        '''
+        Store a copy of *value* for input *k* at the current time. A GPU value is
+        copied asynchronously into page-locked memory, so that the simulation does
+        not wait for the GPU here; the copy is moved to the storage by
+        _store_pending_copies(), at the next step or when the storage is read.
+        '''
+        cp = iteras.cp
+        if cp is None or not isinstance(value, cp.ndarray):
+            self._storage[k][self.current_time] = cpuArray(value, force_copy=True)
+            return
+        pinned = self._staging.get(k)
+        if pinned is None or pinned.shape != value.shape or pinned.dtype != value.dtype:
+            import cupyx
+            pinned = self._staging[k] = cupyx.empty_pinned(value.shape, dtype=value.dtype)
+        with value.device:
+            stream = cp.cuda.get_current_stream()
+            value.get(stream=stream, out=pinned, blocking=False)
+            event = stream.record()
+        # Placeholder, to keep the order of the times in the storage
+        self._storage[k][self.current_time] = None
+        self._pending_copies.append((k, self.current_time, pinned, event))
+
+    def _store_pending_copies(self):
+        '''Wait for the copies of GPU values started before, and store them'''
+        for k, t, pinned, event in self._pending_copies:
+            event.synchronize()
+            self._storage[k][t] = self._host_copy(k, pinned)
+        self._pending_copies = []
+
+    # Size of the host blocks where the values are stored. A new array for each
+    # value would be slower to fill, its memory being new at each step; numpy
+    # asks for huge pages for arrays of a few MB.
+    BLOCK_BYTES = 4 * 1024 * 1024
+
+    def _host_copy(self, k, value):
+        '''Copy of *value* (a host array) in the next free row of the block of input *k*'''
+        block = self._blocks.get(k)
+        if block is None or block[1] == len(block[0]) or block[0].shape[1:] != value.shape \
+                or block[0].dtype != value.dtype:
+            rows = max(1, self.BLOCK_BYTES // max(value.nbytes, 1))
+            block = self._blocks[k] = [np.empty((rows,) + value.shape, dtype=value.dtype), 0]
+        array, row = block
+        block[1] += 1
+        out = array[row:row + 1].reshape(value.shape)
+        out[...] = value
+        return out
+
     def trigger_code(self):
         if self.current_time < self.start_time:
             return
 
+        # The copies of the previous step are complete by now, usually
+        self._store_pending_copies()
         for k, item in self.local_inputs.items():
             if item is not None and item.generation_time == self.current_time:
                 if not self._should_store_input(k):
                     continue
-                value = item.get_value()
-                v = cpuArray(value, force_copy=True)
-                self.storage[k][self.current_time] = v
+                self._copy_to_host(k, item.get_value())
 
         # If we are saving a split TN, check whether it is time to save a new chunk
         # In case, clear the storage dictionary to restart with an empty one.
@@ -280,7 +351,12 @@ class DataStore(BaseProcessingObj):
     def finalize(self):
 
         # Perform an additional trigger to ensure all data is captured,
-        # including any calculations done in other objects' finalize() methods
+        # including any calculations done in other objects' finalize() methods.
+        # Inputs from another device are copies: copy them again first (not those
+        # from other processes, which send nothing after their finalize())
+        for name, input_obj in self.inputs.items():
+            if all(item.remote_rank is None for item in input_obj.input_values):
+                self.local_inputs[name] = input_obj.get(self.target_device_idx)
         self.trigger_code()
 
         if self.split_size == 0:

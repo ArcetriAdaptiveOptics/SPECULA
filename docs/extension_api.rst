@@ -132,6 +132,19 @@ Methods to override
    * - ``graph_input_ptrs()``
      - Override to exclude, from the check made at each launch of the CUDA
        graph, inputs that the graph does not read.
+   * - ``can_accelerate()``
+     - Called by the :doc:`accelerator <accelerator>` just before it captures
+       ``trigger_code()`` in a CUDA graph launched at each step instead. Return
+       ``True`` if that graph does the same as ``trigger_code()`` at all the
+       following steps: ``trigger_code()`` only launches GPU work, on arrays
+       updated in place, with no Python value that changes from one step to the
+       next (values that change are written to GPU arrays in
+       ``prepare_trigger()``, which runs at each step); matrix products use
+       ``specula.lib.graph_matmul.matmul()``. Otherwise return ``False``, or a
+       string saying why (it is called again at the next trigger). Default:
+       ``True`` for objects that build their own CUDA graph, ``False`` otherwise.
+       A derived class that redefines ``trigger_code()`` is not accelerated
+       unless it declares ``can_accelerate()`` itself.
 
 Hooks called by Simul
 ~~~~~~~~~~~~~~~~~~~~~
@@ -150,6 +163,27 @@ The default implementations do nothing; override them to change how
        inputs of the parameter file: Simul creates one input per item, named
        after its alias (``'alias-obj.output'``). Used by ``DataStore`` and
        ``DataBuffer``.
+   * - ``runs_on_cpu_only()``
+     - Class method. Return ``True`` for classes that must run on the CPU
+       (writing files, interacting with the user): the :doc:`allocator <allocator>`
+       never places them on a GPU. Used by ``DataPrint``,
+       ``DisplayServer`` and ``InteractiveInput``.
+   * - ``runs_on_main_process_only()``
+     - Class method. Return ``True`` for classes that must run in the main
+       process (MPI rank 0), like ``DisplayServer`` and ``InteractiveInput``.
+   * - ``devices_used(params)``
+     - Class method. Number of devices used by an object built with *params*
+       (1 by default): the device ``target_device_idx`` and the following ones,
+       for objects that split their work, like ``DistributedSH``. The allocator
+       divides their memory and GPU time among those devices.
+   * - ``single_device_params(params)``
+     - Class method. Parameters of an equivalent object on a single device, used
+       by the allocator to measure the objects whose ``devices_used()`` is more
+       than 1.
+   * - ``is_schedule_barrier()``
+     - Class method. Return ``True`` for classes whose position in the trigger
+       order must never change, because they interact with the outside world
+       or modify shared state (``DisplayServer``, ``InteractiveInput``).
    * - ``input_list_created()``
      - Called after the inputs of ``input_list`` have been created.
    * - ``set_simulation_params(params)``

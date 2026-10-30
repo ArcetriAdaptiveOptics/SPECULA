@@ -1,6 +1,6 @@
 import warnings
 
-from specula import to_xp
+from specula import to_xp, xp_fft
 from specula.lib.make_xy import make_xy
 
 # Generic utilities, moved to iteras.lib.utils
@@ -161,8 +161,8 @@ def make_subpixel_shift_phase(shape, xp, dtype,
         freq_x = xx / size
         freq_y = yy / size
     else:
-        freq_x = xp.fft.fftfreq(size, d=1.0)
-        freq_y = xp.fft.fftfreq(size, d=1.0)
+        freq_x = xp_fft(xp).fftfreq(size, d=1.0)
+        freq_y = xp_fft(xp).fftfreq(size, d=1.0)
         freq_grid_y, freq_grid_x = xp.meshgrid(freq_y, freq_x, indexing='ij')
         freq_x = freq_grid_x
         freq_y = freq_grid_y

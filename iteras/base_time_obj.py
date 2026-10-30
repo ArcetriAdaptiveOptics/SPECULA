@@ -5,7 +5,7 @@ from functools import wraps
 from inspect import signature
 
 import iteras
-from iteras import np, to_xp
+from iteras import np, to_xp, xp_fft
 from iteras import cpu_float_dtype_list
 from iteras import cpu_complex_dtype_list
 from iteras import registry
@@ -190,6 +190,11 @@ class BaseTimeObj:
             self.PerformanceWarning = PerformanceWarning
         else:
             self.PerformanceWarning = None
+
+    @property
+    def fft(self):
+        '''FFT functions for the device of the object (see iteras.xp_fft())'''
+        return xp_fft(self.xp)
 
     # scipy (CPU) or cupyx (GPU) functions for the device of the object,
     # imported the first time they are used (see _scipy_helpers())

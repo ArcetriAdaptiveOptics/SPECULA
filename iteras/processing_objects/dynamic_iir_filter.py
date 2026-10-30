@@ -77,4 +77,6 @@ class DynamicIirFilter(IirFilter):
         gain_input = self.local_inputs['int_gain']
         if gain_input is not None and gain_input.generation_time == self.current_time:
             self.iir_filter_data.set_gain(gain_input.value)
+            # set_gain() replaces the coefficient arrays used by the CUDA graph
+            self.invalidate_graph()
 

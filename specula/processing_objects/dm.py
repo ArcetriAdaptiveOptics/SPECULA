@@ -11,6 +11,7 @@ from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
+from specula.lib.graph_matmul import matmul
 
 class DM(BaseProcessingObj):
     """
@@ -244,6 +245,12 @@ class DM(BaseProcessingObj):
                 'out_forces': OutputDesc(BaseValue, 'Actuator forces of the applied command (empty without stiffness)'),
                 'out_force_nmodes': OutputDesc(BaseValue, 'Number of modes kept by the force limiting')}
 
+    def can_accelerate(self):
+        # The products use graph_matmul.matmul(), which can be captured
+        if self.max_force is not None:
+            return 'force limitation'
+        return True
+
     def trigger_code(self):
         # A short input is zero-filled, the modes beyond self.nmodes are ignored
         input_commands = self.local_inputs['in_command'].value[:self.nmodes]
@@ -256,19 +263,19 @@ class DM(BaseProcessingObj):
                 self._modes[:] = limited_commands
                 self.force_nmodes.value[0] = n_keep
                 self.force_nmodes.generation_time = self.current_time
-            cmd = self._m2c_sel @ self._modes
+            cmd = matmul(self._m2c_sel, self._modes, self.xp)
         else:
             cmd = self._modes
         # Perform clipping
         if self.stroke is not None:
             cmd = self.xp.minimum(self.xp.maximum(-self.stroke, cmd), self.stroke)
 
-        self.layer.phaseInNm[self._ifunc.idx_inf_func] = (self.sign * cmd) @ self._ifunc_act
+        self.layer.phaseInNm[self._ifunc.idx_inf_func] = matmul(self.sign * cmd, self._ifunc_act, self.xp)
         self.layer.generation_time = self.current_time
         self.clip_command.value[:] = cmd
         self.clip_command.generation_time = self.current_time
         if self.stiffness is not None:
-            self.forces.value[:] = self.stiffness @ self.clip_command.value
+            self.forces.value[:] = matmul(self.stiffness, self.clip_command.value, self.xp)
             self.forces.generation_time = self.current_time
 
     def _limit_forces(self, commands):

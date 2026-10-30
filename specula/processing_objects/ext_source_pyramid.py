@@ -433,7 +433,7 @@ class ExtSourcePyramid(ModulatedPyramid):
                 u_tlt_const[None, :, :] * ttexp_batch
 
             # Batch FFT - ALWAYS same size
-            u_fp_batch = self.xp.fft.fft2(self._u_tlt_batch, axes=(-2, -1))
+            u_fp_batch = self.fft.fft2(self._u_tlt_batch, axes=(-2, -1))
 
             # Store PSF contribution - use only valid results
             psf_batch = self.xp.real(u_fp_batch * self.xp.conj(u_fp_batch))
@@ -444,7 +444,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             u_fp_pyr_batch = u_fp_batch * self.shifted_masked_exp[None, :, :]
 
             # Batch inverse FFT - ALWAYS same size (no need for separate padding)
-            pyr_ef_batch = self.xp.fft.ifft2(u_fp_pyr_batch, axes=(-2, -1), norm='forward')
+            pyr_ef_batch = self.fft.ifft2(u_fp_pyr_batch, axes=(-2, -1), norm='forward')
 
             # Store pyramid image contribution - use only valid results
             pyr_ef_norm = pyr_ef_batch * self.ifft_norm
@@ -458,12 +458,13 @@ class ExtSourcePyramid(ModulatedPyramid):
 
     def post_trigger(self):
         # Final output assignments (before parent post_trigger)
-        self.psf_bfm.value[:] = self.xp.fft.fftshift(self.fpsf)
+        self.psf_bfm.value[:] = self.fft.fftshift(self.fpsf)
         self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
         self.pup_pyr_tot[:] = self.xp.roll(self.pyr_image, self.roll_array, self.roll_axis)
         self.psf_tot.value *= self.factor
         self.psf_bfm.value *= self.factor
         trasmission_factor = 1 / (self.xp.sum(self.psf_bfm.value) + 1e-20)
         self.transmission.value[:] = self.xp.sum(self.psf_tot.value) * trasmission_factor
+        self._pupils_to_ccd()
         # Call parent post_trigger
         super().post_trigger()

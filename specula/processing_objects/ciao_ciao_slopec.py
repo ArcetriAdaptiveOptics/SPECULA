@@ -136,7 +136,7 @@ class CiaoCiaoSlopec(Slopec):
         pixels = self.local_inputs['in_pixels'].pixels
 
         # 2. Fourier Transform and shift
-        ft_intensity = self.xp.fft.fftshift(self.xp.fft.fft2(pixels, norm='ortho'))
+        ft_intensity = self.fft.fftshift(self.fft.fft2(pixels, norm='ortho'))
 
         # 3. Apply the filtering window
         ft_filtered = ft_intensity * self._window
@@ -148,7 +148,7 @@ class CiaoCiaoSlopec(Slopec):
         ft_roll = self.xp.roll(ft_filtered, (shift_y, shift_x), axis=(0, 1))
 
         # 5. Inverse FFT
-        intensity_filtered = self.xp.fft.ifft2(self.xp.fft.fftshift(ft_roll))
+        intensity_filtered = self.fft.ifft2(self.fft.fftshift(ft_roll))
 
         # 6. Phase extraction
         phase = self.xp.arctan2(intensity_filtered.imag, intensity_filtered.real)

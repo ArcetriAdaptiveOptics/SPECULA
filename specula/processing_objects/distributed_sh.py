@@ -53,11 +53,20 @@ class DistributedSH(SH):
         self.sub_sh = []
 
         for i in range(n_slices):
-            if target_device_idx >= 0:
+            # The device of this object (target_device_idx may be None: the default one)
+            if self.target_device_idx >= 0:
                 num_devices = specula.cp.cuda.runtime.getDeviceCount()
-                args['target_device_idx'] = (target_device_idx + i) % num_devices
+                args['target_device_idx'] = (self.target_device_idx + i) % num_devices
             args['subap_rows_slice'] = self.slices[i]
             self.sub_sh.append( SH(**args))
+
+    @classmethod
+    def devices_used(cls, params):
+        return int(params.get('n_slices', 1))
+
+    @classmethod
+    def single_device_params(cls, params):
+        return {**params, 'n_slices': 1}
 
     @classmethod
     def input_names(cls):

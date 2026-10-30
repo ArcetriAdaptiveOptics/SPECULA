@@ -93,6 +93,7 @@ class _InputItem():
 
         self.type = type_
         self.cloned_value = None
+        self._host_buffer = None     # receives the data of a remote input whose copy is on a GPU
         self.optional = optional
         self.remote_rank = remote_rank
         self.tag = tag
@@ -114,7 +115,16 @@ class _InputItem():
         else:            
             self.logger.mpi_send_debug(f'Recv with Buffer')
             new_value = self.cloned_value
-            buffer = cpuArray(self.cloned_value.get_value())
+            value = self.cloned_value.get_value()
+            if isinstance(value, np.ndarray):
+                buffer = value      # received in place
+            else:
+                # A host buffer kept between steps (copying the GPU value to the
+                # host just to get one would also wait for the GPU)
+                if self._host_buffer is None or self._host_buffer.shape != value.shape \
+                        or self._host_buffer.dtype != value.dtype:
+                    self._host_buffer = np.empty(value.shape, dtype=value.dtype)
+                buffer = self._host_buffer
             self.logger.mpi_send_debug(f'tag={self.tag} RECV .buffer ' + str(type(buffer)))
             self.logger.mpi_send_debug(f'tag={self.tag} RECV .buffer dtype' + str(buffer.dtype))
             iteras.process_comm.Recv(buffer, source=self.remote_rank, tag=self.tag)

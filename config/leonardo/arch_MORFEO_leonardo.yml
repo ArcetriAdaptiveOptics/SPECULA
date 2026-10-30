@@ -1,0 +1,21 @@
+# Leonardo Booster nodes, for the allocator (see docs/allocator.rst).
+# 4x NVIDIA A100 64 GB with NVLink, 32 cores, 512 GB per node, InfiniBand.
+# The GPU costs are measured on an A100 the first time this file is used on a
+# Booster node; until then (e.g. when planning elsewhere), the costs measured on
+# another GPU are divided by relative_speed.
+
+architecture:
+  class: 'Architecture'
+  nodes:
+    - name: 'booster'
+      count: 1
+      cpu: {cores: 32, memory_gb: 512}
+      gpus: {count: 4, memory_gb: 64, model: 'A100', relative_speed: 0.5}
+      links: {gpu_gpu_gb_s: 100, host_gpu_gb_s: 12, shm_gb_s: 4, shm_latency_us: 20}
+  inter_node: {bandwidth_gb_s: 10, latency_us: 5}
+  memory_source: 'declared'
+  processes: 'auto'
+  mode: 'plan'
+  allocation_file: 'allocation_MORFEO.yml'
+  profile_file: 'allocation_MORFEO_profile.json'
+  search_time: 30                # seconds of local search per process layout and number of nodes

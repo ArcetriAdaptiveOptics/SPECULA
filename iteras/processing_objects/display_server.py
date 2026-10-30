@@ -28,6 +28,18 @@ class DisplayServer(BaseProcessingObj):
     the raw data to the client, which is responsible for rendering.
     
     """
+    @classmethod
+    def runs_on_cpu_only(cls):
+        return True
+
+    @classmethod
+    def runs_on_main_process_only(cls):
+        return True
+
+    @classmethod
+    def is_schedule_barrier(cls):
+        return True
+
     def __init__(self,
                  params_dict: dict,
                  input_ref_getter: typing.Callable,
