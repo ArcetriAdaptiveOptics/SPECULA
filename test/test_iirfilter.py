@@ -1002,3 +1002,18 @@ class TestIirFilterDataLowPass(unittest.TestCase):
                 h = np.abs(data.frequency_response(data.num[0], data.den[0], fs,
                                                    freq=np.array([1e-6, fc, fs / 2])))
                 np.testing.assert_allclose(h, [1.0, 1 / np.sqrt(2), 0.0], atol=1e-9)
+
+
+class TestIirFilterDataControlTimebase(unittest.TestCase):
+
+    def test_default_is_discrete_time(self):
+        """The coefficients are in z: without dt, to_control_tf() gives a discrete-time
+        transfer function, equal to 0.5 z / (z - 1) for the integrator"""
+        data = IirFilterData.from_gain_and_ff([0.5], target_device_idx=-1)
+        if not data.has_control_support:
+            self.skipTest('control library not installed')
+        import control
+        tf = data.to_control_tf()
+        self.assertTrue(control.isdtime(tf, strict=True))
+        z = np.exp(0.3j)
+        np.testing.assert_allclose(complex(tf(z)), 0.5 * z / (z - 1), rtol=1e-12)

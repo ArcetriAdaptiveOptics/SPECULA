@@ -31,6 +31,11 @@ def _real_poly(roots, what):
     return coeffs
 
 
+def _sampling_time(dt):
+    """Sampling time of a python-control discrete system: 1 if dt is True (unspecified)"""
+    return 1.0 if dt is True else dt
+
+
 class IirFilterData(BaseDataObj):
     """
     Infinite Impulse Response (IIR) Filter Data object.
@@ -1007,12 +1012,13 @@ class IirFilterData(BaseDataObj):
         """Check if control library support is available."""
         return CONTROL_AVAILABLE
 
-    def to_control_tf(self, mode: int = 0, dt: float = None):
+    def to_control_tf(self, mode: int = 0, dt=True):
         """Convert a single filter to a control.TransferFunction object.
         
         Args:
             mode: Index of the filter to convert (default: 0)
-            dt: Sampling time for discrete-time system (default: None for continuous-time)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
 
         Returns:
             control.TransferFunction: The transfer function object
@@ -1042,11 +1048,12 @@ class IirFilterData(BaseDataObj):
 
         return control.TransferFunction(num_coeffs, den_coeffs, dt=dt)
 
-    def to_control_tf_list(self, dt: float = None):
+    def to_control_tf_list(self, dt=True):
         """Convert all filters to a list of control.TransferFunction objects.
 
         Args:
-            dt: Sampling time for discrete-time system (default: None for continuous-time)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
 
         Returns:
             list: List of control.TransferFunction objects
@@ -1112,13 +1119,14 @@ class IirFilterData(BaseDataObj):
 
         return IirFilterData(ord_num, ord_den, num, den, target_device_idx=target_device_idx)
 
-    def bode_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
+    def bode_plot(self, mode: int = 0, dt=True, omega: np.ndarray = None,
                   plot: bool = True, **kwargs):
         """Create Bode plot for a specific filter using control library.
 
         Args:
             mode: Index of the filter to plot (default: 0)
-            dt: Sampling time for discrete-time system (default: None)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
             omega: Frequency vector (default: auto-generated)
             plot: Whether to display the plot (default: True)
             **kwargs: Additional arguments passed to control.bode_plot
@@ -1138,7 +1146,7 @@ class IirFilterData(BaseDataObj):
             # Auto-generate frequency vector
             if dt is not None:
                 # Discrete-time system
-                omega = np.logspace(-3, np.log10(np.pi/dt), 1000)
+                omega = np.logspace(-3, np.log10(np.pi/_sampling_time(dt)), 1000)
             else:
                 # Continuous-time system
                 omega = np.logspace(-2, 4, 1000)
@@ -1150,13 +1158,14 @@ class IirFilterData(BaseDataObj):
         else:
             return out
 
-    def nyquist_plot(self, mode: int = 0, dt: float = None, omega: np.ndarray = None,
+    def nyquist_plot(self, mode: int = 0, dt=True, omega: np.ndarray = None,
                      plot: bool = True, **kwargs):
         """Create Nyquist plot for a specific filter using control library.
 
         Args:
             mode: Index of the filter to plot (default: 0)
-            dt: Sampling time for discrete-time system (default: None)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
             omega: Frequency vector (default: auto-generated)
             plot: Whether to display the plot (default: True)
             **kwargs: Additional arguments passed to control.nyquist_plot
@@ -1176,7 +1185,7 @@ class IirFilterData(BaseDataObj):
             # Auto-generate frequency vector
             if dt is not None:
                 # Discrete-time system
-                omega = np.logspace(-3, np.log10(np.pi/dt), 1000)
+                omega = np.logspace(-3, np.log10(np.pi/_sampling_time(dt)), 1000)
             else:
                 # Continuous-time system
                 omega = np.logspace(-2, 4, 1000)
@@ -1191,12 +1200,13 @@ class IirFilterData(BaseDataObj):
         else:
             return out
 
-    def step_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
+    def step_response(self, mode: int = 0, dt=True, T: np.ndarray = None, **kwargs):
         """Compute step response for a specific filter using control library.
 
         Args:
             mode: Index of the filter (default: 0)
-            dt: Sampling time for discrete-time system (default: None)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
             T: Time vector (default: auto-generated)
             **kwargs: Additional arguments passed to control.step_response
 
@@ -1213,7 +1223,7 @@ class IirFilterData(BaseDataObj):
         if T is None:
             if dt is not None:
                 # Discrete-time system
-                T = np.arange(0, 100) * dt
+                T = np.arange(0, 100) * _sampling_time(dt)
             else:
                 # Continuous-time system
                 T = np.linspace(0, 10, 1000)
@@ -1221,12 +1231,13 @@ class IirFilterData(BaseDataObj):
         time, response = control.step_response(tf, T=T, **kwargs)
         return time, response
 
-    def impulse_response(self, mode: int = 0, dt: float = None, T: np.ndarray = None, **kwargs):
+    def impulse_response(self, mode: int = 0, dt=True, T: np.ndarray = None, **kwargs):
         """Compute impulse response for a specific filter using control library.
 
         Args:
             mode: Index of the filter (default: 0)
-            dt: Sampling time for discrete-time system (default: None)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
             T: Time vector (default: auto-generated)
             **kwargs: Additional arguments passed to control.impulse_response
 
@@ -1243,7 +1254,7 @@ class IirFilterData(BaseDataObj):
         if T is None:
             if dt is not None:
                 # Discrete-time system
-                T = np.arange(0, 100) * dt
+                T = np.arange(0, 100) * _sampling_time(dt)
             else:
                 # Continuous-time system
                 T = np.linspace(0, 10, 1000)
@@ -1251,12 +1262,13 @@ class IirFilterData(BaseDataObj):
         time, response = control.impulse_response(tf, T=T, **kwargs)
         return time, response
 
-    def stability_margins(self, mode: int = 0, dt: float = None):
+    def stability_margins(self, mode: int = 0, dt=True):
         """Compute stability margins for a specific filter using control library.
 
         Args:
             mode: Index of the filter (default: 0)
-            dt: Sampling time for discrete-time system (default: None)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
 
         Returns:
             tuple: (gain_margin, phase_margin, wg, wp) where:
@@ -1276,12 +1288,13 @@ class IirFilterData(BaseDataObj):
         gm_db = 20 * np.log10(gm) if (gm is not None and gm > 0) else np.inf
         return gm_db, pm, wg, wp
 
-    def pole_zero_map(self, mode: int = 0, dt: float = None, plot: bool = True, **kwargs):
+    def pole_zero_map(self, mode: int = 0, dt=True, plot: bool = True, **kwargs):
         """Create pole-zero map for a specific filter using control library.
 
         Args:
             mode: Index of the filter (default: 0)
-            dt: Sampling time for discrete-time system (default: None)
+            dt: Sampling time of the discrete-time system (default: True, discrete time
+                with an unspecified sampling time; None for continuous time)
             plot: Whether to display the plot (default: True)
             **kwargs: Additional arguments passed to control.pzmap
 
