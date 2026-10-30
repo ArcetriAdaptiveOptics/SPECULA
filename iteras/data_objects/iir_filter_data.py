@@ -232,7 +232,7 @@ class IirFilterData(BaseDataObj):
         self.logger.info(f'new gain: {self.gain}')
 
     def RTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
-            title=None, plot=True, overplot=False,
+            title=None, plot=True, overplot=False, delay=None, unity_plant=False,
             **extra):
         """
         Plot Rejection Transfer Function: RTF = 1 / (1 + CP)
@@ -241,80 +241,27 @@ class IirFilterData(BaseDataObj):
             mode: Filter mode index to use for C coefficients
             fs: Sampling frequency
             freq: Frequency vector for evaluation (if None, auto-generated)
-            dm, nw, dw: Optional plant parameters to construct P
-                        The plant is represented as P = nw / (dm * dw)
+            dm, nw, dw: Plant P = nw / (dm * dw), coefficients lowest order first
             title: Title for the plot
             plot: If True, generate the plot
             overplot: If True, plot on existing figure instead of creating new one
+            delay: Plant P = discrete_delay_tf(delay), alternative to dm, nw, dw
+            unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
+                         unity_plant must be given.
             **extra: Additional plotting parameters (e.g., color)
         
         Returns:
             rtf_mag: Magnitude of the Rejection Transfer Function at specified frequencies    
         """
-        plotTitle = title if title else 'Rejection Transfer Function'
-
-        # Generate frequency vector if not provided
-        if freq is None:
-            freq = np.logspace(-1, np.log10(fs/2), 1000)
-
-        # Get controller coefficients C
-        c_num = cpuArray(self.num[mode, :])
-        c_den = cpuArray(self.den[mode, :])
-
-        # Get plant coefficients P from dm, nw, dw
-        if dm is not None and nw is not None and dw is not None:
-            nw = cpuArray(nw)
-            dm = cpuArray(dm)
-            dw = cpuArray(dw)
-            p_num = nw
-            p_den = np.convolve(dm, dw)
-        else:
-            p_num = np.array([1])  # Unity plant numerator
-            p_den = np.array([1])  # Unity plant denominator
-
-        # if p_num is shorter than p_den, pad with zeros
-        if len(p_num) < len(p_den):
-            p_num = np.pad(p_num, (0, len(p_den) - len(p_num)), mode='constant')
-
-        # Calculate CP = C * P
-        Cp_num = np.convolve(c_num, p_num)
-        Cp_den = np.convolve(c_den, p_den)
-
-        # Ensure same length by padding with zeros
-        max_len = max(len(Cp_num), len(Cp_den))
-        Cp_num = np.pad(Cp_num, (0, max_len - len(Cp_num)), mode='constant')
-        Cp_den = np.pad(Cp_den, (0, max_len - len(Cp_den)), mode='constant')
-
-        # Calculate RTF = 1 / (1 + CP) = Cp_den / (Cp_den + Cp_num)
-        rtf_num = Cp_den
-        rtf_den = Cp_den + Cp_num
-
-        self.logger.debug(f"RTF numerator: {rtf_num}")
-        self.logger.debug(f"RTF denominator: {rtf_den}")
-
-        # Calculate frequency response
-        rtf_complex = self.frequency_response(rtf_num, rtf_den, fs, freq=freq)
-        rtf_mag = np.abs(rtf_complex)
-
-        if plot:
-            import matplotlib.pyplot as plt
-            if overplot:
-                color = extra.get('color', 'blue')
-                plt.plot(freq, rtf_mag, color=color, **extra)
-            else:
-                plt.figure()
-                plt.loglog(freq, rtf_mag, label=plotTitle)
-                plt.xlabel('Frequency [Hz]')
-                plt.ylabel('Magnitude')
-                plt.title(plotTitle)
-                plt.grid(True)
-                plt.legend()
-                plt.show()
-
-        return rtf_mag
+        cp_num, cp_den = self._loop_tf(mode, delay=delay, dm=dm, nw=nw, dw=dw,
+                                       unity_plant=unity_plant)
+        # RTF = 1 / (1 + CP) = Cp_den / (Cp_den + Cp_num)
+        return self._closed_loop_plot(cp_den, cp_den + cp_num, fs, freq, plot, overplot,
+                                      title if title else 'Rejection Transfer Function',
+                                      'blue', **extra)
 
     def NTF(self, mode, fs, freq=None, dm=None, nw=None, dw=None,
-            title=None, plot=True, overplot=False,
+            title=None, plot=True, overplot=False, delay=None, unity_plant=False,
             **extra):
         """
         Plot Noise Transfer Function: NTF = CP / (1 + CP)
@@ -323,77 +270,85 @@ class IirFilterData(BaseDataObj):
             mode: Filter mode index to use for C coefficients
             fs: Sampling frequency
             freq: Frequency vector for evaluation (if None, auto-generated)
-            dm, nw, dw: Optional plant parameters to construct P
-                        The plant is represented as P = nw / (dm * dw)
+            dm, nw, dw: Plant P = nw / (dm * dw), coefficients lowest order first
             title: Title for the plot
             plot: If True, generate the plot
             overplot: If True, plot on existing figure instead of creating new one
+            delay: Plant P = discrete_delay_tf(delay), alternative to dm, nw, dw
+            unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
+                         unity_plant must be given.
             **extra: Additional plotting parameters (e.g., color)
             
         Returns:
             ntf_mag: Magnitude of the Noise Transfer Function at specified frequencies    
         """
-        plotTitle = title if title else 'Noise Transfer Function'
+        cp_num, cp_den = self._loop_tf(mode, delay=delay, dm=dm, nw=nw, dw=dw,
+                                       unity_plant=unity_plant)
+        # NTF = CP / (1 + CP) = Cp_num / (Cp_den + Cp_num)
+        return self._closed_loop_plot(cp_num, cp_den + cp_num, fs, freq, plot, overplot,
+                                      title if title else 'Noise Transfer Function',
+                                      'red', **extra)
 
-        # Generate frequency vector if not provided
+    def _closed_loop_plot(self, num, den, fs, freq, plot, overplot, title, color, **extra):
+        """Magnitude of num / den on the unit circle, optionally plotted (for RTF() and NTF())"""
         if freq is None:
             freq = np.logspace(-1, np.log10(fs/2), 1000)
-
-        # Get controller coefficients C
-        c_num = cpuArray(self.num[mode, :])
-        c_den = cpuArray(self.den[mode, :])
-
-        # Get plant coefficients P from dm, nw, dw
-        if dm is not None and nw is not None and dw is not None:
-            nw = cpuArray(nw)
-            dm = cpuArray(dm)
-            dw = cpuArray(dw)
-            p_num = nw
-            p_den = np.convolve(dm, dw)
-        else:
-            p_num = np.array([1])  # Unity plant numerator
-            p_den = np.array([1])  # Unity plant denominator
-
-        # if p_num is shorter than p_den, pad with zeros
-        if len(p_num) < len(p_den):
-            p_num = np.pad(p_num, (0, len(p_den) - len(p_num)), mode='constant')
-
-        # Calculate CP = C * P
-        Cp_num = np.convolve(c_num, p_num)
-        Cp_den = np.convolve(c_den, p_den)
-
-        # Ensure same length by padding with zeros
-        max_len = max(len(Cp_num), len(Cp_den))
-        Cp_num = np.pad(Cp_num, (0, max_len - len(Cp_num)), mode='constant')
-        Cp_den = np.pad(Cp_den, (0, max_len - len(Cp_den)), mode='constant')
-
-        # Calculate NTF = CP / (1 + CP) = Cp_num / (Cp_den + Cp_num)
-        ntf_num = Cp_num
-        ntf_den = Cp_den + Cp_num
-
-        self.logger.debug(f"NTF numerator: {ntf_num}")
-        self.logger.debug(f"NTF denominator: {ntf_den}")
-
-        # Calculate frequency response
-        ntf_complex = self.frequency_response(ntf_num, ntf_den, fs, freq=freq)
-        ntf_mag = np.abs(ntf_complex)
+        self.logger.debug(f"{title} numerator: {num}")
+        self.logger.debug(f"{title} denominator: {den}")
+        mag = np.abs(self.frequency_response(num, den, fs, freq=freq))
 
         if plot:
             import matplotlib.pyplot as plt
             if overplot:
-                color = extra.get('color', 'red')
-                plt.plot(freq, ntf_mag, color=color, **extra)
+                plt.plot(freq, mag, color=extra.pop('color', color), **extra)
             else:
                 plt.figure()
-                plt.loglog(freq, ntf_mag, label=plotTitle)
+                plt.loglog(freq, mag, label=title)
                 plt.xlabel('Frequency [Hz]')
                 plt.ylabel('Magnitude')
-                plt.title(plotTitle)
+                plt.title(title)
                 plt.grid(True)
                 plt.legend()
                 plt.show()
+        return mag
 
-        return ntf_mag
+    def _plant(self, delay=None, dm=None, nw=None, dw=None, unity_plant=False):
+        """
+        Numerator and denominator of the plant P, lowest order first, with the
+        numerator padded to the length of the denominator. The plant must be
+        chosen explicitly, with exactly one of: delay (P = discrete_delay_tf(delay)),
+        dm, nw and dw (P = nw / (dm * dw)), or unity_plant=True (P = 1).
+        """
+        has_coeffs = any(x is not None for x in (dm, nw, dw))
+        if has_coeffs and any(x is None for x in (dm, nw, dw)):
+            raise ValueError('The plant coefficients dm, nw and dw must be given together')
+        if sum([delay is not None, has_coeffs, bool(unity_plant)]) != 1:
+            raise ValueError('Choose the plant explicitly with exactly one of: delay=<frames>, '
+                             'dm/nw/dw=<coefficients>, or unity_plant=True (P = 1)')
+        if delay is not None:
+            p_num, p_den = self.discrete_delay_tf(delay)
+        elif has_coeffs:
+            p_num = np.atleast_1d(cpuArray(nw))
+            p_den = np.convolve(np.atleast_1d(cpuArray(dm)), np.atleast_1d(cpuArray(dw)))
+        else:
+            p_num, p_den = np.array([1.0]), np.array([1.0])
+        if len(p_num) < len(p_den):
+            p_num = np.pad(p_num, (0, len(p_den) - len(p_num)), mode='constant')
+        return p_num, p_den
+
+    def _loop_tf(self, mode, gain_factor=1.0, **plant):
+        """
+        Numerator and denominator of the open loop C P of filter *mode*, lowest
+        order first and of the same length, with the controller multiplied by
+        *gain_factor*. *plant*: the arguments of _plant().
+        """
+        p_num, p_den = self._plant(**plant)
+        cp_num = np.convolve(cpuArray(self.num[mode, :]) * gain_factor, p_num)
+        cp_den = np.convolve(cpuArray(self.den[mode, :]), p_den)
+        max_len = max(len(cp_num), len(cp_den))
+        cp_num = np.pad(cp_num, (0, max_len - len(cp_num)), mode='constant')
+        cp_den = np.pad(cp_den, (0, max_len - len(cp_den)), mode='constant')
+        return cp_num, cp_den
 
     def frequency_response(self, num, den, fs, freq=None):
         """Compute complex frequency response of IIR filter.
@@ -461,30 +416,22 @@ class IirFilterData(BaseDataObj):
 
         return closed_loop_den
 
-    def is_stable(self, mode, dm=None, nw=None, dw=None):
+    def is_stable(self, mode, dm=None, nw=None, dw=None, delay=None, unity_plant=False):
         """Check stability by analyzing poles of the closed-loop system.
         
         Args:
             mode: Filter mode index
-            dm, nw, dw: Plant coefficients (optional)
+            dm, nw, dw: Plant P = nw / (dm * dw), coefficients lowest order first
+            delay: Plant P = discrete_delay_tf(delay), alternative to dm, nw, dw
+            unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
+                         unity_plant must be given.
             
         Returns:
             bool: True if stable, False otherwise
         """
-
-        # Get controller coefficients C
-        c_num = cpuArray(self.num[mode, :])
-        c_den = cpuArray(self.den[mode, :])
-
-        # Get plant coefficients P from dm, nw, dw
-        if dm is not None and nw is not None and dw is not None:
-            p_num = cpuArray(nw)
-            p_den = cpuArray(np.convolve(cpuArray(dm), cpuArray(dw)))
-        else:
-            p_num = np.array([1])  # Unity plant numerator
-            p_den = np.array([1])  # Unity plant denominator
-
-        closed_loop_den = self.closed_loop_denominator(c_num, c_den, p_num, p_den)
+        cp_num, cp_den = self._loop_tf(mode, delay=delay, dm=dm, nw=nw, dw=dw,
+                                       unity_plant=unity_plant)
+        closed_loop_den = cp_den + cp_num
 
         self.logger.debug(f"Closed-loop denominator: {closed_loop_den}")
 
@@ -512,32 +459,14 @@ class IirFilterData(BaseDataObj):
             return False
 
     @lru_cache(maxsize=16384)
-    def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, delay=None,
-                                          dm_tuple=None, nw_tuple=None, dw_tuple=None,
+    def _compute_max_stable_gain_internal(self, num_tuple, den_tuple, p_num_tuple, p_den_tuple,
                                           max_gain=20.0, n_gain=10000, tolerance=1e-6):
         """Internal computation of maximum stable gain."""
 
         num_coeffs = np.array(num_tuple)
         den_coeffs = np.array(den_tuple)
-        dm = np.array(dm_tuple) if dm_tuple is not None else None
-        nw = np.array(nw_tuple) if nw_tuple is not None else None
-        dw = np.array(dw_tuple) if dw_tuple is not None else None
-
-        # Create plant transfer function
-        if delay is not None:
-            # Use discrete delay transfer function
-            p_num, p_den = self.discrete_delay_tf(delay)
-        elif dm is not None and nw is not None and dw is not None:
-            p_num = cpuArray(nw)
-            p_den = cpuArray(np.convolve(cpuArray(dm), cpuArray(dw)))
-        else:
-            # Unity plant
-            p_num = np.array([1])
-            p_den = np.array([1])
-
-        # Pad p_num if shorter than p_den
-        if len(p_num) < len(p_den):
-            p_num = np.pad(p_num, (0, len(p_den) - len(p_num)), mode='constant')
+        p_num = np.array(p_num_tuple)
+        p_den = np.array(p_den_tuple)
 
         # Test range of gains
         gains = np.linspace(tolerance, max_gain, n_gain)
@@ -567,7 +496,7 @@ class IirFilterData(BaseDataObj):
         return max_stable
 
     def max_stable_gain(self, mode=None, delay=None, dm=None, nw=None, dw=None, 
-                              max_gain=20.0, n_gain=10000, tolerance=1e-6):
+                              max_gain=20.0, n_gain=10000, tolerance=1e-6, unity_plant=False):
         """Calculate maximum stable gain for closed-loop system.
         
         This function finds the maximum controller gain that maintains stability
@@ -575,11 +504,13 @@ class IirFilterData(BaseDataObj):
         
         Args:
             mode: Filter mode index. If None, calculates for all modes
-            delay: Delay in frames (alternative to dm/nw/dw)
-            dm, nw, dw: Plant coefficients (alternative to delay)
+            delay: Plant P = discrete_delay_tf(delay), delay in frames
+            dm, nw, dw: Plant P = nw / (dm * dw), alternative to delay
             max_gain: Maximum gain to test (default: 20.0)
             n_gain: Number of gain values to test (default: 10000)
             tolerance: Minimum gain to test (default: 1e-6)
+            unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
+                         unity_plant must be given.
             
         Returns:
             float or array: Maximum stable gain(s)
@@ -594,60 +525,32 @@ class IirFilterData(BaseDataObj):
             # All modes with delay (useful for integrator-based controllers)
             max_gains = filter_data.max_stable_gain(delay=1.0)
         """
+        p_num, p_den = self._plant(delay=delay, dm=dm, nw=nw, dw=dw, unity_plant=unity_plant)
+        p_num_tuple, p_den_tuple = tuple(p_num), tuple(p_den)
 
-        if mode is not None:
-            # Single mode calculation
-            if mode >= self.nfilter:
-                raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
-
-            num_coeffs = cpuArray(self.num[mode, :])
-            den_coeffs = cpuArray(self.den[mode, :])
-
-            # Create hashable tuples for caching
-            num_tuple = tuple(num_coeffs)
-            den_tuple = tuple(den_coeffs)
-            dm_tuple = tuple(cpuArray(dm)) if dm is not None else None
-            nw_tuple = tuple(cpuArray(nw)) if nw is not None else None
-            dw_tuple = tuple(cpuArray(dw)) if dw is not None else None
-
-            return self._compute_max_stable_gain_internal(
-                num_tuple, den_tuple, delay=delay, dm_tuple=dm_tuple, nw_tuple=nw_tuple, dw_tuple=dw_tuple,
-                max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
-            )
-        else:
-            # All modes calculation
-            max_gains = np.zeros(self.nfilter)
-
-            # Calculate for each mode separately
-            for i in range(self.nfilter):
-                num_coeffs = cpuArray(self.num[i, :])
-                den_coeffs = cpuArray(self.den[i, :])
-
-                num_tuple = tuple(num_coeffs)
-                den_tuple = tuple(den_coeffs)
-                dm_tuple = tuple(cpuArray(dm)) if dm is not None else None
-                nw_tuple = tuple(cpuArray(nw)) if nw is not None else None
-                dw_tuple = tuple(cpuArray(dw)) if dw is not None else None
-
-                max_gains[i] = self._compute_max_stable_gain_internal(
-                    num_tuple, den_tuple, delay=delay, dm_tuple=dm_tuple,
-                    nw_tuple=nw_tuple, dw_tuple=dw_tuple,
-                    max_gain=max_gain, n_gain=n_gain, tolerance=tolerance
-                )
-
-            return max_gains
+        if mode is not None and mode >= self.nfilter:
+            raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
+        modes = [mode] if mode is not None else range(self.nfilter)
+        max_gains = np.zeros(len(modes))
+        for k, i in enumerate(modes):
+            max_gains[k] = self._compute_max_stable_gain_internal(
+                tuple(cpuArray(self.num[i, :])), tuple(cpuArray(self.den[i, :])),
+                p_num_tuple, p_den_tuple, max_gain=max_gain, n_gain=n_gain, tolerance=tolerance)
+        return max_gains[0] if mode is not None else max_gains
 
     def resonance_frequency(self, mode, gain_factor=1.0, delay=None, dm=None, nw=None, dw=None,
-                                  fs=1000.0, freq=None):
+                                  fs=1000.0, freq=None, unity_plant=False):
         """Calculate resonance frequency of closed-loop system.
         
         Args:
             mode: Filter mode index
             gain_factor: Factor to multiply the filter gain (default: 1.0)
-            delay: Delay in frames (alternative to dm/nw/dw)
-            dm, nw, dw: Plant coefficients (alternative to delay)
+            delay: Plant P = discrete_delay_tf(delay), delay in frames
+            dm, nw, dw: Plant P = nw / (dm * dw), alternative to delay
             fs: Sampling frequency in Hz (default: 1000.0)
             freq: Frequency vector for analysis (default: auto-generated)
+            unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
+                         unity_plant must be given.
             
         Returns:
             tuple: (resonance_frequency, resonance_amplitude)
@@ -660,35 +563,11 @@ class IirFilterData(BaseDataObj):
         if freq is None:
             freq = np.logspace(-1, np.log10(fs/2), 1000)
 
-        # Get controller coefficients C with gain factor
-        c_num = cpuArray(self.num[mode, :]) * gain_factor
-        c_den = cpuArray(self.den[mode, :])
-
-        # Create plant transfer function
-        if delay is not None:
-            p_num, p_den = self.discrete_delay_tf(delay)
-        elif dm is not None and nw is not None and dw is not None:
-            p_num = cpuArray(nw)
-            p_den = cpuArray(np.convolve(cpuArray(dm), cpuArray(dw)))
-        else:
-            p_num = np.array([1])
-            p_den = np.array([1])
-
-        # Pad p_num if shorter than p_den
-        if len(p_num) < len(p_den):
-            p_num = np.pad(p_num, (0, len(p_den) - len(p_num)), mode='constant')
-
-        # Calculate CP = C * P
-        Cp_num = np.convolve(c_num, p_num)
-        Cp_den = np.convolve(c_den, p_den)
-
-        # Ensure same length by padding with zeros
-        max_len = max(len(Cp_num), len(Cp_den))
-        Cp_num = np.pad(Cp_num, (0, max_len - len(Cp_num)), mode='constant')
-        Cp_den = np.pad(Cp_den, (0, max_len - len(Cp_den)), mode='constant')
+        cp_num, cp_den = self._loop_tf(mode, gain_factor=gain_factor, delay=delay,
+                                       dm=dm, nw=nw, dw=dw, unity_plant=unity_plant)
 
         # Calculate closed-loop transfer function denominator
-        closed_loop_den = Cp_den + Cp_num
+        closed_loop_den = cp_den + cp_num
 
         # Calculate frequency response of denominator
         x = freq / (fs/2) * self.dtype(np.pi)
@@ -708,71 +587,42 @@ class IirFilterData(BaseDataObj):
         return resonance_freq, resonance_amplitude
 
     def stability_analysis(self, mode=None, delay=None, dm=None, nw=None, dw=None,
-                                 fs=1000.0, max_gain=20.0, n_gain=10000):
+                                 fs=1000.0, max_gain=20.0, n_gain=10000, unity_plant=False):
         """Comprehensive stability analysis for controller(s).
         
         Args:
             mode: Filter mode index. If None, analyzes all modes
-            delay: Delay in frames (alternative to dm/nw/dw)
-            dm, nw, dw: Plant coefficients (alternative to delay)
+            delay: Plant P = discrete_delay_tf(delay), delay in frames
+            dm, nw, dw: Plant P = nw / (dm * dw), alternative to delay
             fs: Sampling frequency in Hz (default: 1000.0)
             max_gain: Maximum gain to test (default: 20.0)
             n_gain: Number of gain values to test (default: 10000)
+            unity_plant: If True, P = 1. Exactly one of delay, (dm, nw, dw) and
+                         unity_plant must be given.
             
         Returns:
             dict: Analysis results containing max_stable_gain, resonance_freq, etc.
         """
-
-        if mode is not None:
-            # Single mode analysis
-            max_stable = self.max_stable_gain(
-                mode=mode, delay=delay, dm=dm, nw=nw, dw=dw,
-                max_gain=max_gain, n_gain=n_gain
-            )
-
+        plant = dict(delay=delay, dm=dm, nw=nw, dw=dw, unity_plant=unity_plant)
+        modes = [mode] if mode is not None else range(self.nfilter)
+        max_stable_gains = np.atleast_1d(self.max_stable_gain(mode=mode, max_gain=max_gain,
+                                                              n_gain=n_gain, **plant))
+        results = []
+        for k, i in enumerate(modes):
             # Calculate resonance frequency at 99% of max stable gain
-            if max_stable > 0:
+            if max_stable_gains[k] > 0:
                 resonance_freq, resonance_amp = self.resonance_frequency(
-                    mode=mode, gain_factor=max_stable * 0.99,
-                    delay=delay, dm=dm, nw=nw, dw=dw, fs=fs
-                )
+                    mode=i, gain_factor=max_stable_gains[k] * 0.99, fs=fs, **plant)
             else:
                 resonance_freq, resonance_amp = 0.0, 0.0
-
-            return {
-                'mode': mode,
-                'max_stable_gain': max_stable,
+            results.append({
+                'mode': i,
+                'max_stable_gain': max_stable_gains[k],
                 'resonance_frequency': resonance_freq,
                 'resonance_amplitude': resonance_amp,
-                'is_stable_at_max': max_stable > 0
-            }
-        else:
-            # All modes analysis
-            max_stable_gains = self.max_stable_gain(
-                delay=delay, dm=dm, nw=nw, dw=dw,
-                max_gain=max_gain, n_gain=n_gain
-            )
-
-            results = []
-            for i in range(self.nfilter):
-                # Calculate resonance frequency at 99% of max stable gain
-                if max_stable_gains[i] > 0:
-                    resonance_freq, resonance_amp = self.resonance_frequency(
-                        mode=i, gain_factor=max_stable_gains[i] * 0.99,
-                        delay=delay, dm=dm, nw=nw, dw=dw, fs=fs
-                    )
-                else:
-                    resonance_freq, resonance_amp = 0.0, 0.0
-
-                results.append({
-                    'mode': i,
-                    'max_stable_gain': max_stable_gains[i],
-                    'resonance_frequency': resonance_freq,
-                    'resonance_amplitude': resonance_amp,
-                    'is_stable_at_max': max_stable_gains[i] > 0
-                })
-
-            return results
+                'is_stable_at_max': max_stable_gains[k] > 0
+            })
+        return results[0] if mode is not None else results
 
     def save(self, filename):
         hdr = fits.Header()
@@ -1265,13 +1115,18 @@ class IirFilterData(BaseDataObj):
         time, response = control.impulse_response(tf, T=T, **kwargs)
         return time, response
 
-    def stability_margins(self, mode: int = 0, dt=True):
-        """Compute stability margins for a specific filter using control library.
+    def stability_margins(self, mode: int = 0, dt=True, delay=None, dm=None, nw=None, dw=None,
+                          unity_plant=False):
+        """Compute the stability margins of the open loop C P, using the control library.
 
         Args:
             mode: Index of the filter (default: 0)
             dt: Sampling time of the discrete-time system (default: True, discrete time
                 with an unspecified sampling time; None for continuous time)
+            delay: Plant P = discrete_delay_tf(delay), delay in frames
+            dm, nw, dw: Plant P = nw / (dm * dw), alternative to delay
+            unity_plant: If True, P = 1 (margins of the filter alone). Exactly one of
+                         delay, (dm, nw, dw) and unity_plant must be given.
 
         Returns:
             tuple: (gain_margin, phase_margin, wg, wp) where:
@@ -1285,7 +1140,13 @@ class IirFilterData(BaseDataObj):
         """
         self._check_control_available()
 
-        tf = self.to_control_tf(mode=mode, dt=dt)
+        if mode >= self.nfilter:
+            raise ValueError(f"Mode {mode} exceeds number of filters {self.nfilter}")
+        cp_num, cp_den = self._loop_tf(mode, delay=delay, dm=dm, nw=nw, dw=dw,
+                                       unity_plant=unity_plant)
+        # python-control wants the coefficients highest order first
+        tf = control.TransferFunction(np.trim_zeros(cp_num[::-1], 'f'),
+                                      np.trim_zeros(cp_den[::-1], 'f'), dt=dt)
         gm, pm, wg, wp = control.margin(tf)
 
         gm_db = 20 * np.log10(gm) if (gm is not None and gm > 0) else np.inf

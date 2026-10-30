@@ -530,7 +530,7 @@ class TestIirFilterData(unittest.TestCase):
         gains = [0.1]
         ff = [0.5]  # Well inside unit circle
         filter_data = IirFilterData.from_gain_and_ff(gains, ff, target_device_idx=target_device_idx)
-        gm, pm, wg, wp = filter_data.stability_margins(0, dt=1.0)  # Add dt parameter
+        gm, pm, wg, wp = filter_data.stability_margins(0, dt=1.0, unity_plant=True)
 
         # For a stable system, margins should be finite and positive
         self.assertTrue(gm > 0 or np.isinf(gm))  # Gain margin can be infinite
@@ -1017,3 +1017,48 @@ class TestIirFilterDataControlTimebase(unittest.TestCase):
         self.assertTrue(control.isdtime(tf, strict=True))
         z = np.exp(0.3j)
         np.testing.assert_allclose(complex(tf(z)), 0.5 * z / (z - 1), rtol=1e-12)
+
+
+class TestIirFilterDataExplicitPlant(unittest.TestCase):
+
+    def setUp(self):
+        self.data = IirFilterData.from_gain_and_ff([0.5], target_device_idx=-1)
+
+    def test_plant_must_be_chosen(self):
+        """Without a plant, or with more than one, the analysis methods raise ValueError"""
+        calls = [lambda **p: self.data.RTF(0, 1000.0, plot=False, **p),
+                 lambda **p: self.data.NTF(0, 1000.0, plot=False, **p),
+                 lambda **p: self.data.is_stable(0, **p),
+                 lambda **p: self.data.max_stable_gain(mode=0, n_gain=10, **p),
+                 lambda **p: self.data.resonance_frequency(0, **p),
+                 lambda **p: self.data.stability_analysis(mode=0, n_gain=10, **p)]
+        for call in calls:
+            with self.assertRaisesRegex(ValueError, 'explicitly'):
+                call()
+            with self.assertRaisesRegex(ValueError, 'explicitly'):
+                call(delay=1, unity_plant=True)
+            with self.assertRaisesRegex(ValueError, 'together'):
+                call(dm=[1.0], nw=[1.0])
+
+    def test_unity_plant_equals_explicit_unity_coefficients(self):
+        """unity_plant=True is the same as P = 1 / (1 * 1)"""
+        freq = np.array([10.0, 100.0, 300.0])
+        a = self.data.RTF(0, 1000.0, freq=freq, plot=False, unity_plant=True)
+        b = self.data.RTF(0, 1000.0, freq=freq, plot=False, dm=[1.0], nw=[1.0], dw=[1.0])
+        np.testing.assert_allclose(a, b, rtol=1e-12)
+
+    def test_rtf_of_integrator_with_one_frame_delay(self):
+        """C = 0.5 z / (z - 1), P = 1/z: RTF = 1 / (1 + 0.5 / (z - 1)) = (z - 1) / (z - 0.5)"""
+        fs, f = 1000.0, np.array([50.0, 200.0])
+        z = np.exp(2j * np.pi * f / fs)
+        rtf = self.data.RTF(0, fs, freq=f, plot=False, delay=1)
+        np.testing.assert_allclose(rtf, np.abs((z - 1) / (z - 0.5)), rtol=1e-12)
+
+    def test_stability_margins_of_the_loop(self):
+        """Integrator 0.5 z / (z - 1) with P = 1/z^2: the loop L = 0.5 / (z (z - 1)) is at the
+        stability limit for a gain of 1 (z^2 - z + g = 0 has |z| = 1 for g = 1), so the gain
+        margin is 1 / 0.5 = 2 (6.02 dB)"""
+        if not self.data.has_control_support:
+            self.skipTest('control library not installed')
+        gm_db, pm, wg, wp = self.data.stability_margins(0, delay=2)
+        np.testing.assert_allclose(gm_db, 20 * np.log10(2.0), atol=1e-6)

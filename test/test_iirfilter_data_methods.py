@@ -108,8 +108,8 @@ class TestIirFilterDataAnalysis(unittest.TestCase):
             with self.subTest(method=method.__name__):
                 mag = method(0, 1000.0, freq=freq, dm=self.dm, nw=self.nw, dw=self.dw, plot=False)
                 self.assertEqual(mag.shape, (3,))
-                self.assertEqual(method(0, 1000.0, plot=True).shape, (1000,))
-                method(0, 1000.0, freq=freq, plot=True, overplot=True)
+                self.assertEqual(method(0, 1000.0, plot=True, unity_plant=True).shape, (1000,))
+                method(0, 1000.0, freq=freq, plot=True, overplot=True, unity_plant=True)
 
     def test_frequency_response_edge_cases(self):
         # Leading zeros are removed, and empty coefficients become constants
@@ -122,9 +122,9 @@ class TestIirFilterDataAnalysis(unittest.TestCase):
         self.assertTrue(self.f.is_stable(0, dm=self.dm, nw=self.nw, dw=self.dw))
         # Constant closed-loop denominator
         static = IirFilterData([1], [1], [[1.0]], [[1.0]], target_device_idx=-1)
-        self.assertFalse(static.is_stable(0))
+        self.assertFalse(static.is_stable(0, unity_plant=True))
         with self.assertRaises(IndexError):
-            self.f.is_stable(5)
+            self.f.is_stable(5, unity_plant=True)
 
     def test_max_stable_gain_and_resonance(self):
         g = self.f.max_stable_gain(mode=0, dm=self.dm, nw=self.nw, dw=self.dw, n_gain=200)
@@ -132,10 +132,10 @@ class TestIirFilterDataAnalysis(unittest.TestCase):
         gains = self.f.max_stable_gain(dm=self.dm, nw=self.nw, dw=self.dw, n_gain=200)
         self.assertEqual(gains.shape, (2,))
         static = IirFilterData([1], [1], [[1.0]], [[1.0]], target_device_idx=-1)
-        self.assertEqual(static.max_stable_gain(mode=0, n_gain=10), 0.0)
+        self.assertEqual(static.max_stable_gain(mode=0, n_gain=10, unity_plant=True), 0.0)
         freq, amp = self.f.resonance_frequency(0, gain_factor=0.5, dm=self.dm, nw=self.nw, dw=self.dw)
         self.assertGreater(amp, 0)
-        self.f.resonance_frequency(0)
+        self.f.resonance_frequency(0, unity_plant=True)
         with self.assertRaisesRegex(ValueError, 'exceeds'):
             self.f.resonance_frequency(5)
 
@@ -146,8 +146,8 @@ class TestIirFilterDataAnalysis(unittest.TestCase):
         self.assertEqual(len(results), 2)
         # No stable gain: no resonance
         static = IirFilterData([1], [1], [[1.0]], [[1.0]], target_device_idx=-1)
-        self.assertEqual(static.stability_analysis(mode=0, n_gain=10)['resonance_frequency'], 0.0)
-        self.assertEqual(static.stability_analysis(n_gain=10)[0]['resonance_frequency'], 0.0)
+        self.assertEqual(static.stability_analysis(mode=0, n_gain=10, unity_plant=True)['resonance_frequency'], 0.0)
+        self.assertEqual(static.stability_analysis(n_gain=10, unity_plant=True)[0]['resonance_frequency'], 0.0)
 
 
 @unittest.skipUnless(CONTROL_AVAILABLE, 'The control package is not installed')
@@ -173,7 +173,7 @@ class TestIirFilterDataControl(unittest.TestCase):
                 self.assertEqual(len(t), len(np.atleast_1d(y).ravel()) if np.ndim(y) == 1 else len(t))
                 t, y = self.f.impulse_response(dt=dt)
                 self.assertGreater(len(t), 0)
-        self.assertEqual(len(self.f.stability_margins(dt=0.001)), 4)
+        self.assertEqual(len(self.f.stability_margins(dt=0.001, unity_plant=True)), 4)
         poles, zeros = self.f.pole_zero_map(dt=0.001, plot=False)
         self.assertEqual(len(poles), 1)
 
