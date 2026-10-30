@@ -412,7 +412,8 @@ class IirFilterData(BaseDataObj):
         num_cpu = cpuArray(num)
         den_cpu = cpuArray(den)
 
-        # Remove initial zeros (coefficients are stored highest order first)
+        # Remove the zero lowest order coefficients common to num and den (a common factor
+        # z^k, which does not change the transfer function). Lowest order first.
         while len(num_cpu) > 1 and num_cpu[0] == 0 and len(den_cpu) > 1 and den_cpu[0] == 0:
             num_cpu = num_cpu[1:]
             den_cpu = den_cpu[1:]
@@ -933,11 +934,11 @@ class IirFilterData(BaseDataObj):
                     num_total = np.convolve(num_total, num_k)
                     den_total = np.convolve(den_total, den_k)
 
-            # Assicurati che i coefficienti si adattino all'array pre-allocato
+            # The coefficients must fit in the preallocated array
             if len(num_total) > n_coeff:
                 raise ValueError(f"Filter coefficients longer than expected: {len(num_total)} > {n_coeff}")
 
-            # Pad with zeros at the beginning (highest order terms first)
+            # Right-aligned, i.e. zeros on the lowest order side, as IirFilter expects
             num[i, n_coeff - len(num_total):] = num_total
             den[i, n_coeff - len(den_total):] = den_total
             ord_num[i] = len(num_total)
@@ -1035,7 +1036,8 @@ class IirFilterData(BaseDataObj):
         num_coeffs = cpuArray(self.num[mode, ::-1])
         den_coeffs = cpuArray(self.den[mode, ::-1])
 
-        # Remove final zeros (highest order first because of reversed order)
+        # Remove the zero lowest order coefficients common to num and den (at the end,
+        # since the arrays are now highest order first): a common factor z^k
         while len(num_coeffs) > 1 and num_coeffs[-1] == 0 and len(den_coeffs) > 1 and den_coeffs[-1] == 0:
             num_coeffs = num_coeffs[:-1]
             den_coeffs = den_coeffs[:-1]
@@ -1113,7 +1115,8 @@ class IirFilterData(BaseDataObj):
             ord_num[i] = len(num_coeffs)
             ord_den[i] = len(den_coeffs)
 
-            # Pad with zeros at the beginning (highest order terms first)
+            # python-control is highest order first: reverse, and right-align (zeros on
+            # the lowest order side), as IirFilter expects
             num[i, max_len - len(num_coeffs):] = num_coeffs[::-1]
             den[i, max_len - len(den_coeffs):] = den_coeffs[::-1]
 
