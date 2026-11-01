@@ -10,7 +10,7 @@ from specula.connections import InputValue, InputList
 from specula.loop_control import LoopControl
 from iteras.processing_objects.wave_generator import WaveGenerator
 from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
-from iteras.accelerator import Accelerator
+from iteras.accelerator import Accelerator, AcceleratorError
 
 
 class Doubler(BaseProcessingObj):
@@ -212,18 +212,18 @@ class TestAccelerator(unittest.TestCase):
         self.assertTrue(self.status(accelerator, 'Counter').startswith('can_accelerate()'))
         self.assertEqual(cnt.count, 12)
 
-    def test_reallocated_array_stops_acceleration(self):
-        with self.assertLogs('iteras.accelerator', level='WARNING') as logs:
-            (_, dbl, _), accelerator = self.check_same(realloc=True)
-        self.assertIsNone(dbl._accel)
-        self.assertIn('array buf reallocated', self.status(accelerator, 'Doubler'))
-        self.assertIn('not accelerated anymore', logs.output[0])
+    def test_reallocated_array_is_an_error(self):
+        # Without accelerator, the object works
+        self.run_chain(False, realloc=True)
+        with self.assertRaisesRegex(AcceleratorError, r'Doubler \(Doubler\) declares.*array buf was '
+                                                      r'reallocated.*exclude'):
+            self.run_chain(True, realloc=True)
 
-    def test_failed_capture_stops_acceleration(self):
-        with self.assertLogs('iteras.accelerator', level='WARNING'):
-            (_, dbl, _), accelerator = self.check_same(cublas=True)
-        self.assertIsNone(dbl._accel)
-        self.assertIn('capture failed', self.status(accelerator, 'Doubler'))
+    def test_failed_capture_is_an_error(self):
+        self.run_chain(False, cublas=True)
+        with self.assertRaisesRegex(AcceleratorError, r'Doubler \(Doubler\) declares.*capture.*failed.*'
+                                                      r'cuBLAS'):
+            self.run_chain(True, cublas=True)
 
     def test_can_accelerate_false(self):
         (_, dbl, _), accelerator = self.check_same(capturable=False)

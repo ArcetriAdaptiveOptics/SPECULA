@@ -4,6 +4,8 @@ from specula.loop_control import LoopControl
 
 import unittest
 
+import numpy as np
+
 from specula.processing_objects.ccd import CCD
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.simul_params import SimulParams
@@ -11,6 +13,48 @@ from specula.data_objects.simul_params import SimulParams
 from test.specula_testlib import cpu_and_gpu
 
 class TestCCD(unittest.TestCase):
+
+    def _accelerated_run(self, accelerate, steps=6, **noise):
+        '''CCD reading out at each step a changing intensity; return its frames and the CCD'''
+        from iteras.accelerator import Accelerator
+        from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
+        xp = specula.cp
+        simul_params = SimulParams(time_step=0.001)
+        ccd = CCD(simul_params, size=(16, 16), dt=0.001, bandw=300, target_device_idx=0, **noise)
+        i = Intensity(dimx=16, dimy=16, target_device_idx=0)
+        ccd.inputs['in_i'].set(i)
+        if accelerate:
+            Accelerator(AcceleratorOptions()).apply([ccd])
+        ccd.setup()
+        frames = []
+        for step in range(steps):
+            t = ccd.seconds_to_t(0.001 * step)
+            i.i[:] = xp.arange(256, dtype=xp.float32).reshape(16, 16) * (1 + step)
+            i.generation_time = t
+            ccd.check_ready(t)
+            ccd.trigger()
+            ccd.post_trigger()
+            frames.append(specula.cpuArray(ccd._pixels.pixels).copy())
+        return frames, ccd
+
+    @unittest.skipIf(specula.cp is None, 'Cupy not found')
+    def test_accelerated_with_readout_noise(self):
+        # The readout noise comes from a generator whose state is on the GPU: the
+        # accelerated CCD gives the same frames, with new noise at each step
+        ref, _ = self._accelerated_run(False, readout_noise=True, readout_level=5.0)
+        out, ccd = self._accelerated_run(True, readout_noise=True, readout_level=5.0)
+        self.assertEqual(ccd._accel.status, 'accelerated')
+        for a, b in zip(ref, out):
+            np.testing.assert_allclose(b, a, rtol=1e-6, atol=1e-4)
+        # The frames are not just the input scaled: there is noise
+        self.assertFalse(np.allclose(out[4] / 5, out[5] / 6))
+
+    @unittest.skipIf(specula.cp is None, 'Cupy not found')
+    def test_not_accelerated_with_photon_noise(self):
+        # Poisson random numbers cannot be captured: the CCD says so, and runs as Python code
+        out, ccd = self._accelerated_run(True, photon_noise=True)
+        self.assertIsNone(ccd._accel.graph)
+        self.assertIn('photon noise', ccd._accel.status)
 
     @cpu_and_gpu
     def test_ccd_negative_dt(self, target_device_idx, xp):

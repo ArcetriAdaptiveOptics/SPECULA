@@ -1,7 +1,7 @@
 '''
 Accelerator: run the GPU work of the processing objects as a chain of CUDA graphs.
 
-Without accelerator, each object runs its trigger_code() as Python code launching
+With the accelerator off, each object runs its trigger_code() as Python code launching
 its kernels one by one (or replays its own CUDA graph, waiting for it in
 post_trigger()). In small simulations, this host work, not the GPU, sets the
 time per step.
@@ -26,16 +26,37 @@ An object is accelerated if it runs on a GPU, is not excluded by the Accelerator
 options, and its can_accelerate() method returns True when its graph is about to
 be captured (see BaseProcessingObj.can_accelerate()). Each object has its own
 graph, so objects that do not trigger at every step are simply not launched,
-as without accelerator.
+as when the accelerator is off.
 
-Safety: CuPy refuses, with an exception, the calls that cannot be part of a
-graph (cuBLAS, cuRAND, copies between the host and the GPU). If the capture
-fails, trigger_code() runs again as Python code for that step, and the object
-is not accelerated anymore. Before each launch, the arrays of the object, of the
-data objects it holds and of its inputs are checked to be the same as when
-the graph was captured: the graph reads and writes their memory, so an array
-that was reallocated (for example by prepare_trigger()) would make it use
-stale or freed memory. Such an object is not accelerated anymore either.
+Errors: an object whose can_accelerate() returns True declares that its
+trigger_code() can be captured and replayed. If this is not the case, the
+simulation stops with an AcceleratorError, which names the object:
+
+* CuPy refuses, with an exception, the calls that cannot be part of a graph
+  (cuBLAS, cuRAND, copies between the host and the GPU): the capture fails;
+* before each launch, the arrays of the object, of the data objects it holds
+  and of its inputs are checked to be the same as when the graph was captured:
+  the graph reads and writes their memory, so an array that was reallocated
+  (for example by prepare_trigger()) would make it use stale or freed memory.
+
+The fix is in the class (see BaseProcessingObj.can_accelerate()); meanwhile,
+the object can be excluded with the "exclude" option.
+
+States of an accelerated object (GraphRunner):
+
+* first triggers (capture_after): trigger_code() runs as Python code. The own
+  CUDA graph of the object, if it built one (see build_stream()), is released
+  at its first trigger and never used again;
+* then, at each trigger, can_accelerate() is asked: while it does not return
+  True, trigger_code() runs as Python code; when it does, the graph is
+  captured and launched;
+* captured: the graph is launched at each trigger. invalidate_graph() releases
+  it, and it is captured again at the next trigger.
+
+Objects that are not accelerated (on the CPU, excluded, or whose class
+overrides trigger() or redefines trigger_code() without declaring
+can_accelerate()) run as when the accelerator is off, with their own CUDA
+graph if they built one.
 '''
 import iteras
 from iteras.base_data_obj import BaseDataObj
@@ -43,6 +64,10 @@ from iteras.log import get_iteras_logger
 from iteras.tracing import tracer
 
 _logger = get_iteras_logger(__name__)
+
+
+class AcceleratorError(RuntimeError):
+    '''An object declared that it can be accelerated, but its trigger_code() cannot be'''
 
 
 def _capture_stream(device_id):
@@ -144,11 +169,10 @@ class GraphRunner:
         self.triggers += 1
         if self.graph is None:
             self.run_or_capture()
-        elif self.arrays_unchanged():
-            self.launch()
         else:
-            # Not accelerated anymore (see detach()): as without accelerator
-            self.obj.trigger()
+            if self.options.check_pointers:
+                self.check_arrays()
+            self.launch()
 
     def run_or_capture(self):
         '''
@@ -168,20 +192,22 @@ class GraphRunner:
             return
         self.capture()
 
-    def arrays_unchanged(self):
-        '''
-        True if the arrays used by the graph are still those of the capture.
-        Otherwise the object is detached (see detach()).
-        '''
-        if not self.options.check_pointers:
-            return True
+    def check_arrays(self):
+        '''Raise AcceleratorError if an array used by the graph is not the one of the capture anymore'''
         changed = changed_ref(self.refs)
-        if changed is None:
-            return True
-        holder, attr = changed
-        where = attr if holder is self.obj else f'{type(holder).__name__}.{attr}'
-        self.detach(f'array {where} reallocated after the capture')
-        return False
+        if changed is not None:
+            holder, attr = changed
+            where = attr if holder is self.obj else f'{type(holder).__name__}.{attr}'
+            raise AcceleratorError(self.error_message(
+                f'its array {where} was reallocated after the capture of its CUDA graph, '
+                'which would use stale memory (arrays used by trigger_code() must be '
+                'updated in place, or invalidate_graph() called)'))
+
+    def error_message(self, what):
+        obj = self.obj
+        return (f'Accelerator: {obj.name} ({type(obj).__name__}) declares, with can_accelerate(), '
+                f'that it can be accelerated, but {what}. Fix the class, or exclude the object '
+                f'(Accelerator option "exclude")')
 
     def launch(self):
         '''Launch the graph, and set the generation time of the outputs that trigger_code() sets'''
@@ -215,13 +241,11 @@ class GraphRunner:
                 except Exception as e:
                     error = error or e
         if error is not None:
-            graph = None
             pool.free_all_blocks()
-            # The Python code ran without its GPU work: run it again, then as without accelerator
             first = str(error).splitlines()[0] if str(error) else ''
-            self.detach(f'capture failed: {type(error).__name__}: {first[:200]}')
-            obj.trigger_code()
-            return
+            raise AcceleratorError(self.error_message(
+                f'the capture of its trigger_code() in a CUDA graph failed '
+                f'({type(error).__name__}: {first[:200]})')) from error
         self.graph = graph
         self.pool = pool
         self.outputs = [o for o, b in zip(outputs, before) if o.generation_time == t and b != t]
@@ -235,9 +259,9 @@ class GraphRunner:
 
     def launch_stream(self):
         '''
-        Stream where the graph is launched: the own stream of the object, if it
+        Stream where the graph is launched: the object's own stream, if it
         has one (see build_stream()), so that objects of the same trigger level run
-        in parallel as without accelerator, otherwise the default stream. An own
+        in parallel as when the accelerator is off, otherwise the default stream. An own
         stream is a blocking stream: the graph follows the work queued before it on
         the default stream.
         '''
@@ -248,7 +272,7 @@ class GraphRunner:
     def after_trigger(self):
         '''
         Called by post_trigger(): the work queued from now on the default stream
-        follows the graph launched on the own stream of the object (on the GPU,
+        follows the graph launched on the object's own stream (on the GPU,
         the host does not wait)
         '''
         if self.graph is not None and self.obj.stream is not None:
@@ -270,17 +294,6 @@ class GraphRunner:
             self.pool.free_all_blocks()
             self.pool = None
             self.triggers = min(self.triggers, self.options.capture_after)
-
-    def detach(self, reason):
-        '''The object is not accelerated anymore: it runs as without accelerator from now on'''
-        obj = self.obj
-        _logger.warning(f'Accelerator: {obj.name} ({type(obj).__name__}) is not accelerated anymore: {reason}')
-        self.invalidate()
-        self.status = f'not accelerated: {reason}'
-        obj._accel = None
-        if obj.stream is not None:
-            # Its own CUDA graph was released by the accelerator: capture it again
-            obj._cuda_graph_invalid = True
 
 
 class Accelerator:

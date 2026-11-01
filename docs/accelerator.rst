@@ -35,12 +35,12 @@ On each GPU, with the accelerator:
   its second trigger (``capture_after`` option), and the graph is launched at
   the following triggers instead of running the Python code. Each object has
   its own graph, so an object that does not trigger at some step is not
-  launched, as without accelerator;
+  launched, as when the accelerator is off;
 * the GPU work goes to the default stream of the device, in trigger order:
   the graphs, and the kernels launched by the code that still runs in Python.
   The graphs of the objects that have their own stream (those that build their
   own CUDA graph, like the wavefront sensors) are launched on it, so that the
-  objects of a trigger level run in parallel, as without accelerator; the
+  objects of a trigger level run in parallel, as when the accelerator is off; the
   default stream then waits for them on the GPU. The GPU work therefore runs in
   the right order without the host waiting for it: ``post_trigger()`` no
   longer waits for the graph of the object. The host waits only where it reads
@@ -102,46 +102,69 @@ status (``accelerated``, or why not), also written to ``report_file`` if given.
 Accelerator and the CUDA graphs of the objects
 ----------------------------------------------
 
-Some objects capture their own CUDA graph without the accelerator (they call
-``build_stream()`` in ``setup()``: the atmosphere, the propagation, the
-wavefront sensors...). The two coexist, object by object:
+Some objects capture their own CUDA graph even with the accelerator off (they
+call ``build_stream()`` in ``setup()``: the atmosphere, the propagation, the
+wavefront sensors...). The two mechanisms coexist, object by object:
 
-* without the accelerator, nothing changes: these objects launch their own graph
-  on their own stream and ``post_trigger()`` waits for it, the other objects
-  run their ``trigger_code()`` as Python code;
-* with the accelerator, an accelerated object does not use its own graph: it is
-  released at its first trigger, and the accelerator captures the graph of the
-  object instead (by the same rules), launched on the own stream of the object
-  if it has one. Since the graph is the same code, objects with their own graph
-  are accelerated by default; the accelerator adds the graphs of the other
-  objects, and removes the waits of the host;
-* an object that is not accelerated, or not anymore (failed capture, array
-  reallocated), runs as without accelerator: an object with its own graph
-  captures it again and uses it.
+* with the accelerator off, nothing changes: these objects launch their own
+  graph on their own stream and ``post_trigger()`` waits for it, the other
+  objects run their ``trigger_code()`` as Python code;
+* with the accelerator on, an accelerated object never uses its own graph: it
+  is released at its first trigger, and the accelerator captures the graph of
+  the same ``trigger_code()`` instead, launched on the object's own stream if it
+  has one. Objects with their own graph are therefore accelerated by default;
+  the accelerator adds graphs for the other objects, and removes the waits of
+  the host;
+* an object that is not accelerated (on the CPU, excluded, or whose class does
+  not declare that it can be) runs as when the accelerator is off, with its own
+  graph if it built one.
 
-In the code, ``BaseProcessingObj.trigger()`` runs the step in one of these
-three ways: through the accelerator (``GraphRunner.trigger()``), with the own
-graph of the object, or as Python code.
+The states of an object, with the accelerator on::
 
-Safety checks
--------------
+    built: own graph captured in setup() (build_stream), or no graph
+      |
+      | first trigger: own graph released (accelerated objects only)
+      v
+    warm-up: trigger_code() as Python code, for "capture_after" triggers
+      |
+      v
+    waiting: can_accelerate() asked at each trigger;      not True: Python code
+      |                                                    (retried next time)
+      | True: capture trigger_code() in a CUDA graph ---- fails: AcceleratorError
+      v
+    accelerated: graph launched at each trigger --- array reallocated: AcceleratorError
+      |                                         ^
+      | invalidate_graph()                      | captured again at the next trigger
+      +-----------------------------------------+
 
-Two checks protect the results when an object breaks the rules:
+In the code, ``BaseProcessingObj.trigger()`` runs the step in one of three
+ways: through the accelerator (``GraphRunner.trigger()``), with the object's own
+graph, or as Python code. Making the accelerator the only graph mechanism
+(removing ``build_stream()``) is planned for a later change.
+
+Errors
+------
+
+``can_accelerate()`` declares that ``trigger_code()`` can be captured and
+replayed. If that is not true, the simulation stops with an
+``AcceleratorError`` that names the object: it is a bug of the class, to be
+fixed there (meanwhile, the object can be listed in ``exclude``):
 
 * CuPy refuses, with an exception, the calls that cannot be part of a graph:
   cuBLAS, cuRAND and the copies between host and GPU. If the capture of an
-  object fails, its ``trigger_code()`` runs again as Python code for that step
-  and the object is not accelerated anymore (with a warning). This is the case, for
-  example, of a ``CCD`` with noise, whose random numbers come from cuRAND or
-  need copies from the host.
+  object fails, the simulation stops. A ``CCD`` with photon, excess,
+  clock-induced charge or charge transfer noise, for example, says in
+  ``can_accelerate()`` that it cannot be accelerated (its random numbers come
+  from cuRAND or need copies from the host), and runs as Python code.
 * The graph reads and writes the arrays the object had when it was captured.
-  Before each launch, the accelerator checks that the arrays of the object, of the
-  data objects it holds and of its inputs are still the same (same memory
+  Before each launch, the accelerator checks that the arrays of the object, of
+  the data objects it holds and of its inputs are still the same (same memory
   address). An array that was reallocated, for example by ``prepare_trigger()``,
-  would make the graph use stale or freed memory: such an object is not accelerated
-  anymore (with a warning naming the array), and runs as without accelerator. The
-  check takes a few microseconds per object; ``check_pointers: false`` disables
-  it.
+  would make the graph use stale or freed memory: the simulation stops, naming
+  the array. An object that replaces arrays on purpose (like the dynamic filters
+  when their gain changes) calls ``invalidate_graph()``, and its graph is
+  captured again. The check takes a few microseconds per object;
+  ``check_pointers: false`` disables it.
 
 What is not checked: a Python value computed in ``trigger_code()`` from
 something that changes at each step (the time, a counter, a value read from
@@ -159,7 +182,7 @@ and ``vecmat()`` (partial sums over chunks of rows, added in a fixed order).
 Both are deterministic and, on the matrices of MORFEO and SOUL (influence
 functions, mode-to-command and reconstruction matrices), as fast as cuBLAS,
 without copying the transposed matrix. ``Modalrec``, ``DM``, ``ModalAnalysis``
-and the slope computers use it, so their results with and without accelerator
+and the slope computers use it, so their results with the accelerator on and off
 differ by rounding.
 
 With the allocator
@@ -169,7 +192,7 @@ With an ``Accelerator`` section (or ``--accelerate``), the allocator profiles th
 accelerated, as they will run: their host time is the time to launch their graph,
 and the accelerated objects with their own graph no longer wait for the GPU in
 ``post_trigger()``. These costs are kept in the profile file apart from those
-measured without accelerator, and an allocation computed with the accelerator is stale
+measured with the accelerator off, and an allocation computed with the accelerator is stale
 without it (and the reverse). Accelerating does not constrain the placement: each
 object is accelerated on the device where it is placed.
 

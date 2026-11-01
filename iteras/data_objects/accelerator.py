@@ -14,7 +14,7 @@ class Accelerator:
     Parameters
     ----------
     exclude : list of str, optional
-        Names of objects that are not accelerated (they run as without accelerator).
+        Names of objects that are not accelerated (they run as when the accelerator is off).
     capture_after : int, optional
         Number of triggers of each object before its CUDA graph is captured
         (default 1): the first triggers allocate the buffers and build the
@@ -22,8 +22,8 @@ class Accelerator:
     check_pointers : bool, optional
         Before each launch of the graph of an object, check that the arrays of
         the object and of its inputs have not been reallocated since the
-        capture (default True). An object whose arrays change is not accelerated
-        anymore: its graph would read stale memory.
+        capture (default True): its graph would read stale memory, and the
+        simulation stops with an error naming the object.
     report_file : str, optional
         File where the accelerator writes, at the end of the run, which objects were
         accelerated and why the others were not (default: only logged).
