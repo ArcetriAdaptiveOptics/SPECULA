@@ -118,6 +118,51 @@ class TestGenerators(unittest.TestCase):
         np.testing.assert_almost_equal(max(value), amp)
         np.testing.assert_almost_equal(min(value), -amp)
 
+    @staticmethod
+    def _wave_values(f, times):
+        f.setup()
+        values = []
+        for t_sec in times:
+            f.check_ready(f.seconds_to_t(t_sec))
+            f.trigger()
+            f.post_trigger()
+            values.append(cpuArray(f.outputs['output'].value)[0])
+        return np.array(values)
+
+    @cpu_and_gpu
+    def test_wave_generator_square_duty_cycle(self, target_device_idx, xp):
+        times = np.arange(1000) / 1000
+        for duty_cycle in [0.5, 0.25]:
+            f = WaveGenerator('SQUARE', amp=1.0, freq=1.0, duty_cycle=duty_cycle,
+                              target_device_idx=target_device_idx)
+            high = np.mean(self._wave_values(f, times) > 0)
+            self.assertAlmostEqual(high, duty_cycle, delta=0.02)
+
+    @cpu_and_gpu
+    def test_wave_generator_square_duty_cycle_switching_time(self, target_device_idx, xp):
+        # duty_cycle=0.3 at 1 Hz: +amp in [0, 0.3) s and -amp in [0.3, 1) s
+        amp = 3.0
+        f = WaveGenerator('SQUARE', amp=amp, freq=1.0, duty_cycle=0.3,
+                          target_device_idx=target_device_idx)
+        np.testing.assert_almost_equal(self._wave_values(f, [0.1, 0.29, 0.31, 0.9]),
+                                       [amp, amp, -amp, -amp])
+
+    @cpu_and_gpu
+    def test_wave_generator_duty_cycle_errors(self, target_device_idx, xp):
+        for duty_cycle in [1.5, -0.1]:
+            with self.assertRaises(ValueError):
+                WaveGenerator('SQUARE', duty_cycle=duty_cycle, target_device_idx=target_device_idx)
+        with self.assertRaises(ValueError):
+            WaveGenerator('SQUARE', amp=[1.0, 2.0], duty_cycle=[0.2, 0.3, 0.4],
+                          target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
+    def test_wave_generator_sin_ignores_duty_cycle(self, target_device_idx, xp):
+        times = [0.1, 0.2, 0.3]
+        kwargs = dict(amp=1.0, freq=2.0, offset=0.3, target_device_idx=target_device_idx)
+        np.testing.assert_almost_equal(self._wave_values(WaveGenerator('SIN', **kwargs), times),
+                                       self._wave_values(WaveGenerator('SIN', duty_cycle=0.1, **kwargs), times))
+
     @cpu_and_gpu
     def test_wave_generator_linear(self, target_device_idx, xp):
         """Test WaveGenerator linear functionality"""
