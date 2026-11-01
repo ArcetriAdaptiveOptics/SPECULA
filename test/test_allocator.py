@@ -1464,6 +1464,33 @@ class TestReportSolverMachine(AllocatorTestCase):
         self.assertGreater(spec['cpu']['memory_gb'], 0)
         self.assertEqual(m.gpu_slots(), [])
 
+    @unittest.skipIf(sys.platform == 'win32', 'no sysconf on Windows')
+    def test_host_memory_without_proc_meminfo(self):
+        # As on macOS: the memory comes from sysconf
+        from iteras.allocator import machine as machine_module
+        real_exists = os.path.exists
+        with mock.patch.object(machine_module.os.path, 'exists',
+                               lambda p: False if p == '/proc/meminfo' else real_exists(p)), \
+                mock.patch.object(machine_module.sys, 'platform', 'darwin'):
+            total = machine_module._host_memory(free=False)
+            free = machine_module._host_memory(free=True)
+        self.assertGreater(total, 0)
+        self.assertGreater(free, 0)
+        self.assertLessEqual(free, total)
+        real_sysconf = os.sysconf
+
+        def no_available_pages(name):
+            if name == 'SC_AVPHYS_PAGES':
+                raise ValueError(name)
+            return real_sysconf(name)
+        with mock.patch.object(machine_module.os, 'sysconf', no_available_pages):
+            self.assertEqual(machine_module._sysconf_memory(free=True), machine_module._sysconf_memory(free=False))
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows only')
+    def test_host_memory_on_windows(self):
+        from iteras.allocator import machine as machine_module
+        self.assertGreater(machine_module._windows_memory(free=True), 0)
+
     def test_first_nodes_and_copies(self):
         m = machine(ngpu=2, nodes=2)
         sub = m.first_nodes(1)

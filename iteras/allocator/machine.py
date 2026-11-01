@@ -3,6 +3,7 @@ Computational resources seen by the allocator: nodes, devices (the GPUs and
 the CPU of each node), processes, and the speed of the links between them.
 '''
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 
@@ -157,12 +158,47 @@ class Machine:
 
 
 def _host_memory(free):
+    '''Bytes of host memory, available (*free*) or total: /proc/meminfo on Linux, else the system'''
+    if os.path.exists('/proc/meminfo'):
+        return _meminfo_memory(free)
+    if sys.platform == 'win32':
+        return _windows_memory(free)
+    return _sysconf_memory(free)
+
+
+def _meminfo_memory(free):
     info = {}
     with open('/proc/meminfo') as f:
         for line in f:
             k, v = line.split(':', 1)
             info[k] = int(v.split()[0]) * 1024
     return info['MemAvailable'] if free else info['MemTotal']
+
+
+def _sysconf_memory(free):
+    '''POSIX systems (macOS): the available memory is not always known, then the total'''
+    page = os.sysconf('SC_PAGE_SIZE')
+    if free:
+        try:
+            return os.sysconf('SC_AVPHYS_PAGES') * page
+        except (ValueError, OSError):
+            pass
+    return os.sysconf('SC_PHYS_PAGES') * page
+
+
+def _windows_memory(free):
+    import ctypes
+
+    class MemoryStatus(ctypes.Structure):
+        _fields_ = [('dwLength', ctypes.c_ulong), ('dwMemoryLoad', ctypes.c_ulong),
+                    ('ullTotalPhys', ctypes.c_ulonglong), ('ullAvailPhys', ctypes.c_ulonglong),
+                    ('ullTotalPageFile', ctypes.c_ulonglong), ('ullAvailPageFile', ctypes.c_ulonglong),
+                    ('ullTotalVirtual', ctypes.c_ulonglong), ('ullAvailVirtual', ctypes.c_ulonglong),
+                    ('ullAvailExtendedVirtual', ctypes.c_ulonglong)]
+    status = MemoryStatus()
+    status.dwLength = ctypes.sizeof(MemoryStatus)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+    return status.ullAvailPhys if free else status.ullTotalPhys
 
 
 def local_node(free, measure_links=True):
