@@ -189,11 +189,29 @@ class BaseProcessingObj(BaseTimeObj):
                 self.logger.mpi_send_debug(f'SEND with Buffe {dest_tag=}, {type(buffer)=}, {buffer=}')
                 self.logger.mpi_send_debug(f'SEND with Buffer type {dest_tag=} {buffer.dtype=}')
 
-            mpi_progress.isend(self._host_copy(buffer), dest_rank, dest_tag, self.current_time)
+            mpi_progress.isend(self._send_copy(buffer), dest_rank, dest_tag, self.current_time)
 
             iteras.process_comm.ibsend(item.generation_time, dest=dest_rank, tag=dest_tag+1)
         if item.get_value() is not None:
             self.sent_valid[dest_tag] = True
+
+    @classmethod
+    def _send_copy(cls, buffer):
+        '''
+        Copy of *buffer* that can be sent while the object goes on: in host
+        memory, or, for a GPU array with GPU-direct MPI (see
+        mpi_progress.gpu_direct()), in GPU memory, from where MPI sends it.
+        '''
+        if isinstance(buffer, np.ndarray) or not mpi_progress.gpu_direct() \
+                or mpi_progress.buffered_sends():
+            return cls._host_copy(buffer)
+        else:  # pragma: gpu
+            # MPI reads the copy outside of the CUDA streams: wait for it, keeping
+            # the sends in flight moving (see mpi_progress)
+            with buffer.device:
+                copy = buffer.copy()
+                mpi_progress.wait_stream(iteras.cp.cuda.get_current_stream())
+            return copy
 
     @staticmethod
     def _host_copy(buffer):

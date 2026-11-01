@@ -379,6 +379,31 @@ class TestEstimator(AllocatorTestCase):
         remote = dict(local, work2=(p1, 1))
         self.assertGreater(est.step_time(remote)[0], est.step_time(local)[0])
 
+    def test_gpu_direct_mpi(self):
+        # work2 in another process: its input and output travel by MPI. With GPU-direct
+        # MPI (mpi_gpu_direct link) there are no copies to the host, the GPUs of a node
+        # use their direct link, and the copies in flight are in GPU memory
+        self.params['store']['inputs']['input_list'] = ['a-last.out_value', 'b-work1.out_value']
+        p0, p1 = Proc(0, 0), Proc(1, 0)
+        results = {}
+        for direct in (False, True):
+            m = machine(ngpu=2, links={'mpi_gpu_direct': direct, 'gpu_gpu_gb_s': 100})
+            est = self.estimator(m, gpu_ms=1.0)
+            for n in est.graph.procs:
+                for kind in ('gpu:test', 'cpu'):
+                    est.costs[(n, kind)].outputs = {'out_value': 50 * MiB}
+            self.assertEqual(m.gpu_direct(0, 1), direct)
+            self.assertFalse(m.gpu_direct(0, m.nodes[0].cpu_slot))
+            place = {n: (p0, 0) for n in est.graph.procs}
+            place['store'] = (p0, m.nodes[0].cpu_slot)
+            place['work2'] = (p1, 1)
+            results[direct] = (est.step_time(place)[0], est.memory(place))
+        (t_staged, mem_staged), (t_direct, mem_direct) = results[False], results[True]
+        self.assertLess(t_direct, t_staged - 2 * ms)
+        cpu = 2      # slot of the CPU of the node
+        self.assertLess(mem_direct[cpu], mem_staged[cpu] - 100 * MiB)
+        self.assertGreater(mem_direct[1], mem_staged[1] + 40 * MiB)
+
     def mpi_case(self, single_copy, env):
         '''
         gen sends a large output (1 MiB) to work2, in another process; then gen's
