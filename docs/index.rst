@@ -29,6 +29,7 @@ Getting Started
    Displays <simul_displays>
    Diagrams <simul_diagrams>
    Calibration manager <calibration_manager>
+   CNN and nonlinear reconstructors <cnn_reconstructor>
 
 Tutorials
 ---------

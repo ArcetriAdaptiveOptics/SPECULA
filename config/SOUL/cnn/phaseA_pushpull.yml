@@ -1,0 +1,178 @@
+# From the CNN reconstructor study of the SOUL non-modulated pyramid
+# (repository pyr_nonlinear_rec_cnn): "plan", "log", "lessons_learned.md" and
+# the launch scripts in the comments are in that repository. Procedure and
+# results: docs/cnn_reconstructor.rst.
+#
+# Phase A: open-loop push-pull pretraining of the CNN (plan, "Phase A").
+# Override file on top of params_soul_mod0.yml:
+#
+#   specula params_soul_mod0.yml phaseA_pushpull.yml
+#
+# Each frame: a partial-correction background (random turbulence, new every
+# 2 frames, scaled per mode by pre_corr_scale_empirical_real, as in the SIMPC
+# calibration) plus one push or pull of one mode. The CNN learns the 630 modes
+# of the field entering the pyramid (background + push) from the detector map,
+# with detector noise on and the loop's frame rate (photons per frame as in
+# closed loop).
+#
+# Push-pull amplitude: the amp500 vector times a factor that cycles through
+# 0.2, 0.4, 1.0 (= amp100, amp200, amp500: the three vectors are
+# proportional), one full sweep of the 630 modes per factor. All three
+# amplitudes are then in one run, with equal weight, and in the replay buffer
+# together. The launch script sets amp_schedule's times, the magnitude, the
+# seeds, the run length and the checkpoint path.
+
+remove: ['atmo', 'seeing', 'wind_speed', 'wind_direction', 'slopec', 'modalrec',
+         'control', 'psf', 'data_store']
+
+# --- Partial-correction background ----------------------------------------------
+seeing_random:
+  class:             'RandomGenerator'
+  distribution:      'UNIFORM'
+  constant:          0.9                    # ["]
+  amp:               1.0                    # ["] UNIFORM is constant +/- amp/2 -> [0.4, 1.4]
+  outputs: ['output']
+
+atmo_random:
+  class:             'AtmoRandomPhase'
+  simul_params_ref:  'main'
+  L0:                40
+  update_interval:   2                      # [frames]
+  source_dict_ref:   ['on_axis_source']
+  seed:              1
+  inputs:
+    seeing:          'seeing_random.output'
+    pupilstop:       'pupilstop'
+  outputs: ['out_on_axis_source_ef']
+
+modal_analysis_random:
+  class:             'ModalAnalysis'
+  ifunc_inv_ref:     'ifunc_inv_object'
+  inputs:
+    in_ef:           'atmo_random.out_on_axis_source_ef'
+  outputs: ['out_modes']
+
+scale_random:
+  class:             'BaseOperation'
+  constant_mul_data: 'pre_corr_scale_empirical_real'
+  inputs:
+    in_value1:       'modal_analysis_random.out_modes'
+  outputs: ['out_value']
+
+dm_random:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_ref:         'ifunc_object'
+  height:            0
+  inputs:
+    in_command:      'scale_random.out_value'
+  outputs: ['out_layer']
+
+# --- Push-pull --------------------------------------------------------------------
+pushpull:
+  class:             'PushPullGenerator'
+  nmodes:            630
+  vect_amplitude_data: 'pushpull_630modes_amp500'
+  ncycles:           1000                   # more than any run needs
+  repeat_full_sequence: true                # sweep all modes, then repeat
+  outputs: ['output']
+
+amp_schedule:
+  class:             'ScheduleGenerator'
+  modes_per_group:   [1]
+  scheduled_values:  [[0.2], [0.4]]         # set by the launch script
+  scheduled_times:   [0.7409]               # [s] set by the launch script
+  outputs: ['output']
+
+push_scaled:
+  class:             'BaseOperation'
+  mul:               true
+  inputs:
+    in_value1:       'pushpull.output'
+    in_value2:       'amp_schedule.output'
+  outputs: ['out_value']
+
+dm_override:
+  sign: 1
+  inputs:
+    in_command:      'push_scaled.out_value'
+
+prop_override:
+  source_dict_ref:   ['on_axis_source']
+  inputs:
+    common_layer_list: ['pupilstop', 'dm_random.out_layer', 'dm.out_layer']
+  outputs: ['out_on_axis_source_ef']
+
+ef_combinator:
+  class:             'ElectricFieldCombinator'
+  inputs:
+    in_ef1:          'atmo_random.out_on_axis_source_ef'
+    in_ef2:          'prop.out_on_axis_source_ef'
+  outputs: ['out_ef']
+
+pyramid_override:
+  inputs:
+    in_ef:           'ef_combinator.out_ef'
+
+# Labels: the 630 modes of the field entering the pyramid.
+modal_analysis_override:
+  inputs:
+    in_ef:           'ef_combinator.out_ef'
+
+# --- CNN input and training (Fabio's training settings, see
+# configs/fabio_original/params_pyr_soul_cnn_train_data.yml for the reasons) --
+# No slope-null subtraction: the network needs the static illumination
+# pattern to sense the residual level (lessons_learned.md). The bands40
+# pupdata adds the diffraction-band pixels to the map.
+slopecNOSN:
+  class:             'PyrSlopec'
+  pupdata_object:    'soul_KLv10_ps220p0.037_pyr40x40_wl750_fv2.1_ft3.0_bn1_th0.30a0.30b_bands40_ctr'
+  slopes_from_intensity: True
+  inputs:
+    in_pixels:       'detector.out_pixels'
+  outputs: ['out_slopes']
+
+slopes2d:
+  class:             'Slopes2D'
+  inputs:
+    in_slopes:       'slopecNOSN.out_slopes'
+  outputs: ['out_value']
+
+data_buffer:
+  class:             'DataBuffer'
+  buffer_size:       1000
+  inputs:
+    input_list: ['input_2d-slopes2d.out_value',
+                 'modes-modal_analysis.out_modes']
+
+nn_trainer:
+  class:             'Conv2dNetTrainer'
+  network_filename:  './trained_models/soul_cnn_m630.pth'
+  load_from_file:    true
+  nmodes:            630
+  channels:          64
+  depth:             4
+  head_type:         'spatial'
+  head_grid:         60
+  input_channels:    1
+  n_frames:          1
+  conv_block_type:   1
+  dropout:           0.1
+  label_offset:      0
+  val_split:         0.2
+  val_size:          5000
+  norm_timescale:    30.0
+  replay_size:       30000
+  replay_subsample:  4
+  replay_ratio:      20
+  replay_batch:      64
+  loss_delta:        10.0
+  norm_loss_weight:  5.0
+  grad_clip_value:   20
+  lr_decay:          0.998                  # per trigger: ~600 triggers in 6 parts -> lr 1e-3 -> 3e-4
+                                            # (Fabio's 0.995 would end at 5e-5, too low to start phase B)
+  # No max_label_rms: the amp500 pushes are large on purpose (mode 1: 500 nm).
+  inputs:
+    input_2d_batch:  'data_buffer.input_2d_buffered'
+    labels:          'data_buffer.modes_buffered'
+  outputs: ['loss', 'val_loss']

@@ -1,0 +1,168 @@
+# From the CNN reconstructor study of the SOUL non-modulated pyramid
+# (repository pyr_nonlinear_rec_cnn): "plan", "log", "lessons_learned.md" and
+# the launch scripts in the comments are in that repository. Procedure and
+# results: docs/cnn_reconstructor.rst.
+#
+# SOUL, non-modulated pyramid (mod0), 630 KL modes: base closed-loop config
+# of the study. Derived from SPECULA_scripts/soul/im_nonlin_sims/
+# params_pyr_soul_mod0.yml (log 2026-10-02); differences: study calibration
+# tags, 5-group integrator gains, 1.5 s runs, lighter data store.
+# Scripts override seeing, magnitude, mis-registration, sn, rec, gains and
+# store_dir per run.
+
+main:
+  class:             'SimulParams'
+  root_dir:          '/raid1/guido/PASSATA/LBT/'
+  pixel_pupil:       220                    # Linear dimension of pupil phase array
+  pixel_pitch:       0.037372727            # [m] Pitch of the pupil phase array
+  total_time:        1.5                    # [s] 0.5 s transient + 1 s settled
+  time_step:         0.000588               # [s] 1.7 kHz
+  zenithAngleInDeg:  0.000
+  display_server:    False
+
+seeing:
+  class:             'WaveGenerator'
+  constant:          1.0                    # ["]
+
+wind_speed:
+  class:             'WaveGenerator'
+  constant:          [2.,4.,6.,25.]         # [m/s]
+
+wind_direction:
+  class:             'WaveGenerator'
+  constant:          [0.,30.,-30.,45.]      # [deg]
+
+on_axis_source:
+  class:             'Source'
+  polar_coordinates: [0.0, 0.0]
+  magnitude:         8
+  wavelengthInNm:    750
+
+pupilstop:
+  class:             'Pupilstop'
+  obs_diam:          0.135
+  simul_params_ref:  'main'
+
+atmo:
+  class:             'AtmoEvolution'
+  simul_params_ref:  'main'
+  L0:                40                     # [m]
+  heights:           [119.,837,3045,12780]  # [m]
+  Cn2:               [0.70,0.06,0.14,0.10]
+  fov:               240.0
+  seed:              1
+  inputs:
+    seeing:          'seeing.output'
+    wind_speed:      'wind_speed.output'
+    wind_direction:  'wind_direction.output'
+  outputs: ['layer_list']
+
+prop:
+  class:             'AtmoPropagation'
+  simul_params_ref:  'main'
+  source_dict_ref:   ['on_axis_source']
+  inputs:
+    atmo_layer_list:   ['atmo.layer_list']
+    common_layer_list: ['pupilstop', 'dm.out_layer:-1']
+  outputs: ['out_on_axis_source_ef']
+
+pyramid:
+  class:             'ModulatedPyramid'
+  simul_params_ref:  'main'
+  pup_diam:          40.                    # [subapertures]
+  pup_dist:          48.                    # [subapertures]
+  fov:               2.0                    # [arcsec]
+  mod_amp:           0.0                    # non-modulated
+  output_resolution: 120                    # 1 detector pixel = 1 subaperture (binning 1)
+  wavelengthInNm:    750
+  # Mis-registration (pup_shifts [detector pixels], rotAnglePhInDeg [deg]) is
+  # added by the scripts only when non-zero: ModulatedPyramid compares
+  # pup_shifts with the tuple (0.0, 0.0), so a YAML list [0, 0] would switch
+  # on a useless per-frame interpolation.
+  inputs:
+    in_ef:           'prop.out_on_axis_source_ef'
+
+detector:
+  class:             'CCD'
+  simul_params_ref:  'main'
+  size:              [120,120]
+  dt:                0.000588
+  bandw:             300                    # [nm]
+  photon_noise:      True
+  readout_noise:     True
+  excess_noise:      True
+  readout_level:     0.4                    # [e-/pix/frame]
+  quantum_eff:       0.32                   # quantum efficiency x total transmission
+  inputs:
+    in_i:            'pyramid.out_i'
+
+slopec:
+  class:             'PyrSlopec'
+  pupdata_object:    'soul_KLv10_ps220p0.037_pyr40x40_wl750_fv2.1_ft3.0_bn1_th0.30a0.30b'
+  sn_object:         'soul_KLv10_sn_pc_s1.0_c09_step0'
+  slopes_from_intensity: True
+  inputs:
+    in_pixels:       'detector.out_pixels'
+  outputs: ['out_slopes']
+
+modalrec:
+  class:             'Modalrec'
+  recmat_object:     'soul_KLv10_rec_pc_s1.0_c09_amp100_step0'
+  inputs:
+    in_slopes:       'slopec.out_slopes'
+  outputs: ['out_modes']
+
+control:
+  class:             'Integrator'
+  delay:             2                      # [frames]
+  int_gain:          [0.55,  0.45,     0.40,     0.35,     0.35]
+  ff:                [1.0,   0.999996, 0.999365, 0.977895, 0.97]
+  n_modes:           [30,    70,       100,      200,      230]
+  inputs:
+    delta_comm:      'modalrec.out_modes'
+
+ifunc_object:
+  class:             'IFunc'
+  tag:               'KLmatrix_KL_v10'
+
+dm:
+  class:             'DM'
+  simul_params_ref:  'main'
+  ifunc_ref:         'ifunc_object'
+  height:            0
+  inputs:
+    in_command:      'control.out_comm'
+
+ifunc_inv_object:
+  class:             'IFuncInv'
+  tag:               'KLmatrix_KL_v10_inv_obs135'
+
+# Residual seen by the sensor (field entering the pyramid): modes and total
+# rms (fitting error included).
+modal_analysis:
+  class:             'ModalAnalysis'
+  ifunc_inv_ref:     'ifunc_inv_object'
+  inputs:
+    in_ef:           'prop.out_on_axis_source_ef'
+  outputs: ['out_modes', 'rms']
+
+psf:
+  class:             'PSF'
+  simul_params_ref:  'main'
+  wavelengthInNm:    1650                   # [nm] H band
+  nd:                3
+  start_time:        0.5                    # [s] long-exposure SR over the settled part only
+  inputs:
+    in_ef:           'prop.out_on_axis_source_ef'
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'
+  data_format:       'fits'
+  inputs:
+    input_list: ['resMod-modal_analysis.out_modes',
+                 'resRms-modal_analysis.rms',
+                 'deltaComm-modalrec.out_modes',   # reconstructor output: effective gain
+                 'comm-control.out_comm',
+                 'srRes-psf.out_sr',
+                 'srInt-psf.out_int_sr']

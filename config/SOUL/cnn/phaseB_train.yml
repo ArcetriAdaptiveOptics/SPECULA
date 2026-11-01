@@ -1,0 +1,139 @@
+# From the CNN reconstructor study of the SOUL non-modulated pyramid
+# (repository pyr_nonlinear_rec_cnn): "plan", "log", "lessons_learned.md" and
+# the launch scripts in the comments are in that repository. Procedure and
+# results: docs/cnn_reconstructor.rst.
+#
+# Phase B: the CNN drives the loop and keeps training on the data that loop
+# produces (Fabio's self-training). Override file on top of
+# params_soul_mod0.yml + cnn_closed_loop.yml.
+#
+# Conv2dNetRec drives the run with the frozen copy of the input checkpoint;
+# nn_trainer starts from the same weights (a second copy, at the path the
+# script sets) and overwrites it. One run is one iteration.
+#
+# Inside a run: seeing and wind speed change; the wind direction is drawn
+# once (a new direction rotates the whole screen, see lessons_learned.md).
+# At the start the loop gain ramps from 0 to 1 in 0.5 s (staircase, 10 steps
+# of 50 ms). The ramp frames and the first settle_frames at full gain are
+# kept in training with a small weight (plan, "Phase B").
+
+remove: ['seeing', 'wind_speed', 'wind_direction']
+
+# RandomGenerator's UNIFORM draws in [constant - amp/2, constant + amp/2].
+seeing:
+  class:             'PeriodicRandomGenerator'
+  update_interval:   2.0                    # [s]
+  distribution:      'UNIFORM'
+  constant:          [0.9]                  # ["]
+  amp:               [1.0]                  # -> [0.4, 1.4]
+  seed:              1
+  output_size:       1
+
+wind_speed:
+  class:             'PeriodicRandomGenerator'
+  update_interval:   3.0                    # [s]
+  distribution:      'UNIFORM'
+  constant:          [2., 4., 6., 25.]      # [m/s] nominal profile
+  amp:               [2., 4., 6., 25.]      # -> [0.5, 1.5] x nominal
+  seed:              2
+  output_size:       4
+
+wind_direction:
+  class:             'PeriodicRandomGenerator'
+  update_interval:   1000000.0              # [s] one draw per run
+  distribution:      'UNIFORM'
+  constant:          [0., 30., -30., 45.]   # [deg]
+  amp:               [180., 180., 180., 180.]   # -> +/-90 deg
+  seed:              3
+  output_size:       4
+
+atmo_override:
+  inputs:
+    seeing:          'seeing.output'
+    wind_speed:      'wind_speed.output'
+    wind_direction:  'wind_direction.output'
+
+# --- Gain ramp ---------------------------------------------------------------
+ramp:
+  class:             'ScheduleGenerator'
+  modes_per_group:   [1]
+  scheduled_values:  [[0.0], [0.1], [0.2], [0.3], [0.4], [0.5], [0.6], [0.7], [0.8], [0.9], [1.0]]
+  scheduled_times:   [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50]
+  outputs: ['output']
+
+# One factor per mode; no random de-gain in the first pass (tiers empty):
+# only the ramp, one source of transient at a time.
+loop_gain:
+  class:             'ModalGainModulation'
+  n_modes:           630
+  tiers:             []
+  update_interval:   0.5
+  inputs:
+    gain_mod:        'ramp.output'
+  outputs: ['out_gain_mod']
+
+control_override:
+  inputs:
+    delta_comm:      'modalrec.out_modes'
+    gain_mod:        'loop_gain.out_gain_mod'
+
+# --- Training ------------------------------------------------------------------
+slopes2d:
+  class:             'Slopes2D'
+  inputs:
+    in_slopes:       'slopecNOSN.out_slopes'
+  outputs: ['out_value']
+
+data_buffer:
+  class:             'DataBuffer'
+  buffer_size:       1000
+  inputs:
+    input_list: ['input_2d-slopes2d.out_value',
+                 'modes-modal_analysis.out_modes',
+                 'gain_mod-ramp.output']
+
+nn_trainer:
+  class:             'Conv2dNetTrainer'
+  network_filename:  './trained_models/soul_cnn_m630.pth'   # the network being trained
+  load_from_file:    true
+  nmodes:            630
+  channels:          64
+  depth:             4
+  head_type:         'spatial'
+  head_grid:         60
+  input_channels:    1
+  n_frames:          1
+  conv_block_type:   1
+  dropout:           0.1
+  label_offset:      0
+  val_split:         0.2
+  val_size:          5000
+  gain_mod_threshold: 0.0   # keep the ramp frames...
+  settle_frames:     50     # ...and count them, with the first 50 at full gain,
+  transient_weight:  0.3    # as transient, with this loss weight
+  max_label_rms:     400    # [nm] drop open-loop-like frames (start of the ramp, a lost loop)
+  norm_timescale:    30.0
+  replay_size:       30000
+  replay_subsample:  4
+  replay_ratio:      20
+  replay_batch:      64
+  loss_delta:        10.0
+  norm_loss_weight:  5.0
+  grad_clip_value:   20
+  lr_decay:          0.999
+  mode_gain_alpha:   0.005  # per trigger: averages the calibration over ~6 runs of
+                             # different magnitudes (0.3 kept only the last run's, and
+                             # after a faint run the effective gain on bright stars
+                             # reached ~2: log 2026-10-03)
+  inputs:
+    input_2d_batch:  'data_buffer.input_2d_buffered'
+    labels:          'data_buffer.modes_buffered'
+    gain_mod:        'data_buffer.gain_mod_buffered'
+  outputs: ['loss', 'val_loss']
+
+data_store_override:
+  inputs:
+    input_list: ['resMod-modal_analysis.out_modes',   # limit-cycle check of each run
+                 'resRms-modal_analysis.rms',
+                 'srRes-psf.out_sr',
+                 'gainMod-ramp.output']

@@ -1,0 +1,48 @@
+# From the CNN reconstructor study of the SOUL non-modulated pyramid
+# (repository pyr_nonlinear_rec_cnn): "plan", "log", "lessons_learned.md" and
+# the launch scripts in the comments are in that repository. Procedure and
+# results: docs/cnn_reconstructor.rst.
+#
+# Closed loop driven by the CNN (Conv2dNetRec) instead of the SIMPC.
+# Override file on top of params_soul_mod0.yml, for the CNN runs of the
+# reference campaign and, with phaseB_train.yml on top, for phase B:
+#
+#   specula params_soul_mod0.yml cnn_closed_loop.yml [phaseB_train.yml]
+#
+# The launch scripts set modalrec.network_filename (always a frozen copy of
+# a checkpoint, never the file a trainer is writing).
+
+remove: ['modalrec', 'slopec']
+
+# CNN input: no slope-null subtraction and bands40 pupdata, as in training
+# (phaseA_pushpull.yml).
+slopecNOSN:
+  class:             'PyrSlopec'
+  pupdata_object:    'soul_KLv10_ps220p0.037_pyr40x40_wl750_fv2.1_ft3.0_bn1_th0.30a0.30b_bands40_ctr'
+  slopes_from_intensity: True
+  inputs:
+    in_pixels:       'detector.out_pixels'
+  outputs: ['out_slopes']
+
+modalrec:
+  class:             'Conv2dNetRec'
+  network_filename:  './trained_models/soul_cnn_m630_frozen.pth'   # a frozen copy, see the docs
+  calibrate_gain:    true    # undo the per-mode prediction shrinkage: int_gain is the effective gain
+  inputs:
+    in_slopes:       'slopecNOSN.out_slopes'
+  outputs: ['out_modes']
+
+# Restated in full: removing modalrec dropped these wires, and an _override
+# replaces the whole 'inputs' dictionary.
+control_override:
+  inputs:
+    delta_comm:      'modalrec.out_modes'
+
+data_store_override:
+  inputs:
+    input_list: ['resMod-modal_analysis.out_modes',
+                 'resRms-modal_analysis.rms',
+                 'deltaComm-modalrec.out_modes',
+                 'comm-control.out_comm',
+                 'srRes-psf.out_sr',
+                 'srInt-psf.out_int_sr']
