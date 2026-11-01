@@ -223,4 +223,20 @@ class TestResolveType(unittest.TestCase):
         self.assertEqual(resolve_type(int | float | None), int)
 
 
+class TestFrequencyGrids(unittest.TestCase):
+
+    def test_subpixel_shift_phase(self):
+        from specula.lib.utils import make_subpixel_shift_phase
+        phase = make_subpixel_shift_phase(8, np, np.complex64, shift_x=1.0)
+        # A shift of one pixel: exp(-2 pi i fx), fx = fftfreq(8)
+        np.testing.assert_allclose(phase[0], np.exp(-2j * np.pi * np.fft.fftfreq(8)), atol=1e-6)
+        np.testing.assert_allclose(np.abs(phase), 1, atol=1e-6)
+
+    def test_distance_grid(self):
+        from specula.lib.modal_base_generator import generate_distance_grid
+        grid = generate_distance_grid(6, xp=np)
+        self.assertEqual(grid.shape, (6, 6))
+        self.assertEqual(float(grid[0, 0]), 0.0)
+        self.assertAlmostEqual(float(grid[0, 3]), 3.0)
+        self.assertAlmostEqual(float(grid[0, 5]), 1.0)     # wrapped like the FFT frequencies
 

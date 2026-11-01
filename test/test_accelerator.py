@@ -329,3 +329,100 @@ class TestAcceleratorOptions(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestAcceleratorOnCpu(unittest.TestCase):
+    '''The accelerator with objects on the CPU, and the declarations of the classes'''
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_objects_on_the_cpu_are_not_accelerated(self):
+        import os
+        gen = WaveGenerator(amp=[1.0], freq=[37.0], output_size=4, target_device_idx=-1)
+        report_file = os.path.join(self.tmp.name, 'accelerator.txt')
+        accelerator = Accelerator(AcceleratorOptions(report_file=report_file))
+        accelerator.apply([gen])
+        self.assertIsNone(gen._accel)
+        self.assertEqual(accelerator.runners(), [])
+        from unittest import mock
+        import iteras.accelerator as accelerator_module
+        with mock.patch.object(accelerator_module._logger, 'info') as info:
+            accelerator.finish()
+        self.assertIn('0 of 1 objects accelerated', info.call_args.args[0])
+        with open(report_file) as f:
+            text = f.read()
+        self.assertIn('0 of 1 objects accelerated', text)
+        self.assertIn('on the CPU', text)
+
+    def test_simulation_with_accelerate_on_the_cpu(self):
+        import os
+        import yaml
+        from specula.simul import Simul
+        params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp.name, 'total_time': 0.003,
+                           'time_step': 0.001},
+                  'gen': {'class': 'WaveGenerator', 'amp': [1.0], 'freq': [10.0], 'output_size': 2,
+                          'target_device_idx': -1}}
+        path = os.path.join(self.tmp.name, 'params.yml')
+        with open(path, 'w') as f:
+            yaml.dump(params, f)
+        sim = Simul(path, accelerate=True, speed_report=False)
+        sim.run()
+        self.assertIn('0 of 1 objects accelerated', sim.accelerator.report())
+
+    def test_accelerator_sections(self):
+        from specula.simul import Simul
+        sim = Simul('unused.yml')
+        params = {'accelerator': {'class': 'SimulParams'}}
+        sim.add_accelerator_section(params)     # "accelerator" is taken by another section
+        self.assertEqual(params['accelerator_'], {'class': 'Accelerator'})
+        params = {'a1': {'class': 'Accelerator'}, 'a2': {'class': 'Accelerator'}}
+        with self.assertRaisesRegex(ValueError, 'More than one Accelerator section'):
+            sim.take_accelerator_section(params)
+        params = {'a1': {'class': 'Architecture'}, 'a2': {'class': 'Architecture'}}
+        with self.assertRaisesRegex(ValueError, 'More than one Architecture section'):
+            sim.run_allocator(params)
+        self.assertEqual(AcceleratorOptions(exclude=['b', 'a']).as_dict(),
+                         {'exclude': ['a', 'b'], 'capture_after': 1, 'check_pointers': True})
+
+    def test_declarations_of_the_classes(self):
+        from types import SimpleNamespace
+        from iteras.processing_objects.base_operation import BaseOperation
+        from iteras.processing_objects.base_slicer import BaseSlicer
+        from iteras.processing_objects.iir_filter import IirFilter
+        from specula.processing_objects.ccd import CCD
+        from specula.processing_objects.dm import DM
+        from specula.processing_objects.linear_combination import LinearCombination
+        from specula.processing_objects.modal_analysis import ModalAnalysis
+        from specula.processing_objects.modalrec import Modalrec
+        from specula.processing_objects.psf import PSF
+        from specula.processing_objects.psf_coronagraph import PsfCoronagraph
+        from specula.processing_objects.pyr_slopec import PyrSlopec
+        for klass in (WaveGenerator, IirFilter, BaseSlicer, LinearCombination, PyrSlopec, Modalrec,
+                      ModalAnalysis, PSF, PsfCoronagraph):
+            self.assertIs(klass.can_accelerate(None), True, klass)
+        # Classes that can be accelerated only in some cases
+        self.assertIs(DM.can_accelerate(SimpleNamespace(max_force=None)), True)
+        self.assertIn('force', DM.can_accelerate(SimpleNamespace(max_force=1.0)))
+        ccd = dict(dt=1, loop_dt=1, current_time=5, start_time=0, _photon_noise=False,
+                   _excess_noise=False, _cic_noise=False, _cte_noise=False)
+        self.assertIs(CCD.can_accelerate(SimpleNamespace(**ccd)), True)
+        self.assertIn('several steps', CCD.can_accelerate(SimpleNamespace(**dict(ccd, dt=2))))
+        self.assertIn('start time', CCD.can_accelerate(SimpleNamespace(**dict(ccd, start_time=10))))
+        self.assertIn('photon noise', CCD.can_accelerate(SimpleNamespace(**dict(ccd, _photon_noise=True))))
+        op = SimpleNamespace(local_inputs={'in_value1': SimpleNamespace(generation_time=0),
+                                           'in_value2': None})
+        self.assertIs(BaseOperation.can_accelerate(op), True)
+        op.local_inputs['in_value1'].generation_time = -1
+        self.assertIn('in_value1', BaseOperation.can_accelerate(op))
+
+    def test_helpers(self):
+        import iteras
+        import scipy.fft
+        from types import SimpleNamespace
+        self.assertFalse(iteras.capturing())
+        self.assertIs(iteras.xp_fft(np), scipy.fft)
+        other = SimpleNamespace(fft='its fft')
+        self.assertEqual(iteras.xp_fft(other), 'its fft')

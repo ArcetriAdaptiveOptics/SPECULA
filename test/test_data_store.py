@@ -152,6 +152,28 @@ class TestDataStore(unittest.TestCase):
         np.testing.assert_array_equal(values[-1], [300, 300, 300])
         self.assertEqual(len(values), 3)
 
+    def test_values_stored_in_blocks(self):
+        store = DataStore(store_dir=self.tmp_dir, create_tn=False, target_device_idx=-1)
+        store.BLOCK_BYTES = 2 * 3 * 8           # two values of 3 doubles per block
+        values = [store._host_copy('a', np.full(3, float(i))) for i in range(3)]
+        for i, v in enumerate(values):
+            np.testing.assert_array_equal(v, i)
+        self.assertIs(values[0].base, values[1].base)          # the same block
+        self.assertIsNot(values[1].base, values[2].base)       # full: a new one
+        scalar = store._host_copy('s', np.array(4.0))
+        self.assertEqual(scalar.shape, ())
+        self.assertEqual(float(scalar), 4.0)
+        other = store._host_copy('a', np.zeros(5))              # another shape: a new block
+        self.assertEqual(other.shape, (5,))
+
+    def test_unsupported_format(self):
+        store = DataStore(store_dir=self.tmp_dir, create_tn=False, target_device_idx=-1)
+        store.tn_dir = self.tmp_dir
+        store.data_format = 'unknown'
+        with patch.object(DataStore, 'save_params'):
+            with self.assertRaisesRegex(TypeError, 'unsupported file format'):
+                store.save()
+
     @cpu_and_gpu
     def test_data_store_values_overwritten_after_trigger(self, target_device_idx, xp):
         '''

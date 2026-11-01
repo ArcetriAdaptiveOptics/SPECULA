@@ -246,3 +246,27 @@ class TestPsfCoronagraph(unittest.TestCase):
         self.assertEqual(std_profile_data.shape[0], 2)
         self.assertGreater(float(psf_coro.int_coronagraph_psf.value.max()), 0.0)
         self.assertGreaterEqual(float(psf_coro.std_coronagraph_psf.value.max()), 0.0)
+
+    def test_logs(self):
+        from unittest import mock
+        import logging
+        from types import SimpleNamespace
+        from specula.processing_objects.psf import PSF
+        # Strehl ratio not logged: nothing is read
+        quiet = SimpleNamespace(logger=mock.Mock(isEnabledFor=lambda level: False))
+        PSF._log_sr(quiet)
+        quiet.logger.info.assert_not_called()
+        # Peak suppression logged when debugging
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(-1)
+        psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                  nd=2.0, target_device_idx=-1)
+        psf_coro.inputs['in_ef'].set(ef)
+        psf_coro.setup()
+        psf_coro.logger.setLevel(logging.DEBUG)
+        ef.generation_time = 0
+        with mock.patch.object(psf_coro.logger, 'debug') as debug:
+            psf_coro.check_ready(0)
+            psf_coro.trigger()
+            psf_coro.post_trigger()
+        self.assertIn('peak suppression', debug.call_args.args[0])
+

@@ -319,3 +319,23 @@ class TestReceiveNewValue(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.item.receive_new_value(first_mpi_receive=True)
 
+
+
+class TestReceiveInPlace(unittest.TestCase):
+
+    def test_receive_into_the_host_value(self):
+        '''A host value is received in place, with its generation time'''
+        item = _InputItem(type_=DummyValue, value=None, remote_rank=1, tag=10)
+        value = np.zeros(3)
+        item.cloned_value = DummyValue(val=value)
+        comm = MagicMock()
+
+        def recv_into(buffer, source, tag):
+            buffer[:] = [1, 2, 3]
+        comm.Recv.side_effect = recv_into
+        comm.recv.return_value = 7
+        with patch('iteras.process_comm', comm):
+            result = item.receive_new_value(first_mpi_receive=False)
+        self.assertIs(result, item.cloned_value)
+        np.testing.assert_array_equal(value, [1, 2, 3])
+        self.assertEqual(result.generation_time, 7)

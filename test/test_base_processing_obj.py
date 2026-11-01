@@ -556,3 +556,33 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             obj.check_output_names()
+
+class TestSendAndHooks(unittest.TestCase):
+    '''MPI sends of outputs (with a mocked communicator), and the default class hooks'''
+
+    def test_send_remote_output_of_a_buffer(self):
+        from unittest import mock
+        import iteras
+        from iteras import mpi_progress
+        from iteras.log import MPI_SEND_DBG_LEVEL
+        obj = BaseProcessingObj(target_device_idx=-1)
+        obj.current_time = 5
+        item = BaseValue(value=np.arange(3.0), target_device_idx=-1)
+        item.generation_time = 5
+        obj.sent_valid[10] = True       # not the first send: the data only, with a buffer
+        obj.logger.setLevel(MPI_SEND_DBG_LEVEL)
+        comm = MagicMock()
+        with mock.patch.object(iteras, 'process_comm', comm), \
+                mock.patch.object(mpi_progress, 'isend') as isend:
+            obj.send_remote_output(item, 1, 10, first_mpi_send=False)
+        buffer, dest, tag, step = isend.call_args.args
+        np.testing.assert_array_equal(buffer, [0, 1, 2])
+        self.assertIsNot(buffer, item.value)          # a copy: the object goes on
+        self.assertEqual((dest, tag, step), (1, 10, 5))
+        comm.ibsend.assert_called_once_with(5, dest=1, tag=11)
+
+    def test_default_hooks(self):
+        obj = BaseProcessingObj(target_device_idx=-1)
+        self.assertFalse(obj.can_accelerate())          # no own CUDA graph
+        params = {'n_slices': 4}
+        self.assertIs(BaseProcessingObj.single_device_params(params), params)

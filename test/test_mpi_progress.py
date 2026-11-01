@@ -367,3 +367,22 @@ class TestMpiProgressTwoRanks(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestWaitWarnings(unittest.TestCase):
+
+    def test_long_wait_is_logged(self):
+        from unittest import mock
+        from iteras import mpi_progress
+        answers = iter([False, False, True])
+        with mock.patch.object(mpi_progress, 'WARN_INTERVAL', -1.0), \
+                mock.patch.object(mpi_progress, 'POLL_INTERVAL', 0.0):
+            with mock.patch.object(mpi_progress._logger, 'warning') as warning:
+                mpi_progress._wait(lambda: next(answers), 'the test')
+        self.assertIn('for the test', warning.call_args.args[0])
+
+    def test_wait_current_stream_without_sends(self):
+        from iteras import mpi_progress
+        mpi_progress.reset()
+        self.assertIsNone(mpi_progress.wait_current_stream(0))
+

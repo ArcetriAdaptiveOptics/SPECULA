@@ -7,6 +7,8 @@ specula.init(0)  # Default target device
 import os
 import sys
 import json
+
+import numpy as np
 import tempfile
 import textwrap
 import unittest
@@ -945,3 +947,548 @@ class TestAllocatorRun(AllocatorTestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FakeComm:
+    '''Stands for an MPI communicator of *size* ranks: bcast() returns what rank 0 sends'''
+
+    def __init__(self, size, received=None):
+        self.size = size
+        self.received = received
+        self.sent = []
+
+    def Get_size(self):
+        return self.size
+
+    def bcast(self, value, root=0):
+        self.sent.append(value)
+        return value if self.received is None else self.received
+
+
+class TestAllocatorBranches(AllocatorTestCase):
+    '''Branches of the allocator that the runs of the other tests do not reach'''
+
+    def allocator(self, params=None, **arch):
+        a = {'nodes': [{'name': 'n', 'count': 1, 'cpu': {'cores': 4, 'memory_gb': 4},
+                        'gpus': {'count': 2, 'memory_gb': 10, 'model': 'test'}}],
+             'allocation_file': os.path.join(self.root, 'alloc', 'allocation.yml'),
+             'profile_file': os.path.join(self.root, 'alloc', 'profile.json')}
+        a.update(arch)
+        return Allocator(Simul(self.write(params or self.params)), a, plan_only=True)
+
+    def profile(self, alloc, g, kinds, **cost_kw):
+        p = Profile()
+        for n in g.procs:
+            for kind in kinds:
+                p.entries[f'{g.keys[n]}|{kind}|p{alloc.cost_tag}'] = dict(asdict(cost(**cost_kw)), name=n)
+        return p
+
+    def test_allocate_on_rank_0_sends_the_allocation(self):
+        alloc = self.allocator()
+        allocation = {'objects': {'work1': {'target_rank': 1}}, 'data_objects': {}, 'n_ranks': 2}
+        comm = FakeComm(2)
+        params = json.loads(json.dumps(self.params))
+        with mock.patch.object(iteras, 'process_comm', comm), mock.patch.object(iteras, 'process_rank', 0), \
+                mock.patch.object(Allocator, '_load_or_compute', return_value=allocation) as load:
+            self.assertIs(alloc.allocate(params), allocation)
+        self.assertEqual(load.call_args.kwargs['n_ranks'], 2)
+        self.assertEqual(comm.sent, [(allocation, False)])
+        self.assertEqual(params['work1']['target_rank'], 1)
+
+    def test_allocate_on_other_ranks_receives_the_allocation(self):
+        alloc = self.allocator()
+        allocation = {'objects': {'work1': {'target_rank': 1}}, 'data_objects': {}, 'n_ranks': 2}
+        params = json.loads(json.dumps(self.params))
+        with mock.patch.object(iteras, 'process_comm', FakeComm(2, (allocation, False))), \
+                mock.patch.object(iteras, 'process_rank', 1), \
+                mock.patch.object(Allocator, '_load_or_compute') as load:
+            alloc.allocate(params)
+        load.assert_not_called()
+        self.assertEqual(params['work1']['target_rank'], 1)
+        # Rank 0 failed: the other ranks stop too
+        with mock.patch.object(iteras, 'process_comm', FakeComm(2, (None, True))), \
+                mock.patch.object(iteras, 'process_rank', 1):
+            with self.assertRaisesRegex(RuntimeError, 'failed on rank 0'):
+                alloc.allocate(params)
+
+    def test_allocate_error_on_rank_0_is_raised_after_the_broadcast(self):
+        alloc = self.allocator()
+        comm = FakeComm(2)
+        with mock.patch.object(iteras, 'process_comm', comm), mock.patch.object(iteras, 'process_rank', 0), \
+                mock.patch.object(Allocator, '_load_or_compute', side_effect=ValueError('no fit')):
+            with self.assertRaisesRegex(ValueError, 'no fit'):
+                alloc.allocate(json.loads(json.dumps(self.params)))
+        self.assertEqual(comm.sent, [(None, True)])
+
+    def test_saved_allocation_for_another_number_of_ranks(self):
+        alloc = self.allocator()
+        alloc.plan_only = False
+        g = self.graph()
+        with mock.patch.object(Allocator, 'compute',
+                               return_value=({'objects': {}, 'data_objects': {}, 'n_ranks': 2, 'n_nodes': 1,
+                                              'layout': 'per_gpu', 'processes': [],
+                                              'estimated_step_ms': 1.0}, '')):
+            with self.assertRaisesRegex(ValueError, 'needs 2 MPI ranks, but 1 were launched'):
+                alloc._load_or_compute(g, self.params, n_ranks=1)
+
+    def test_infeasible_with_cpu_costs(self):
+        # The objects do not fit on the GPUs, and their CPU costs are known: no new measurement
+        alloc = self.allocator(nodes=[{'name': 'n', 'cpu': {'cores': 4, 'memory_gb': 1e-6},
+                                       'gpus': {'count': 1, 'memory_gb': 1e-6, 'model': 'test'}}])
+        g = self.graph()
+        profile = self.profile(alloc, g, ['cpu', 'gpu:test'])
+        profile.path = alloc.arch.profile_file
+        os.makedirs(os.path.dirname(profile.path), exist_ok=True)
+        profile.save()
+        with self.assertRaises(Infeasible):
+            alloc.compute(g, self.params)
+
+    def test_numbers_of_nodes_that_do_not_fit(self):
+        alloc = self.allocator(nodes=[{'name': 'n', 'count': 2, 'cpu': {'cores': 4, 'memory_gb': 100},
+                                       'gpus': {'count': 1, 'memory_gb': 10, 'model': 'test'}}],
+                               processes='per_gpu')
+        g = self.graph()
+        profile = self.profile(alloc, g, ['cpu', 'gpu:test'])
+        m = Machine.from_architecture(alloc.arch)
+        real_solve = Allocator._solve
+
+        def one_node_does_not_fit(self, graph, sub, est, prof):
+            if len(sub.nodes) == 1:
+                raise Infeasible('does not fit')
+            return real_solve(self, graph, sub, est, prof)
+        with mock.patch.object(Allocator, '_solve', one_node_does_not_fit):
+            with self.assertLogs('iteras.allocator', level='INFO') as logs:
+                _, _, _, by_nodes = alloc._solve_nodes(g, m, profile)
+        self.assertEqual([k for k, _ in by_nodes], [2])
+        self.assertTrue(any('1 node(s): does not fit' in line for line in logs.output))
+        # No number of nodes fits: the error of the search on all the nodes
+        with mock.patch.object(Allocator, '_solve', side_effect=Infeasible('never fits')):
+            with self.assertRaisesRegex(Infeasible, 'never fits'):
+                alloc._solve_nodes(g, m, profile)
+
+    def test_gpu_model_not_profiled_is_scaled(self):
+        alloc = self.allocator(nodes=[{'name': 'n', 'cpu': {'cores': 4, 'memory_gb': 10},
+                                       'gpus': {'count': 1, 'memory_gb': 10, 'model': 'H100',
+                                                'relative_speed': 2.0}}])
+        g = self.graph()
+        profile = self.profile(alloc, g, ['cpu', 'gpu:A100'], gpu_ms=4.0)
+        costs, _, _ = alloc._tables(g, Machine.from_architecture(alloc.arch), profile)
+        c = costs[('work1', 'gpu:H100')]
+        self.assertAlmostEqual(c.g, 2.0 * ms)
+        self.assertFalse(c.measured)
+
+    def test_mutable_data_object_keeps_its_users_together(self):
+        alloc = self.allocator()
+        g = self.graph()
+        profile = self.profile(alloc, g, ['cpu', 'gpu:test'])
+        profile.refs[f'{g.keys["table"]}|p{alloc.cost_tag}'] = {'bytes': 8.0, 'mutable': True}
+        m = Machine.from_architecture(alloc.arch)
+        est = alloc.estimator(g, m, profile)
+        with self.assertLogs('iteras.allocator', level='INFO') as logs:
+            sol = alloc._solve(g, m, est, profile)
+        self.assertTrue(any('stay together' in line for line in logs.output))
+        self.assertEqual(sol.assign['work1'], sol.assign['work2'])
+
+    def test_layouts_that_do_not_fit(self):
+        alloc = self.allocator(processes='auto')
+        g = self.graph()
+        m = Machine.from_architecture(alloc.arch)
+        profile = self.profile(alloc, g, ['cpu', 'gpu:test'])
+        est = alloc.estimator(g, m, profile)
+        real_solve = Solver.solve
+
+        def single_does_not_fit(solver, layout):
+            if layout.policy == 'single':
+                raise Infeasible('does not fit')
+            return real_solve(solver, layout)
+        with mock.patch.object(Solver, 'solve', single_does_not_fit), \
+                mock.patch('importlib.util.find_spec', return_value=True):
+            self.assertEqual(alloc._solve(g, m, est, profile).layout.policy, 'per_gpu')
+        with mock.patch.object(Solver, 'solve', side_effect=Infeasible('does not fit')), \
+                mock.patch('importlib.util.find_spec', return_value=True):
+            with self.assertRaisesRegex(Infeasible, 'No layout fits'):
+                alloc._solve(g, m, est, profile)
+
+    def test_policies(self):
+        self.assertEqual(self.allocator(processes='single')._policies(machine(ngpu=2)), ['single'])
+        local = self.allocator(nodes='local')
+        with mock.patch('importlib.util.find_spec', return_value=None):
+            with self.assertLogs('iteras.allocator', level='INFO') as logs:
+                self.assertEqual(local._policies(machine(ngpu=2)), ['single'])
+        self.assertIn('mpi4py not available', logs.output[0])
+        self.assertEqual(local._default_device(), max(iteras.default_target_device_idx, -1))
+
+    def test_pins(self):
+        from iteras.allocator.solver import Layout
+        g_params = json.loads(json.dumps(self.params))
+        g_params['work1']['target_rank'] = 0
+        g_params['work1']['target_device_idx'] = -1
+        g_params['work2']['target_rank'] = 0
+        alloc = self.allocator(g_params)
+        g = self.graph(g_params)
+        m = machine(ngpu=2)
+        pins = alloc._pins(g, m, Layout(m, 'single'))
+        self.assertEqual(pins['work1'], m.nodes[0].cpu_slot)     # target_device_idx -1: the CPU
+        self.assertEqual(pins['work2'], m.nodes[0].gpu_slots[0])  # no target_device_idx: first GPU
+        for pin, error in (({'target_rank': 5}, 'rank 5'), ({'target_device_idx': 7}, 'GPU 7')):
+            p = json.loads(json.dumps(self.params))
+            p['work1'].update(pin)
+            with self.assertRaisesRegex(ValueError, error):
+                self.allocator(p)._pins(self.graph(p), m, Layout(m, 'single'))
+
+    def test_one_gpu_kept_with_pinned_and_fixed_objects(self):
+        from iteras.allocator.solver import Layout, Solution
+        p = json.loads(json.dumps(self.params))
+        p['work1']['target_device_idx'] = 1
+        alloc = self.allocator(p, device_tolerance=10.0)
+        g = self.graph(p)
+        m = machine(ngpu=2)
+        costs = {(n, s.kind): cost(gpu_ms=0.5 if s.is_gpu else 0) for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        layout = Layout(m, 'single')
+        assign = {n: (m.nodes[0].cpu_slot if n == 'store' else m.nodes[0].gpu_slots[0]) for n in g.procs}
+        assign['work1'] = m.nodes[0].gpu_slots[1]
+        assign['work2'] = m.nodes[0].gpu_slots[1]
+        split = Solution(assign, layout, est.evaluate(layout.placement(assign)))
+        with mock.patch.dict(g.device_settable, {'gen': False}):
+            chosen = alloc._prefer_one_gpu(g, m, est, split)
+        self.assertEqual(chosen.assign['work1'], m.nodes[0].gpu_slots[1])     # pinned
+        self.assertEqual(chosen.assign['gen'], split.assign['gen'])           # device not settable
+        # Pins that do not exist in this machine, or no placement on one GPU fits: the solution is kept
+        with mock.patch.object(Allocator, '_pins', side_effect=ValueError('no such rank')):
+            self.assertIs(alloc._prefer_one_gpu(g, m, est, split), split)
+        tiny = Machine([{'name': 'n', 'cpu': {'cores': 4, 'memory_gb': 100},
+                         'gpus': {'count': 2, 'memory_gb': 1e-6, 'model': 'test'}}],
+                       {'bandwidth_gb_s': 10, 'latency_us': 10}, 0.0, 0.0)
+        est_tiny = Estimator(g, tiny, costs, {'table': 1 * MiB}, {})
+        self.assertIs(alloc._prefer_one_gpu(g, tiny, est_tiny, split), split)
+
+    def test_profile_steps(self):
+        p = json.loads(json.dumps(self.params))
+        p['work1']['start_time'] = 0.004        # 4 steps
+        p['work2']['dt'] = 0.003                # 3 steps
+        p['last']['dt'] = 'not a number'
+        alloc = self.allocator(p, warmup_steps=1, profile_steps=2)
+        warmup, steps = alloc._profile_steps(self.graph(p))
+        self.assertEqual(warmup, 6)
+        self.assertEqual(steps, 6)
+
+    def test_missing_cpu_costs_measured_with_profile_cpu(self):
+        alloc = self.allocator(nodes=[{'name': 'n', 'cpu': {'cores': 4, 'memory_gb': 10}}], profile_cpu=True)
+        g = self.graph()
+        profile = Profile(alloc.arch.profile_file)
+        alloc._ensure_profile(g, self.params, profile, Machine.from_architecture(alloc.arch))
+        self.assertTrue(alloc._has_cpu_costs(g, profile))
+        # Read from the profile file the next time
+        with self.assertLogs('iteras.allocator', level='INFO') as logs:
+            alloc._ensure_profile(g, self.params, Profile(alloc.arch.profile_file),
+                                  Machine.from_architecture(alloc.arch))
+        self.assertTrue(any('costs read from' in line for line in logs.output))
+
+    def test_cpu_candidates(self):
+        from iteras.allocator import cpu_candidates
+        g = self.graph()
+        m = machine(ngpu=1, gpu_gib=25 * MiB / GiB)
+        costs = {(n, s.kind): cost(mem_mib=10) for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        with mock.patch.dict(g.device_settable, {'gen': False}):
+            chosen = cpu_candidates(g, m, est)
+        self.assertNotIn('gen', chosen)
+        self.assertTrue(chosen)
+        # Nothing can be moved: no candidate
+        with mock.patch.dict(g.device_settable, {n: False for n in g.procs}):
+            self.assertEqual(cpu_candidates(g, m, est), [])
+
+    def test_make_allocation_with_objects_out_of_the_placement(self):
+        from iteras.allocator import make_allocation
+        from iteras.allocator.solver import Layout, Solution
+        g = self.graph()
+        m = machine(ngpu=1)
+        costs = {(n, s.kind): cost() for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        layout = Layout(m, 'single')
+        assign = {n: m.nodes[0].gpu_slots[0] for n in g.procs if n not in ('work1', 'work2')}
+        assign['store'] = m.nodes[0].cpu_slot
+        sol = Solution(assign, layout, est.evaluate(layout.placement(assign)))
+        allocation = make_allocation(g, m, sol)
+        self.assertNotIn('work1', allocation['objects'])
+        self.assertNotIn('table', allocation['data_objects'])    # its users are not placed
+
+    def test_read_allocation_of_another_file(self):
+        from iteras.allocator import read_allocation
+        path = os.path.join(self.root, 'other.yml')
+        with open(path, 'w') as f:
+            f.write('work1_override: {target_device_idx: 0}\n')
+        with self.assertRaisesRegex(ValueError, 'not an allocation file'):
+            read_allocation(path)
+
+    def test_stale_allocation_names_what_changed(self):
+        from iteras.allocator import check_meta, StaleAllocation
+        saved = {'signature': {'a': '1', 'b': '2'}, 'pins': {}, 'architecture': {}, 'precision': 1}
+        current = {'signature': {'a': '9', 'c': '3'}, 'pins': {'a': [0, 1]}, 'architecture': {'x': 1},
+                   'precision': 0}
+        with self.assertRaises(StaleAllocation) as e:
+            check_meta(saved, current, 'f')
+        for what in ('new objects', 'removed objects', 'changed objects', 'target_rank',
+                     'different architecture', 'different precision'):
+            self.assertIn(what, str(e.exception))
+
+
+class TestProfilerHelpers(AllocatorTestCase):
+    '''Profiler functions on the CPU'''
+
+    def devices(self, g, dev=-1):
+        return {n: dev for n in g.procs}
+
+    def test_is_oom(self):
+        self.assertTrue(profiler_module._is_oom(MemoryError('CUDA: out of memory')))
+        self.assertTrue(profiler_module._is_oom(RuntimeError('cudaErrorMemoryAllocation OUT_OF_MEMORY')))
+        self.assertFalse(profiler_module._is_oom(ValueError('wrong value')))
+
+    def test_run_or_oom(self):
+        with mock.patch.object(profiler_module, 'run_once', side_effect=MemoryError('out of memory')):
+            with self.assertRaises(profiler_module.OutOfDeviceMemory):
+                profiler_module._run_or_oom()
+        with mock.patch.object(profiler_module, 'run_once', side_effect=ValueError('other error')):
+            with self.assertRaisesRegex(ValueError, 'other error'):
+                profiler_module._run_or_oom()
+
+    def test_array_blocks_of_a_view(self):
+        base = np.zeros(100)
+        blocks = profiler_module.array_blocks(base[10:20][2:5], set())
+        self.assertEqual(blocks, {('h', base.__array_interface__['data'][0]): base.nbytes})
+
+    def test_array_checksum_of_lists(self):
+        a = profiler_module.array_checksum([np.ones(3), (np.zeros(2), {'x': np.ones(2)})])
+        b = profiler_module.array_checksum([np.ones(3), (np.zeros(2), {'x': np.ones(2) * 2})])
+        self.assertEqual(len(a), 3)
+        self.assertNotEqual(a, b)
+
+    def test_mpi_bytes_without_value(self):
+        class NoValue:
+            def get_value(self):
+                raise AttributeError('no value')
+        self.assertEqual(profiler_module._mpi_bytes(NoValue(), 123.0), 123.0)
+
+    def test_profile_params(self):
+        from iteras.display.plot_display import PlotDisplay
+        params = json.loads(json.dumps(self.params))
+        params['main']['display_server'] = True
+        params['disp'] = {'class': 'PlotDisplay'}
+        g = self.graph()
+        g.classes['disp'] = PlotDisplay
+        params['gen']['target_device_idx'] = 0
+        with mock.patch.dict(g.device_settable, {'gen': False}):
+            p = profiler_module._profile_params(params, g, dict(self.devices(g), gen=0), self.root,
+                                                steps=2, warmup=1)
+        self.assertFalse(p['main']['display_server'])
+        self.assertNotIn('disp', p)
+        self.assertNotIn('target_device_idx', p['gen'])     # its class does not accept it
+
+    def test_profile_run_on_the_cpu(self):
+        from iteras.tracing import tracer
+        g = self.graph()
+        trace = os.path.join(self.root, 'outer.tsv')
+        # A profiling run while the timings of the simulation are traced: they are not mixed
+        tracer.open(trace)
+        try:
+            res = profiler_module.profile_run(self.params, g, self.devices(g), os.path.join(self.root, 'w'),
+                                              steps=2, warmup=1, async_run=False)
+            self.assertTrue(tracer.recording)
+        finally:
+            tracer.close()
+        self.assertIsNone(res.step_ns)          # no asynchronous run
+        self.assertEqual({kind for kind, _ in res.costs.values()}, {'cpu'})
+        res2 = profiler_module.profile_run(self.params, g, self.devices(g), os.path.join(self.root, 'w'),
+                                           steps=2, warmup=1)
+        self.assertGreater(res2.step_ns, 0)
+
+    def test_profile_run_of_objects_not_built(self):
+        # A display is removed from the profiling run: it has no cost
+        from iteras.display.plot_display import PlotDisplay
+        params = json.loads(json.dumps(self.params))
+        g = self.graph()
+        g.procs.append('disp')
+        g.classes['disp'] = PlotDisplay
+        params['disp'] = {'class': 'PlotDisplay'}
+        res = profiler_module.profile_run(params, g, self.devices(g), os.path.join(self.root, 'w'),
+                                          steps=2, warmup=1, async_run=False)
+        self.assertNotIn('disp', res.costs)
+
+    def test_shared_blocks_in_the_profile(self):
+        g = self.graph()
+        result = profiler_module.RunResult(
+            costs={}, refs={}, step_ns=None, devices={},
+            shared=[{'kind': 'cpu', 'owners': ['work1', 'work2'], 'bytes': 8.0},
+                    {'kind': 'gpu:test', 'owners': ['gen', 'last'], 'bytes': 4.0}])
+        profile = Profile()
+        profile.add_run(g, result, 1)
+        # work1 and work2 have the same parameters: the same key, both are owners
+        self.assertEqual(profile.shared_blocks(g, 'cpu', 1), [(['work1', 'work2'], 8.0)])
+        self.assertEqual(profile.shared_blocks(g, 'gpu:test', 1), [(['gen', 'last'], 4.0)])
+        # Owners that are not in this simulation
+        profile.shared['unknown|cpu|p1'] = 2.0
+        self.assertEqual(len(profile.shared_blocks(g, 'cpu', 1)), 1)
+        # A profile without a file is not saved
+        profile.save()
+
+
+class TestReportSolverMachine(AllocatorTestCase):
+    '''Branches of the report, solver, graph and machine'''
+
+    def test_placement_from_params(self):
+        g = self.graph()
+        m = machine(ngpu=1)
+        with mock.patch.dict(g.params['work1'], {'target_device_idx': None}):
+            placement = placement_from_params(g, m, default_device=0)
+        self.assertEqual(placement['work1'][1], m.nodes[0].gpu_slots[0])
+        with mock.patch.dict(g.device_settable, {'work2': False}), \
+                mock.patch.dict(g.params['work2'], {'target_device_idx': -1}):
+            placement = placement_from_params(g, m, default_device=0)
+        self.assertEqual(placement['work2'][1], m.nodes[0].gpu_slots[0])   # default device
+        for pin, error in (({'target_rank': 3}, 'node 3'), ({'target_device_idx': 4}, 'GPU 4')):
+            with mock.patch.dict(g.params['work1'], pin):
+                with self.assertRaisesRegex(ValueError, error):
+                    placement_from_params(g, m)
+
+    def test_describe_placement_and_object_table(self):
+        from iteras.allocator.report import describe_placement, object_table
+        g = self.graph()
+        m = machine(ngpu=1)
+        costs = {(n, s.kind): cost() for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        placement = {n: (Proc(0, 0), m.nodes[0].gpu_slots[0]) for n in ('gen', 'work1')}
+        text = describe_placement(g, m, placement)
+        self.assertIn('rank 0 node0:gpu0: gen, work1', text)
+        table = object_table(g, m, est, placement)
+        self.assertIn('work1', table)
+        self.assertNotIn('last', table)         # not in the placement
+
+    def test_report_names_scaled_gpu_times(self):
+        alloc = Allocator(Simul(self.write(self.params)),
+                          {'nodes': [{'name': 'n', 'cpu': {'cores': 4, 'memory_gb': 10},
+                                      'gpus': {'count': 1, 'memory_gb': 10, 'model': 'H100',
+                                               'relative_speed': 2.0}}],
+                           'allocation_file': os.path.join(self.root, 'a', 'allocation.yml'),
+                           'search_time': 1}, plan_only=True)
+        g = self.graph()
+        profile = Profile(alloc.arch.profile_file)
+        for n in g.procs:
+            # Slow on the CPU: the objects that can go on the GPU go there
+            profile.entries[f'{g.keys[n]}|cpu|p{alloc.cost_tag}'] = dict(asdict(cost(host_ms=50)), name=n)
+            profile.entries[f'{g.keys[n]}|gpu:A100|p{alloc.cost_tag}'] = dict(asdict(cost()), name=n)
+        os.makedirs(os.path.dirname(profile.path), exist_ok=True)
+        profile.save()
+        _, report = alloc.compute(g, self.params)
+        self.assertIn('scaled from another GPU model', report)
+
+    def test_solver_constraints(self):
+        g = self.graph()
+        m = machine(ngpu=2)
+        costs = {(n, s.kind): cost() for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        layout = Layout(m, 'single')
+        gpu0, gpu1 = m.nodes[0].gpu_slots
+        solver = Solver(g, m, est, [('work1', 'work2')], {'work1': gpu0, 'work2': gpu1})
+        with self.assertRaisesRegex(Infeasible, 'pinned to different devices'):
+            solver.eligible(('work1', 'work2'), layout)
+        # A class whose device cannot be set: only the default device
+        solver = Solver(g, m, est, [('gen',)], {}, default_device=1)
+        with mock.patch.dict(g.device_settable, {'gen': False}):
+            self.assertEqual(solver.eligible(('gen',), layout), [gpu1])
+        # No cost for any device
+        empty = Estimator(g, m, {}, {'table': 1 * MiB}, {})
+        with self.assertRaisesRegex(Infeasible, 'No device can run'):
+            Solver(g, m, empty, [('gen',)], {}).eligible(('gen',), layout)
+
+    def test_first_fit(self):
+        g = self.graph()
+        m = machine(ngpu=2, gpu_gib=25 * MiB / GiB)
+        costs = {(n, s.kind): cost(mem_mib=10) for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        layout = Layout(m, 'single')
+        groups = build_groups(g, [])
+        solver = Solver(g, m, est, groups, {})
+        eligible = {grp: solver.eligible(grp, layout) for grp in groups}
+        assign = solver._first_fit(eligible, layout)
+        self.assertEqual(set(assign), set(g.procs))
+        # Devices too small for any group
+        small = machine(ngpu=1, gpu_gib=1e-6, cpu_gib=1e-6)
+        est = Estimator(g, small, {(n, s.kind): cost(mem_mib=10) for n in g.procs for s in small.slots},
+                        {'table': 1 * MiB}, {})
+        layout = Layout(small, 'single')
+        solver = Solver(g, small, est, groups, {})
+        eligible = {grp: solver.eligible(grp, layout) for grp in groups}
+        with self.assertRaisesRegex(Infeasible, 'do not fit in any device'):
+            solver._first_fit(eligible, layout)
+
+    def test_graph_errors(self):
+        params = json.loads(json.dumps(self.params))
+        params['other'] = {'class': 'NoSuchClassAnywhere'}
+        with self.assertRaisesRegex(ValueError, 'cannot determine the class of section other'):
+            self.graph(params)
+        params = json.loads(json.dumps(self.params))
+        params['work1']['inputs'] = {'in_value': 'main'}
+        with self.assertRaisesRegex(ValueError, 'does not come from a processing object or a data object'):
+            self.graph(params)
+        params = json.loads(json.dumps(self.params))
+        params['work1']['target_device_idx'] = 1
+        self.assertEqual(self.graph(params).pins(), {'work1': [None, 1]})
+
+    def test_data_object_as_input(self):
+        params = json.loads(json.dumps(self.params))
+        params['work1']['inputs'] = {'in_value': 'table'}
+        g = self.graph(params)
+        self.assertNotIn('work1', [e.dst for e in g.edges])
+
+    def test_machine_from_slurm(self):
+        env = {'SLURM_JOB_NUM_NODES': '3', 'SLURM_CPUS_ON_NODE': '16', 'SLURM_MEM_PER_NODE': '2048',
+               'CUDA_VISIBLE_DEVICES': '0,1'}
+        with mock.patch.dict(os.environ, env, clear=False):
+            os.environ.pop('SLURM_GPUS_ON_NODE', None)
+            arch = Architecture(nodes=[{'name': 'b', 'cpu': {'cores': 4, 'memory_gb': 10},
+                                        'gpus': {'count': 4, 'memory_gb': 64, 'model': 'A100'}}],
+                                memory_source='slurm')
+            m = Machine.from_architecture(arch)
+        self.assertEqual(len(m.nodes), 3)
+        self.assertEqual(len(m.nodes[0].gpu_slots), 2)
+        self.assertEqual(m.slots[m.nodes[0].cpu_slot].cores, 16)
+
+    def test_local_machine_without_gpu(self):
+        from iteras.allocator import machine as machine_module
+        with mock.patch.object(iteras, 'cp', None):
+            spec = machine_module.local_node(free=True)
+            m = Machine.from_architecture(Architecture(nodes='local', memory_source='probe'))
+        self.assertNotIn('gpus', spec)
+        self.assertEqual(spec['cpu']['cores'], os.cpu_count())
+        self.assertGreater(spec['cpu']['memory_gb'], 0)
+        self.assertEqual(m.gpu_slots(), [])
+
+    def test_first_nodes_and_copies(self):
+        m = machine(ngpu=2, nodes=2)
+        sub = m.first_nodes(1)
+        self.assertEqual(len(sub.nodes), 1)
+        self.assertEqual(len(sub.gpu_slots()), 2)
+        self.assertEqual(m.copy_ns(0, 0, 1e6), 0.0)
+
+
+class TestSmallBranches(AllocatorTestCase):
+
+    def test_architecture_errors(self):
+        for nodes, error in (([], 'non-empty list'), (['x'], 'must be a dictionary'),
+                             ([{'name': 'n', 'cpu': {'cores': 1, 'memory_gb': 1}, 'disk': 1}], 'unknown node keys'),
+                             ([{'name': 'n', 'cpu': {'cores': 1}}], 'cpu.memory_gb is missing')):
+            with self.assertRaisesRegex(ValueError, error):
+                Architecture(nodes=nodes)
+
+    def test_command_line_accelerate(self):
+        from iteras.scripts.iteras_main import build_parser
+        args = build_parser().parse_args(['--accelerate', '--allocate', '--reallocate', 'p.yml'])
+        self.assertTrue(args.accelerate and args.allocate and args.reallocate)
+
+    def test_mpi_bytes_without_cost(self):
+        g = self.graph()
+        m = machine(ngpu=1)
+        est = Estimator(g, m, {}, {'table': 1 * MiB}, {})
+        self.assertEqual(est.mpi_bytes(g.edges[0], m.nodes[0].cpu_slot), 0.0)
+
