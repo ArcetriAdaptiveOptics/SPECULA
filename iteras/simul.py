@@ -1098,6 +1098,19 @@ class Simul():
                     raise ValueError(f"Invalid number of parts detected in override: {parts}. Did you add/forget a '.'?")
     
     def run(self, start_time=0, end_time=None):
+        '''
+        Build and run the simulation from its parameter files. The objects make
+        their devices current while they are built and run: the current device
+        is restored at the end.
+        '''
+        device = iteras.cp.cuda.Device() if iteras.cp is not None else None
+        try:
+            self._run(start_time, end_time)
+        finally:
+            if device is not None:
+                device.use()
+
+    def _run(self, start_time, end_time):
         # With the 'spawn' start method (default on macOS and Windows), child processes
         # like the display server re-import the main script: an unguarded call would
         # build the whole simulation again inside the child and then fail anyway.

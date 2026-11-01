@@ -85,6 +85,15 @@ class LoopControl(BaseTimeObj):
                 before the loop starts, so that their state at t0 is the same as in a
                 run started from 0 (default: None).
         """
+        # Each phase of each object runs on its device: restore the current device at the end
+        device = iteras.cp.cuda.Device() if iteras.cp is not None else None
+        try:
+            self._run(run_time, dt, t0, speed_report, preroll_objs)
+        finally:
+            if device is not None:
+                device.use()
+
+    def _run(self, run_time, dt, t0, speed_report, preroll_objs):
         self.start(run_time, dt, t0=t0, speed_report=speed_report, preroll_objs=preroll_objs)
         self.next_time_to_stop = 0
         while self.run_time < 0 or self.t < self.t0 + self.run_time:
@@ -293,13 +302,19 @@ class LoopControl(BaseTimeObj):
         self._mem_pending = set()
         self._mem_first_trigger_report = False
 
-        for i in sorted(self.trigger_lists.keys()):
-            for element in self.trigger_lists[i]:
-                try:
-                    # As for the other phases, finalize() runs on the device of the object
-                    if element.target_device_idx >= 0:
-                        element._target_device.use()
-                    element.finalize()
-                except:
-                    self.logger.error(f'Exception in {element.name}')
-                    raise
+        # As for the other phases, finalize() runs on the device of the object;
+        # the current device is then restored, for the code that runs after
+        device = iteras.cp.cuda.Device() if iteras.cp is not None else None
+        try:
+            for i in sorted(self.trigger_lists.keys()):
+                for element in self.trigger_lists[i]:
+                    try:
+                        if element.target_device_idx >= 0:
+                            element._target_device.use()
+                        element.finalize()
+                    except:
+                        self.logger.error(f'Exception in {element.name}')
+                        raise
+        finally:
+            if device is not None:
+                device.use()

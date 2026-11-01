@@ -254,3 +254,5 @@ class TestFinalizeDevice(unittest.TestCase):
         specula.cp.cuda.Device(0).use()
         loop.finish()
         self.assertEqual(obj.finalize_device, 1)
+        # The current device is restored
+        self.assertEqual(specula.cp.cuda.Device().id, 0)

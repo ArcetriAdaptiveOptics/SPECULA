@@ -900,11 +900,11 @@ class TestAllocatorRun(AllocatorTestCase):
         params['architecture'] = self.arch(mode='plan', nodes='local', memory_source='probe',
                                            profile_device=0, profile_steps=2, warmup_steps=1)
         path = self.write(params)
-        pool = iteras.cp.get_default_memory_pool()
+        # A memory pool of 45 MB for this test only: the default pool may hold free
+        # memory left by other tests, inside blocks it cannot release
         with iteras.cp.cuda.Device(0):
-            pool.free_all_blocks()
-            # 45 MB more than what the objects of other tests may still hold
-            pool.set_limit(size=pool.total_bytes() + 45 * 1024 ** 2)
+            pool = iteras.cp.cuda.MemoryPool()
+            pool.set_limit(size=45 * 1024 ** 2)
         calls = []
         real_run = profiler_module.profile_run
 
@@ -912,11 +912,11 @@ class TestAllocatorRun(AllocatorTestCase):
             calls.append(sorted(n for n, d in args[2].items() if d >= 0))
             return real_run(*args, **kwargs)
         try:
-            with mock.patch('iteras.allocator.profile_run', counting_run):
+            with mock.patch('iteras.allocator.profile_run', counting_run), \
+                    iteras.cp.cuda.using_allocator(pool.malloc):
                 Simul(path, speed_report=False).run()
         finally:
-            with iteras.cp.cuda.Device(0):
-                pool.set_limit(size=0)
+            pool.free_all_blocks()
         self.assertGreater(len(calls), 2)
         profile = Profile(params['architecture']['allocation_file'].replace('.yml', '_profile.json'))
         g = self.graph()
