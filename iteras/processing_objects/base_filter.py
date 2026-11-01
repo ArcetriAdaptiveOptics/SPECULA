@@ -133,11 +133,14 @@ class BaseFilter(BaseProcessingObj):
                 output = (remainder_delay * self.output_buffer[:, delay_idx] +
                          (1 - remainder_delay) * self.output_buffer[:, delay_idx - 1])
 
-        self.out_comm.value = output
+        # Copied into the output arrays: their consumers keep using the same arrays
+        # (a CUDA graph reads the addresses it was captured with), and they are not
+        # views of output_buffer, which prepare_trigger() shifts at the next step
+        self.out_comm.value[:] = output
         self.out_comm.generation_time = self.current_time
 
         # No-delay output (for POLC)
-        self.out_comm_no_delay.value = self.output_buffer[:, 0]
+        self.out_comm_no_delay.value[:] = self.output_buffer[:, 0]
         self.out_comm_no_delay.generation_time = self.current_time
 
     @abstractmethod
