@@ -80,6 +80,8 @@ class TestMatmul(unittest.TestCase):
         'vectors @ matrix': ((3, 50), (50, 3000), False),
         'vector @ transposed matrix': ((50,), (60, 50), True),
         'vectors @ transposed matrix': ((3, 50), (60, 50), True),
+        'matrix @ matrix': ((30, 50), (50, 40), False),
+        'matrix @ transposed matrix': ((30, 50), (40, 50), True),
     }
 
     def operands(self, xp, dtype, a_shape, b_shape, transposed):

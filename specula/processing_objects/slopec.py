@@ -1,5 +1,6 @@
 
-from specula import np, fuse, capturing
+from specula import np, fuse
+from specula.lib.graph_matmul import matmul
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
@@ -183,13 +184,8 @@ class Slopec(BaseProcessingObj):
         raise NotImplementedError(f'{self.__class__.__name__}: please implement compute_slopes() in your derived class!')
 
     def vecmat(self, v, m):
-        '''
-        Vector-matrix product v @ m. cuBLAS cannot be used in a CUDA graph,
-        so objects using one use sum_product() instead.
-        '''
-        if self.stream is not None or capturing():
-            return sum_product(m.T, v, xp=self.xp)
-        return v @ m
+        '''Vector-matrix product v @ m, also in a CUDA graph (see graph_matmul.matmul())'''
+        return matmul(v, m, self.xp)
 
     def apply_slopes_corrections(self):
         '''

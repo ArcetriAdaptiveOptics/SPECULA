@@ -1,18 +1,24 @@
 """
-Batched matrix product that can be captured in a CUDA graph.
+Matrix products that can be captured in a CUDA graph.
 
 CuPy does not allow cuBLAS calls during stream capture ("calling cuBLAS API
 during stream capture is currently unsupported", also through its low-level
 cuBLAS binding), so `cp.matmul` cannot be used in a `trigger_code()` that is
-captured in a CUDA graph. For matrix-vector products, use `sum_product()` in
-`specula.processing_objects.slopec`, which is close to optimal there. For
-matrix-matrix products it is several times slower, because it does not reuse
-the data: use `left_mul()` below, a standard tiled matrix product.
+captured in a CUDA graph (see iteras.accelerator and build_stream()).
 
-CuPy has its own GEMM kernel, which can be captured, but only for integer
-types; compiled for floats it is 2-5x slower than this one on the SH sizes.
-When CuPy allows cuBLAS during stream capture, `left_mul()` can be replaced
-by `cp.matmul`.
+Use `matmul(a, b, xp)`: it is `a @ b` (cuBLAS) outside a capture, and inside one
+it uses the raw kernels of this module, chosen by the shapes and memory layout:
+
+* `matvec()`: matrix @ vector(s), one warp per row of the matrix;
+* `vecmat()`: a few vectors @ matrix, partial sums over chunks of rows;
+* `left_mul()`: matrix @ matrix (or a batch of them), a standard tiled product.
+
+The first two are deterministic and as fast as cuBLAS on the matrices of the
+simulations (influence functions, reconstructors), without copying a
+transposed matrix. CuPy has its own GEMM kernel, which can be captured, but
+only for integer types; compiled for floats it is 2-5x slower than `left_mul()`
+on the SH sizes. When CuPy allows cuBLAS during stream capture, `matmul()` can
+simply return `a @ b`.
 """
 import numpy as np
 
@@ -120,6 +126,10 @@ __global__ void vecmat_part(const T* V, const T* M, T* part, int nk, int n, int 
 }
 '''
 _vecmat_kernels = {}
+# About 4 waves of resident threads on a large GPU (170 multiprocessors of 1024
+# threads): with fewer threads, most of the GPU would be idle. Fixed (not read
+# from the device), so that the result does not depend on the GPU model.
+_VECMAT_THREADS = 4 * 170 * 1024
 
 
 def vecmat(v, m, xp):
@@ -141,8 +151,10 @@ def vecmat(v, m, xp):
     v2 = xp.ascontiguousarray(v if v.ndim == 2 else v[None])
     nk, n = v2.shape
     ncol = m.shape[1]
-    # Chunks of rows: enough threads to fill the GPU when there are few columns
-    nsplit = max(1, min(64, n, (4 * 170 * 1024) // max(ncol, 1)))
+    # One thread per column and chunk of rows: with few columns, the rows are split
+    # in up to 64 chunks, to have about _VECMAT_THREADS threads, enough to fill a
+    # large GPU
+    nsplit = max(1, min(64, n, _VECMAT_THREADS // max(ncol, 1)))
     chunk = -(-n // nsplit)
     nsplit = -(-n // chunk)
     part = xp.empty((nsplit, nk, ncol), dtype=m.dtype)
@@ -202,24 +214,36 @@ def matvec(a, v, xp):
     return y if v.ndim == 2 else y[0]
 
 
+# Up to this number of rows, a @ b with a 2-d "a" is computed as vectors @ matrix
+_FEW_VECTORS = 8
+
+
 def matmul(a, b, xp):
     """
     a @ b, also inside a CUDA graph capture (see iteras.accelerator), where cuBLAS
     cannot be used: then matrix @ vector and vector(s) @ matrix use matvec() or
-    vecmat(), depending on the memory layout of the matrix. Outside a capture,
-    or for other shapes, it is a @ b (cuBLAS).
+    vecmat(), depending on the memory layout of the matrix, and matrix @ matrix
+    uses left_mul(). Outside a capture, or for other shapes, it is a @ b (cuBLAS).
     """
     from specula import capturing
     if xp is np or not capturing():
         return a @ b
+    # With a transposed (Fortran-ordered) matrix, the other kernel is used on its
+    # C-contiguous transpose, since a @ b = (b.T @ a.T).T:
+    # A @ v = v @ A.T, and v @ B = B.T @ v (for vectors, .T does nothing)
     if a.ndim == 2 and b.ndim == 1:
         if a.flags.c_contiguous:
             return matvec(a, b, xp)
         if a.T.flags.c_contiguous:
             return vecmat(b, a.T, xp)
-    if a.ndim in (1, 2) and b.ndim == 2:
+    few = a.ndim == 1 or (a.ndim == 2 and a.shape[0] <= _FEW_VECTORS)
+    if few and b.ndim == 2:
         if b.flags.c_contiguous:
             return vecmat(a, b, xp)
         if b.T.flags.c_contiguous:
             return matvec(b.T, a, xp)
+    if a.ndim == 2 and b.ndim == 2 and a.dtype == b.dtype:
+        out = xp.empty((1, a.shape[0], b.shape[1]), dtype=a.dtype)
+        left_mul(xp.ascontiguousarray(a), b[None], out, xp)
+        return out[0]
     return a @ b

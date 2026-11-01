@@ -880,7 +880,7 @@ class TestShSlopec(unittest.TestCase):
     def test_recmat(self, target_device_idx, xp):
         """
         With a recmat, the slopes are replaced by slopes @ recmat.
-        On GPU the product is part of the CUDA graph, and uses sum_product().
+        On GPU the product is part of the CUDA graph (see graph_matmul.matmul()).
         """
         subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
         n_slopes = 2 * subapdata.n_subaps
