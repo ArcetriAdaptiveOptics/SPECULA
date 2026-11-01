@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from iteras.base_value import BaseValue
 from iteras.base_processing_obj import BaseProcessingObj
 
-from iteras.lib.display_server_api import start_server
+from iteras.lib.display_server_api import SERVER_READY, start_server
 
 class DisplayServer(BaseProcessingObj):
     """
@@ -64,6 +64,7 @@ class DisplayServer(BaseProcessingObj):
         self.qout = mp.Queue()
 
         self.params_dict = params_dict
+        self.server_port = None          # known when the server reports it has started
 
         self.p = mp.Process(
             target=start_server, 
@@ -104,6 +105,40 @@ class DisplayServer(BaseProcessingObj):
 
         self.logger.info(f"Initialized in {self.mode} mode")
 
+    # Seconds setup() waits for the server process to start
+    READY_TIMEOUT = 60.0
+
+    def setup(self):
+        super().setup()
+        self.wait_until_ready()
+
+    def wait_until_ready(self, timeout=None):
+        """Wait until the server process has started (it reports its port).
+
+        On Windows a process started while its parent is blocked reading a
+        pipe stdin -- a stepping simulation waiting at its prompt -- hangs in
+        its start-up until the read ends: the server would only start after
+        the first step.  Waiting here, before the first prompt, avoids that.
+        Returns True if the server reported it has started.
+        """
+        timeout = self.READY_TIMEOUT if timeout is None else timeout
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                item = self.qin.get(timeout=0.5)
+            except queue.Empty:
+                if not self.p.is_alive():
+                    self.logger.error("The display server process ended while starting")
+                    return False
+                continue
+            if isinstance(item, tuple) and len(item) == 2 and item[0] == SERVER_READY:
+                self.server_port = item[1]
+                self.logger.info(f"Display server started on port {self.server_port}")
+                return True
+            self.qin.put(item)               # not ours (cannot happen before start)
+        self.logger.warning(f"The display server did not start within {timeout:.0f} s")
+        return False
+
     @classmethod
     def input_names(cls):
         return {}
@@ -123,6 +158,9 @@ class DisplayServer(BaseProcessingObj):
         while True:
             try:
                 request_data = self.qin.get(block=False)
+                if request_data[0] == SERVER_READY:
+                    self.server_port = request_data[1]
+                    continue
                 client_id, object_names = request_data
                 
                 for name in object_names:
@@ -182,6 +220,9 @@ class DisplayServer(BaseProcessingObj):
                 request_data = self.qin.get(block=False)
                 processed += 1
                 
+                if request_data[0] == SERVER_READY:
+                    self.server_port = request_data[1]
+                    continue
                 client_id, object_names = request_data
                 
                 responses = []
