@@ -14,8 +14,9 @@ simulating a few steps of the loop as LoopControl runs it:
   that wait for the GPU in trigger or post_trigger (see profiler) and before
   copying data out of a GPU;
 * an object that splits its work over k devices (graph.spread, e.g.
-  DistributedSH) launches k parts, each with 1/k of the measured GPU time and
-  memory, copies its inputs to its other devices and gathers the results;
+  DistributedSH, or a split chosen by the solver, see Estimator.spread())
+  launches k parts, each with 1/k of the measured GPU time and memory, copies
+  its inputs to its other devices and gathers the results;
 * MPI messages are sent as iteras.mpi_progress sends them. A small message
   (up to EAGER_BYTES) travels at once. The data of a larger one moves once
   both the send and the receive have been posted: on a single-copy link the
@@ -44,6 +45,19 @@ STABLE_PASSES = 2
 class Proc:
     rank: int
     node: int
+
+
+def split_devices(machine, slot, k):
+    '''
+    Slots used by an object placed on *slot* that splits its work over *k*
+    devices: *slot* and the following GPUs of its node (modulo their number),
+    as DistributedSH uses them.
+    '''
+    if k == 1 or not machine.slots[slot].is_gpu:
+        return [slot]
+    gpus = machine.nodes[machine.slots[slot].node].gpu_slots
+    first = gpus.index(slot)
+    return [gpus[(first + i) % len(gpus)] for i in range(k)]
 
 
 @dataclass
@@ -110,17 +124,20 @@ class Estimator:
     def cost(self, name, slot):
         return self.costs.get((name, self.machine.slots[slot].kind))
 
-    def devices(self, name, slot):
+    def spread(self, split=None):
+        '''
+        Number of devices of each object: as in the parameter file
+        (graph.spread), except for the objects in *split* ({name: number of
+        devices}), split by the allocator.
+        '''
+        return self.graph.spread if not split else {**self.graph.spread, **split}
+
+    def devices(self, name, slot, split=None):
         '''
         Slots used by object *name* placed on *slot*: the following GPUs of the
         node too (modulo their number) for objects that split their work.
         '''
-        k = self.graph.spread.get(name, 1)
-        if k == 1 or not self.machine.slots[slot].is_gpu:
-            return [slot]
-        gpus = self.machine.nodes[self.machine.slots[slot].node].gpu_slots
-        first = gpus.index(slot)
-        return [gpus[(first + i) % len(gpus)] for i in range(k)]
+        return split_devices(self.machine, slot, self.spread(split).get(name, 1))
 
     def out_bytes(self, edge, slot):
         '''Bytes of the output of *edge*, copied between devices'''
@@ -151,16 +168,16 @@ class Estimator:
 
     # -- memory --------------------------------------------------------
 
-    def memory(self, placement):
+    def memory(self, placement, split=None):
         '''
         Bytes used on each slot. Each process has its own copy of the data
         objects, of the arrays shared by its objects and of the inputs coming
-        from other devices or processes.
+        from other devices or processes. *split*: see spread().
         '''
         slots = self.machine.slots
         use = defaultdict(float)
         on_proc_slot = defaultdict(set)
-        used = {name: self.devices(name, s) for name, (_, s) in placement.items()}
+        used = {name: self.devices(name, s, split) for name, (_, s) in placement.items()}
         for name, (p, s) in placement.items():
             mem = self.cost(name, s).mem
             for d in used[name]:
@@ -198,9 +215,10 @@ class Estimator:
 
     # -- time ----------------------------------------------------------
 
-    def step_time(self, placement):
+    def step_time(self, placement, split=None):
         '''
         Steady-state time per step (ns) and bytes exchanged between devices per step.
+        *split*: see spread().
 
         Without single-copy, the data of a large MPI message moves only while
         its sender is inside MPI after both sides are ready. Since those times
@@ -214,7 +232,7 @@ class Estimator:
         per_step = None
         stable = 0
         for _ in range(MAX_PASSES if remote else 1):
-            new_step, comm_bytes, events = self._simulate(placement, events)
+            new_step, comm_bytes, events = self._simulate(placement, events, split)
             if per_step is not None and abs(new_step - per_step) <= CONVERGENCE * per_step:
                 stable += 1
                 if stable == STABLE_PASSES:
@@ -249,14 +267,14 @@ class Estimator:
                 start = nxt
         return start + nbytes / bw
 
-    def _simulate(self, placement, prev_events):
+    def _simulate(self, placement, prev_events, split=None):
         '''
         One pass of the simulation. *prev_events* are the intervals of each
         process inside MPI in the previous pass, or None. Return the time per
         step, the bytes exchanged between devices, and the intervals of this pass.
         '''
         state = _Pass(placement, prev_events,
-                      used={name: self.devices(name, s) for name, (_, s) in placement.items()})
+                      used={name: self.devices(name, s, split) for name, (_, s) in placement.items()})
         comm_bytes = 0.0
         for name, (p, s) in placement.items():
             state.remote_out[name] = [e for e in self.graph.out_edges[name]
@@ -393,9 +411,10 @@ class Estimator:
                     state.events[p].append((t, t))
         return t
 
-    def evaluate(self, placement):
-        mem = self.memory(placement)
+    def evaluate(self, placement, split=None):
+        '''Memory and time per step of *placement*, with the objects in *split* split (see spread())'''
+        mem = self.memory(placement, split)
         overflow = {s: use - self.machine.slots[s].memory for s, use in mem.items()
                     if use > self.machine.slots[s].memory}
-        step, comm = self.step_time(placement)
+        step, comm = self.step_time(placement, split)
         return Evaluation(step, comm, mem, not overflow, overflow)

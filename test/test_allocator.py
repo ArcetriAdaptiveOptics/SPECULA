@@ -109,6 +109,13 @@ class SplitWork(Work):
     @classmethod
     def single_device_params(cls, params):
         return {**params, 'parts': 1}
+
+
+class ShardWork(Work):
+    """Like Work, which the allocator may split over 2 or 4 devices (as a SplitWork)"""
+    @classmethod
+    def split_options(cls, params, max_devices):
+        return {k: {**params, 'class': 'SplitWork', 'parts': k} for k in (2, 4) if k <= max_devices}
 '''
 
 
@@ -124,7 +131,8 @@ class AllocatorTestCase(unittest.TestCase):
         with open(os.path.join(pkg, '__init__.py'), 'w') as f:
             f.write(textwrap.dedent(OBJECTS))
         for name, klass in [('gen', 'Gen'), ('work', 'Work'), ('table', 'Table'),
-                            ('split_work', 'SplitWork'), ('cpu_store', 'CpuStore')]:
+                            ('split_work', 'SplitWork'), ('shard_work', 'ShardWork'),
+                            ('cpu_store', 'CpuStore')]:
             with open(os.path.join(pkg, f'{name}.py'), 'w') as f:
                 f.write(f'from alloc_objs import {klass}\n')
         sys.path.insert(0, root)
@@ -622,6 +630,156 @@ class TestSolver(AllocatorTestCase):
         a, b = split_chunk(['a', 'b', 'c', 'd'], [('b', 'c')])
         self.assertTrue({'b', 'c'} <= set(a) or {'b', 'c'} <= set(b))
         self.assertEqual(sorted(a + b), ['a', 'b', 'c', 'd'])
+
+
+class TestSplitDecision(AllocatorTestCase):
+    '''The allocator splits objects over several GPUs when it is faster (split_options())'''
+
+    def setUp(self):
+        super().setUp()
+        self.params['work2'] = dict(self.params['work2'], **{'class': 'ShardWork'})
+        self.params['store']['inputs']['input_list'] = ['a-last.out_value', 'b-work2.out_value']
+
+    def estimator(self, m, work2_ms, others_ms=0.1, out_mib=1):
+        g = self.graph()
+        costs = {}
+        for name in g.procs:
+            for s in m.slots:
+                c = cost(gpu_ms=0 if s.kind == 'cpu' else (work2_ms if name == 'work2' else others_ms),
+                         out_mib=out_mib)
+                if s.kind == 'cpu' and not g.cls(name).runs_on_cpu_only():
+                    c.h_trig = 100 * ms
+                costs[(name, s.kind)] = c
+        return g, Estimator(g, m, costs, {'table': 1 * MiB}, {})
+
+    def solve(self, m, work2_ms, policy='single', pins=None, split_objects=True, **kw):
+        g, est = self.estimator(m, work2_ms, **kw)
+        solver = Solver(g, m, est, build_groups(g, []), pins or {}, search_time=10,
+                        split_objects=split_objects)
+        return g, est, solver, solver.solve(Layout(m, policy))
+
+    def test_estimator_with_a_split_chosen_by_the_solver(self):
+        m = machine(ngpu=4)
+        g, est = self.estimator(m, work2_ms=40.0)
+        self.assertEqual(g.spread['work2'], 1)
+        self.assertEqual(est.devices('work2', 1), [1])
+        self.assertEqual(est.devices('work2', 1, {'work2': 4}), [1, 2, 3, 0])
+        p = Proc(0, 0)
+        place = {n: (p, 0) for n in g.procs}
+        place['store'] = (p, m.nodes[0].cpu_slot)
+        place['work2'] = (p, 1)
+        self.assertLess(est.step_time(place, {'work2': 4})[0], est.step_time(place)[0] - 20 * ms)
+
+    def test_heavy_object_split_over_the_gpus(self):
+        m = machine(ngpu=4)
+        g, est, solver, sol = self.solve(m, work2_ms=40.0)
+        self.assertEqual(sol.split, {'work2': 4})
+        self.assertEqual(sol.split_params['work2']['class'], 'SplitWork')
+        self.assertEqual(sol.split_params['work2']['parts'], 4)
+        _, _, _, joined = self.solve(m, work2_ms=40.0, split_objects=False)
+        self.assertEqual(joined.split, {})
+        self.assertLess(sol.evaluation.step_ns, joined.evaluation.step_ns - 20 * ms)
+
+    def test_splits_balance_more_objects_than_gpus(self):
+        # Six equal objects on four GPUs: without splitting, two GPUs run two of them;
+        # splitting some of them over several GPUs balances the work
+        params = {k: v for k, v in self.params.items() if k in ('main', 'table', 'gen')}
+        names = [f'w{i}' for i in range(6)]
+        for n in names:
+            params[n] = {'class': 'ShardWork', 'size': 1000, 'inputs': {'in_value': 'gen.out_value'}}
+        params['store'] = dict(self.params['store'],
+                               inputs={'input_list': [f'{n}-{n}.out_value' for n in names]})
+        g = self.graph(params)
+        m = machine(ngpu=4)
+        costs = {}
+        for name in g.procs:
+            for s in m.slots:
+                c = cost(gpu_ms=0 if s.kind == 'cpu' else (20.0 if name in names else 0.01),
+                         out_mib=0.01)
+                if s.kind == 'cpu' and not g.cls(name).runs_on_cpu_only():
+                    c.h_trig = 100 * ms
+                costs[(name, s.kind)] = c
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        results = {}
+        for split_objects in (False, True):
+            solver = Solver(g, m, est, build_groups(g, []), {}, search_time=10,
+                            split_objects=split_objects)
+            results[split_objects] = solver.solve(Layout(m, 'single'))
+        self.assertGreaterEqual(results[False].evaluation.step_ns, 40 * ms)     # 2 x 20 ms
+        # About 6 x 20 / 4 ms: for example two of them split over two GPUs each, or all
+        self.assertTrue(results[True].split)
+        self.assertLess(results[True].evaluation.step_ns, 35 * ms)
+
+    def test_light_object_not_split(self):
+        # Little GPU work and a large output: the copies to the other GPUs cost more
+        m = machine(ngpu=4)
+        _, _, _, sol = self.solve(m, work2_ms=0.01, out_mib=200)
+        self.assertEqual(sol.split, {})
+
+    def test_split_needs_a_process_driving_the_gpus(self):
+        m = machine(ngpu=4)
+        _, _, solver, sol = self.solve(m, work2_ms=40.0, policy='per_gpu')
+        self.assertIn('work2', solver.options)
+        self.assertEqual(sol.split, {})
+
+    def test_objects_placed_by_hand_are_not_split(self):
+        m = machine(ngpu=4)
+        _, _, solver, sol = self.solve(m, work2_ms=40.0, pins={'work2': 1})
+        self.assertNotIn('work2', solver.options)
+        self.assertEqual(sol.split, {})
+        self.assertEqual(sol.assign['work2'], 1)
+
+    def test_explicit_split_kept_and_needs_its_gpus_in_one_process(self):
+        self.params['work2'] = dict(self.params['work2'], **{'class': 'SplitWork', 'parts': 2})
+        m = machine(ngpu=4)
+        g, est = self.estimator(m, work2_ms=40.0)
+        solver = Solver(g, m, est, build_groups(g, []), {}, search_time=5)
+        self.assertNotIn('work2', solver.options)       # already split: kept as written
+        self.assertEqual(set(solver.eligible(('work2',), Layout(m, 'single'))), set(m.gpu_slots()))
+        with self.assertRaises(Infeasible):
+            solver.eligible(('work2',), Layout(m, 'per_gpu'))
+
+    def test_allocation_file_sets_the_split(self):
+        m = machine(ngpu=4)
+        g, est, solver, sol = self.solve(m, work2_ms=40.0)
+        alloc = make_allocation(g, m, sol)
+        first = m.slots[sol.assign['work2']].idx
+        self.assertEqual(alloc['objects']['work2'],
+                         {'class': 'SplitWork', 'parts': 4, 'target_device_idx': first})
+        self.assertEqual(alloc['processes'][0]['devices'], [-1, 0, 1, 2, 3])
+        path = os.path.join(self.root, 'allocation.yml')
+        write_allocation(path, dict(alloc, meta={}), 'report')
+        params = json.loads(json.dumps(self.params))
+        apply_allocation(read_allocation(path), params)
+        self.assertEqual(params['work2']['class'], 'SplitWork')
+        self.assertEqual(self.graph(params).spread['work2'], 4)
+
+    def test_report_shows_the_split(self):
+        from iteras.allocator.report import object_table
+        m = machine(ngpu=4)
+        g, est, solver, sol = self.solve(m, work2_ms=40.0)
+        alloc = make_allocation(g, m, sol)
+        table = object_table(g, m, est, sol.placement(), alloc, sol.split)
+        line = next(l for l in table.splitlines() if l.startswith('work2'))
+        self.assertIn('SplitWork', line)
+        first = m.slots[sol.assign['work2']].idx
+        self.assertIn(','.join(str((first + i) % 4) for i in range(4)), line)
+
+    def test_architecture_option(self):
+        self.assertTrue(Architecture().split_objects)
+        self.assertIn('split_objects', Architecture().as_dict())
+        self.assertFalse(Architecture(split_objects=False).as_dict()['split_objects'])
+        # Allocation files written before the option existed are still valid, but
+        # one computed without splitting is stale when splitting is enabled
+        g = self.graph()
+        current = {'signature': g.signature(), 'pins': {}, 'precision': 1,
+                   'architecture': Architecture().as_dict()}
+        old = dict(current, architecture={k: v for k, v in current['architecture'].items()
+                                          if k != 'split_objects'})
+        check_meta(old, current, 'x')
+        disabled = dict(current, architecture=Architecture(split_objects=False).as_dict())
+        with self.assertRaises(StaleAllocation):
+            check_meta(disabled, current, 'x')
 
 
 class TestDeviceTolerance(AllocatorTestCase):

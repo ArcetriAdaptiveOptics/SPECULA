@@ -180,6 +180,14 @@ The default implementations do nothing; override them to change how
      - Class method. Parameters of an equivalent object on a single device, used
        by the allocator to measure the objects whose ``devices_used()`` is more
        than 1.
+   * - ``split_options(params, max_devices)``
+     - Class method. Ways in which the allocator may split the work of an object
+       built with *params* over 2 to *max_devices* GPUs of a node, when it is
+       faster: ``{number of devices: parameters of the split object}``. The
+       parameters may name another class (``class`` key), whose
+       ``devices_used()`` and ``single_device_params()`` describe the split
+       object. None by default; SPECULA's ``SH`` offers ``DistributedSH`` with
+       ``n_slices`` dividing its subaperture rows.
    * - ``is_schedule_barrier()``
      - Class method. Return ``True`` for classes whose position in the trigger
        order must never change, because they interact with the outside world

@@ -75,6 +75,34 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         self.assertEqual(DistributedSH.single_device_params(params)['n_slices'], 1)
         self.assertEqual(params['n_slices'], 4)
 
+    def test_sh_split_options(self):
+        from specula.processing_objects.sh import SH
+        params = {'class': 'SH', 'wavelengthInNm': 589, 'subap_wanted_fov': 16.1,
+                  'sensor_pxscale': 1.15, 'subap_on_diameter': 68, 'subap_npx': 14,
+                  'fov_ovs_coeff': 1.2, 'laser_launch_tel_ref': 'llt',
+                  'inputs': {'in_ef': 'prop.out_ef'}}
+        options = SH.split_options(params, 4)
+        # The divisors of the 68 subaperture rows, up to the GPUs of a node
+        self.assertEqual(sorted(options), [2, 4])
+        for k, split in options.items():
+            self.assertEqual(split['class'], 'DistributedSH')
+            self.assertEqual(split['n_slices'], k)
+            self.assertEqual(DistributedSH.devices_used(split), k)
+            self.assertEqual(split['fov_ovs_coeff'], 1.2)
+            self.assertEqual(split['inputs'], params['inputs'])
+        self.assertEqual(params['class'], 'SH')         # not modified
+        self.assertEqual(sorted(SH.split_options(params, 8)), [2, 4])
+        self.assertEqual(SH.split_options(dict(params, subap_on_diameter=7), 4), {})
+        self.assertEqual(SH.split_options(params, 1), {})
+        # The default of SH is kept where DistributedSH has another one
+        no_fov = {k: v for k, v in params.items() if k != 'fov_ovs_coeff'}
+        self.assertEqual(SH.split_options(no_fov, 2)[2]['fov_ovs_coeff'], 2.0)
+        # Not split: parameters that DistributedSH does not accept, a slice of rows
+        # already given, and DistributedSH itself (its number of slices is kept)
+        self.assertEqual(SH.split_options(dict(params, data_dir='x'), 4), {})
+        self.assertEqual(SH.split_options(dict(params, subap_rows_slice=[0, 10]), 4), {})
+        self.assertEqual(DistributedSH.split_options(dict(params, n_slices=2), 4), {})
+
     @cpu_and_gpu
     def test_distributed_sh_flux(self, target_device_idx, xp):
         

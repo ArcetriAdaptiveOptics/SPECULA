@@ -499,6 +499,19 @@ class BaseProcessingObj(BaseTimeObj):
         return params
 
     @classmethod
+    def split_options(cls, params, max_devices):
+        '''
+        Ways in which the allocator may split the work of an object built with
+        *params* over several devices of a node, when it is faster:
+        {number of devices: parameters of the split object}, for numbers from 2
+        to *max_devices*. The parameters may name another class ("class" key),
+        whose devices_used() and single_device_params() describe the split
+        object; the object is profiled as built with *params*. The default is
+        no option; classes whose work can be divided override it.
+        '''
+        return {}
+
+    @classmethod
     def is_schedule_barrier(cls):
         '''
         Override to return True for classes whose position in the trigger order
