@@ -277,7 +277,10 @@ class DataStore(BaseProcessingObj):
             import cupyx
             pinned = self._staging[k] = cupyx.empty_pinned(value.shape, dtype=value.dtype)
         with value.device:
-            stream = cp.cuda.get_current_stream()
+            # The legacy default stream: the copy follows the work queued before it on
+            # the blocking streams (like the objects' own streams, see build_stream()),
+            # and their work queued after it (the next write of the producer) waits for it
+            stream = cp.cuda.Stream.null
             value.get(stream=stream, out=pinned, blocking=False)
             event = stream.record()
         # Placeholder, to keep the order of the times in the storage

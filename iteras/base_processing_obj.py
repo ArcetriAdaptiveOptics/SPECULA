@@ -255,6 +255,9 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         if self.target_device_idx >= 0:
             self._target_device.use()
+            # Blocking streams (non_blocking=False): their work is ordered with that
+            # of the legacy default stream, where the other objects work and where
+            # data is copied to the host (e.g. by DataStore, which does not wait)
             if allow_parallel:
                 self.stream = iteras.cp.cuda.Stream(non_blocking=False)
             else:
@@ -394,7 +397,7 @@ class BaseProcessingObj(BaseTimeObj):
 
         * accelerated (see iteras.accelerator): the accelerator runs trigger_code()
           or launches the CUDA graph it captured for it;
-        * with the own CUDA graph of the object (see build_stream()): capture it
+        * with the object's own CUDA graph (see build_stream()): capture it
           if needed, otherwise launch it;
         * otherwise, trigger_code() as Python code.
         '''

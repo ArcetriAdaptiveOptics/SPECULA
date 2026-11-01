@@ -80,6 +80,41 @@ class TestDataStore(unittest.TestCase):
         np.testing.assert_array_equal(self._stored_scalars(store, 'slow'), np.array([20, 22, 24]))
 
     @unittest.skipIf(cp is None, 'Cupy not found')
+    def test_copy_ordered_with_the_next_write_of_the_producer(self):
+        '''
+        The output of an object with its own stream (see build_stream()), copied
+        asynchronously, is not overwritten by the next step of the producer before
+        the copy is done
+        '''
+        class Producer(BaseProcessingObj):
+            def __init__(self):
+                super().__init__(target_device_idx=0)
+                self.out = BaseValue(value=self.xp.zeros(16 * 1024 * 1024, dtype=self.xp.float32),
+                                     target_device_idx=0)
+                self.outputs['out'] = self.out
+
+        producer = Producer()
+        producer.build_stream(capture=False)
+        store = DataStore(store_dir=self.tmp_dir, create_tn=False, target_device_idx=0)
+        store.inputs['v'] = InputValue(type=BaseValue)
+        store.inputs['v'].set(producer.out)
+        store.setup()
+        for t in range(4):
+            with producer.stream:
+                producer.out.value.fill(t)
+                for _ in range(3):
+                    producer.out.value *= 1.0       # GPU work, so that the next write takes time
+            producer.stream.synchronize()           # as post_trigger() waits for the own graph
+            producer.out.generation_time = t
+            store.check_ready(t)
+            store.trigger()
+            store.post_trigger()
+            with producer.stream:
+                producer.out.value.fill(-1)         # the next step of the producer
+        for t, v in store.storage['v'].items():
+            np.testing.assert_array_equal(v[::4096], t)
+
+    @unittest.skipIf(cp is None, 'Cupy not found')
     def test_output_set_in_finalize_on_another_device(self):
         '''
         An output that its producer, on a GPU, sets in finalize() (like the
