@@ -149,13 +149,18 @@ class Allocator:
         except Infeasible as e:
             if iteras.cp is None or self._has_cpu_costs(graph, profile):
                 raise
-            self.logger.info(f'Allocator: {e}. Measuring candidate objects on the CPU')
-            self._profile_cpu_candidates(graph, params, profile, machine,
-                                         self.estimator(graph, machine, profile))
-            machine_used, est, solution, by_nodes = self._solve_nodes(graph, machine, profile)
+            machine_used, est, solution, by_nodes = self._solve_with_cpu_candidates(
+                graph, params, machine, profile, e)
         allocation = make_allocation(graph, machine_used, solution)
         report = make_report(graph, machine_used, est, solution, profile, self, allocation, by_nodes)
         return allocation, report
+
+    def _solve_with_cpu_candidates(self, graph, params, machine, profile, error):  # pragma: gpu
+        '''The objects do not fit on the GPUs: measure some of them on the CPU, and search again'''
+        self.logger.info(f'Allocator: {error}. Measuring candidate objects on the CPU')
+        self._profile_cpu_candidates(graph, params, profile, machine,
+                                     self.estimator(graph, machine, profile))
+        return self._solve_nodes(graph, machine, profile)
 
     def _solve_nodes(self, graph, machine, profile):
         '''
@@ -186,8 +191,7 @@ class Allocator:
                 continue
             self.logger.info(f'Allocator: {k} node(s): {sol.evaluation.step_ns / 1e6:.2f} ms per step')
             results.append(NodesResult(k, sub, est, sol))
-        if not results:
-            raise Infeasible('No number of nodes fits in memory')
+        # All the nodes are always searched: if nothing fits, their error was raised
         fastest = min(r.solution.evaluation.step_ns for r in results)
         limit = (1 + self.arch.node_tolerance) * fastest
         best = min((r for r in results if r.solution.evaluation.step_ns <= limit),
@@ -400,14 +404,14 @@ class Allocator:
             if graph.cls(name).runs_on_cpu_only() or not self._use_gpu(machine):
                 if 'cpu' not in kinds:
                     missing.append(name)
-            elif local is not None:
+            elif local is not None:  # pragma: gpu
                 if f'gpu:{local}' not in kinds:
                     missing.append(name)
-            elif not any(k.startswith('gpu:') for k in kinds):
+            elif not any(k.startswith('gpu:') for k in kinds):  # pragma: gpu
                 missing.append(name)
         return missing
 
-    def _local_gpu_model(self):
+    def _local_gpu_model(self):  # pragma: gpu
         dev = self._profile_device()
         return iteras.cp.cuda.runtime.getDeviceProperties(dev)['name'].decode()
 
@@ -416,9 +420,13 @@ class Allocator:
         return iteras.cp is not None and bool(machine.gpu_slots())
 
     def _profile_device(self):
-        cp = iteras.cp
-        if cp is None:
+        if iteras.cp is None:
             return -1
+        return self._gpu_for_profiling()
+
+    def _gpu_for_profiling(self):  # pragma: gpu
+        '''The profile_device option, otherwise the local GPU with most free memory'''
+        cp = iteras.cp
         if self.arch.profile_device is not None:
             return self.arch.profile_device
         free = []
@@ -485,7 +493,7 @@ class Allocator:
             try:
                 res = profile_run(params, graph, devices, self._workdir(), steps, warmup,
                                   gpu_model=gpu_model)
-            except OutOfDeviceMemory:
+            except OutOfDeviceMemory:  # pragma: gpu
                 if len(chunk) <= 1:
                     raise MemoryError(f'Allocator: object {chunk} does not fit alone on GPU {dev}')
                 a, b = split_chunk(chunk, groups)
@@ -503,7 +511,7 @@ class Allocator:
                     'step_ns': res.step_ns, 'kind': f'gpu:{gpu_model}' if dev >= 0 else 'cpu',
                     'devices': res.devices}
 
-    def _profile_cpu_candidates(self, graph, params, profile, machine, est):
+    def _profile_cpu_candidates(self, graph, params, profile, machine, est):  # pragma: gpu
         '''Measure on the CPU the objects that may have to run there (see cpu_candidates())'''
         chosen = cpu_candidates(graph, machine, est)
         self.logger.info(f'Allocator: measuring on the CPU: {chosen}')

@@ -141,6 +141,10 @@ def vecmat(v, m, xp):
     """
     if xp is np:
         return v @ m
+    return _vecmat_gpu(v, m, xp)  # pragma: gpu
+
+
+def _vecmat_gpu(v, m, xp):  # pragma: gpu
     if not m.flags.c_contiguous or v.dtype != m.dtype:
         raise ValueError('vecmat: the matrix must be C-contiguous, with the dtype of the vectors')
     key = (m.dtype.str, xp.cuda.Device().id)
@@ -198,6 +202,10 @@ def matvec(a, v, xp):
     """
     if xp is np:
         return a @ v if v.ndim == 1 else v @ a.T
+    return _matvec_gpu(a, v, xp)  # pragma: gpu
+
+
+def _matvec_gpu(a, v, xp):  # pragma: gpu
     if not a.flags.c_contiguous or v.dtype != a.dtype:
         raise ValueError('matvec: the matrix must be C-contiguous, with the dtype of the vectors')
     key = (a.dtype.str, xp.cuda.Device().id)
@@ -228,6 +236,11 @@ def matmul(a, b, xp):
     from specula import capturing
     if xp is np or not capturing():
         return a @ b
+    return _matmul_captured(a, b, xp)  # pragma: gpu
+
+
+def _matmul_captured(a, b, xp):  # pragma: gpu
+    '''a @ b inside a CUDA graph capture (see matmul())'''
     # With a transposed (Fortran-ordered) matrix, the other kernel is used on its
     # C-contiguous transpose, since a @ b = (b.T @ a.T).T:
     # A @ v = v @ A.T, and v @ B = B.T @ v (for vectors, .T does nothing)

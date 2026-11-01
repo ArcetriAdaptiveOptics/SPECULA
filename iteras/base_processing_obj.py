@@ -166,7 +166,7 @@ class BaseProcessingObj(BaseTimeObj):
 
         if self.target_device_idx>=0:
             self._target_device.use()
-            if self._accel is not None:
+            if self._accel is not None:  # pragma: gpu
                 # Accelerated: the GPU work stays in order on the GPU, the host does not wait
                 self._accel.after_trigger()
             elif self.cuda_graph:
@@ -204,8 +204,9 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         if isinstance(buffer, np.ndarray):
             return buffer.copy()
-        mpi_progress.wait_current_stream(buffer.device.id)
-        return cpuArray(buffer)
+        else:  # pragma: gpu
+            mpi_progress.wait_current_stream(buffer.device.id)
+            return cpuArray(buffer)
 
     # this method implements the mpi send call of the outputs connected to remote inputs
     def send_outputs(self, skip_delayed=False, delayed_only=False, first_mpi_send=True):
@@ -347,7 +348,7 @@ class BaseProcessingObj(BaseTimeObj):
         of trigger_code() runs twice (warm-up and capture), so trigger_code() must
         not keep state in Python variables, as for any code in a CUDA graph.
         '''
-        if self._accel is not None:
+        if self._accel is not None:  # pragma: gpu
             self._accel.invalidate()
         elif self.stream is not None:
             self._cuda_graph_invalid = True
@@ -407,14 +408,14 @@ class BaseProcessingObj(BaseTimeObj):
 
         if self.target_device_idx >= 0:
             self._target_device.use()
-        if self._accel is not None:
+        if self._accel is not None:  # pragma: gpu
             self._accel.trigger()
-        elif self.target_device_idx >= 0 and (self._cuda_graph_invalid or self.cuda_graph):
+        elif self.target_device_idx >= 0 and (self._cuda_graph_invalid or self.cuda_graph):  # pragma: gpu
             self._trigger_own_graph()
         else:
             self.trigger_code()
 
-    def _trigger_own_graph(self):
+    def _trigger_own_graph(self):  # pragma: gpu
         if self._cuda_graph_invalid:
             # Capture the graph. The warm-up run in capture_stream() computes
             # the results of this step, so the new graph is not launched.

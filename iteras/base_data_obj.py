@@ -17,7 +17,7 @@ def get_properties(cls):
     return result
 
 
-def _peer_source(array, target_device_idx):
+def _peer_source(array, target_device_idx):  # pragma: gpu
     '''
     *array*, or a contiguous copy of it on its own device if it must be copied
     to another device: CuPy copies only contiguous arrays between devices.
@@ -31,7 +31,7 @@ def _peer_source(array, target_device_idx):
     return copy
 
 
-def _stream_wait(waiting_device, device):
+def _stream_wait(waiting_device, device):  # pragma: gpu
     '''
     Make the current stream of *waiting_device* wait (on the GPU, the host goes
     on) for the work queued so far on the current stream of *device*.
@@ -91,7 +91,7 @@ class BaseDataObj(BaseTimeObj):
         # follow the work that produces the data on the source device
         peer = iteras.cp is not None and self.target_device_idx >= 0 \
             and destobj.target_device_idx >= 0 and self.target_device_idx != destobj.target_device_idx
-        if peer:
+        if peer:  # pragma: gpu
             _stream_wait(destobj.target_device_idx, self.target_device_idx)
 
         # The arrays are attributes of the instance (dir() would also list the
@@ -120,7 +120,7 @@ class BaseDataObj(BaseTimeObj):
                 DtH = iteras.cp is not None and (self_type == iteras.cp.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
                 HtD = iteras.cp is not None and (self_type == np.ndarray) and (dest_type == iteras.cp.ndarray) and destobj.target_device_idx >= 0
                 HtH = (self_type == np.ndarray) and (dest_type == np.ndarray) and destobj.target_device_idx == -1
-                if DtD:
+                if DtD:  # pragma: gpu
                     # Performance warnings here are expected, because we might
                     # trigger a peer-to-peer transfer between devices
                     with warnings.catch_warnings():
@@ -150,7 +150,7 @@ class BaseDataObj(BaseTimeObj):
                 HtD = (self_type == np.ndarray) and destobj.target_device_idx >= 0
                 HtH = (self_type == np.ndarray) and destobj.target_device_idx == -1
 
-                if DtD:
+                if DtD:  # pragma: gpu
                     # Performance warnings here are expected, because we might
                     # trigger a peer-to-peer transfer between devices
                     with warnings.catch_warnings():
@@ -168,7 +168,7 @@ class BaseDataObj(BaseTimeObj):
                 if HtH:
                     setattr(destobj, attr, np.asarray(self_attr))
 
-        if peer:
+        if peer:  # pragma: gpu
             # ... and the source device must not overwrite the data before it is copied
             _stream_wait(self.target_device_idx, destobj.target_device_idx)
         destobj.generation_time = self.generation_time

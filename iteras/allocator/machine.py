@@ -171,7 +171,7 @@ def local_node(free, measure_links=True):
             'cpu': {'cores': os.cpu_count(), 'memory_gb': _host_memory(free) / GiB}}
     cp = iteras.cp
     ngpu = cp.cuda.runtime.getDeviceCount() if cp is not None else 0
-    if ngpu:
+    if ngpu:  # pragma: gpu
         mems, models = [], []
         for i in range(ngpu):
             with cp.cuda.Device(i):
@@ -190,7 +190,7 @@ def local_node(free, measure_links=True):
     return spec
 
 
-def measure_local_links(ngpu, nbytes=16 * 1024 * 1024, repeat=5):
+def measure_local_links(ngpu, nbytes=16 * 1024 * 1024, repeat=5):  # pragma: gpu
     '''
     Measure host <-> GPU and GPU <-> GPU copy speeds (GB/s), as Simul copies data.
     If the GPUs have no room for the test arrays, the default speeds are kept.

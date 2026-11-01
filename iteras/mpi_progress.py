@@ -148,9 +148,9 @@ def wait_current_stream(device_idx):
     '''
     if not _pending or not polling_enabled():
         return
-    with iteras.cp.cuda.Device(device_idx):
+    with iteras.cp.cuda.Device(device_idx):  # pragma: gpu
         event = iteras.cp.cuda.get_current_stream().record()
-    wait_event(event)
+        wait_event(event)
 
 
 def wait_all():

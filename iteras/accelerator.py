@@ -70,7 +70,7 @@ class AcceleratorError(RuntimeError):
     '''An object declared that it can be accelerated, but its trigger_code() cannot be'''
 
 
-def _capture_stream(device_id):
+def _capture_stream(device_id):  # pragma: gpu
     '''A stream of the device used only to capture the graphs'''
     if device_id not in _capture_stream.streams:
         with iteras.cp.cuda.Device(device_id):
@@ -81,13 +81,13 @@ def _capture_stream(device_id):
 _capture_stream.streams = {}
 
 
-def _items(value):
+def _items(value):  # pragma: gpu
     if value is None:
         return []
     return value if isinstance(value, list) else [value]
 
 
-def array_refs(obj):
+def array_refs(obj):  # pragma: gpu
     '''
     [(holder, attribute, address)] of the GPU arrays that the graph of *obj*
     may use: those of the object, of the data objects it holds (directly or in
@@ -118,7 +118,7 @@ def array_refs(obj):
     return refs
 
 
-def changed_ref(refs):
+def changed_ref(refs):  # pragma: gpu
     '''First (holder, attribute) of *refs* whose array is not at the same address anymore'''
     ndarray = iteras.cp.ndarray
     for h, k, ptr in refs:
@@ -144,7 +144,7 @@ def _can_accelerate_covers_trigger_code(cls):
     return declared is BaseProcessingObj or issubclass(declared, _owner(cls, 'trigger_code'))
 
 
-class GraphRunner:
+class GraphRunner:  # pragma: gpu
     '''
     Runs the trigger_code() of an accelerated object: as Python code for the first
     triggers (capture_after), then captured in a CUDA graph launched at each

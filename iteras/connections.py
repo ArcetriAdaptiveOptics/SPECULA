@@ -118,7 +118,7 @@ class _InputItem():
             value = self.cloned_value.get_value()
             if isinstance(value, np.ndarray):
                 buffer = value      # received in place
-            else:
+            else:  # pragma: gpu
                 # A host buffer kept between steps (copying the GPU value to the
                 # host just to get one would also wait for the GPU)
                 if self._host_buffer is None or self._host_buffer.shape != value.shape \

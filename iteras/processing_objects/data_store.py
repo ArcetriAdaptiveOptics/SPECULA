@@ -271,7 +271,12 @@ class DataStore(BaseProcessingObj):
         cp = iteras.cp
         if cp is None or not isinstance(value, cp.ndarray):
             self._storage[k][self.current_time] = cpuArray(value, force_copy=True)
-            return
+        else:  # pragma: gpu
+            self._copy_gpu_value(k, value)
+
+    def _copy_gpu_value(self, k, value):  # pragma: gpu
+        '''Start the copy of the GPU value *value* of input *k* to page-locked memory'''
+        cp = iteras.cp
         pinned = self._staging.get(k)
         if pinned is None or pinned.shape != value.shape or pinned.dtype != value.dtype:
             import cupyx
@@ -289,7 +294,7 @@ class DataStore(BaseProcessingObj):
 
     def _store_pending_copies(self):
         '''Wait for the copies of GPU values started before, and store them'''
-        for k, t, pinned, event in self._pending_copies:
+        for k, t, pinned, event in self._pending_copies:  # pragma: gpu
             event.synchronize()
             self._storage[k][t] = self._host_copy(k, pinned)
         self._pending_copies = []

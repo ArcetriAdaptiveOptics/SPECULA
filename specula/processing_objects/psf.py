@@ -207,6 +207,10 @@ class PSF(BaseProcessingObj):
         if self.target_device_idx < 0:
             self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {self.sr.value}')
             return
+        self._copy_sr_for_log()  # pragma: gpu
+
+    def _copy_sr_for_log(self):  # pragma: gpu
+        '''Copy the Strehl ratio to the host without waiting, to log it at the next step'''
         self._flush_sr_log()
         if self._sr_buffer is None:
             import cupyx
@@ -216,7 +220,7 @@ class PSF(BaseProcessingObj):
         self._sr_log = (self._sr_buffer, stream.record())
 
     def _flush_sr_log(self):
-        if self._sr_log is not None:
+        if self._sr_log is not None:  # pragma: gpu
             buffer, event = self._sr_log
             event.synchronize()
             self.logger.info(f'SR at {int(self.wavelengthInNm)}nm : {buffer[()]}')

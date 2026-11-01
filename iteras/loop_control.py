@@ -90,7 +90,7 @@ class LoopControl(BaseTimeObj):
         try:
             self._run(run_time, dt, t0, speed_report, preroll_objs)
         finally:
-            if device is not None:
+            if device is not None:  # pragma: gpu
                 device.use()
 
     def _run(self, run_time, dt, t0, speed_report, preroll_objs):
@@ -309,12 +309,12 @@ class LoopControl(BaseTimeObj):
             for i in sorted(self.trigger_lists.keys()):
                 for element in self.trigger_lists[i]:
                     try:
-                        if element.target_device_idx >= 0:
+                        if element.target_device_idx >= 0:  # pragma: gpu
                             element._target_device.use()
                         element.finalize()
                     except:
                         self.logger.error(f'Exception in {element.name}')
                         raise
         finally:
-            if device is not None:
+            if device is not None:  # pragma: gpu
                 device.use()

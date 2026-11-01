@@ -54,13 +54,13 @@ class DistributedSH(SH):
 
         for i in range(n_slices):
             # The device of this object (target_device_idx may be None: the default one)
-            if self.target_device_idx >= 0:
+            if self.target_device_idx >= 0:  # pragma: gpu
                 num_devices = specula.cp.cuda.runtime.getDeviceCount()
                 args['target_device_idx'] = (self.target_device_idx + i) % num_devices
             args['subap_rows_slice'] = self.slices[i]
             self.sub_sh.append( SH(**args))
         # Building the slices made their devices current: back to the one of this object
-        if self.target_device_idx >= 0:
+        if self.target_device_idx >= 0:  # pragma: gpu
             self._target_device.use()
 
     @classmethod

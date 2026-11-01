@@ -635,6 +635,10 @@ class Simul():
             target_device_idx = iteras.default_target_device_idx
         if obj.target_device_idx == target_device_idx:
             return obj
+        return self._ref_copy(name, obj, target_device_idx)
+
+    def _ref_copy(self, name, obj, target_device_idx):  # pragma: gpu
+        '''Copy of the data object *obj* on another device, made once'''
         copy_key = (name, target_device_idx)
         if copy_key not in self._ref_copies:
             self.logger.info(f'Data object {name} is on device {obj.target_device_idx}: '
@@ -1107,7 +1111,7 @@ class Simul():
         try:
             self._run(start_time, end_time)
         finally:
-            if device is not None:
+            if device is not None:  # pragma: gpu
                 device.use()
 
     def _run(self, start_time, end_time):

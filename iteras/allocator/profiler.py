@@ -14,6 +14,7 @@ Two runs are made: one synchronizing the GPU after each phase (the time of
 each object alone) and one without (the real step time, and which objects
 wait for the GPU).
 '''
+import contextlib
 import gc
 import os
 import json
@@ -99,7 +100,7 @@ def array_blocks(obj, stop):
         if id(o) in visited:
             continue
         visited.add(id(o))
-        if cp is not None and isinstance(o, cp.ndarray):
+        if cp is not None and isinstance(o, cp.ndarray):  # pragma: gpu
             mem = o.data.mem
             blocks[('g', mem.ptr)] = mem.size
         elif isinstance(o, np.ndarray):
@@ -137,8 +138,10 @@ def array_checksum(obj):
         if is_cp or isinstance(o, np.ndarray):
             if o.dtype.kind in 'biufc' and o.size:
                 xp = cp if is_cp else np
-                v = o.astype(xp.complex128 if o.dtype.kind == 'c' else xp.float64)
-                s = complex(xp.sum(v)) + complex(xp.sum(v * v.conj()))
+                # On the device of the array
+                with o.device if is_cp else contextlib.nullcontext():
+                    v = o.astype(xp.complex128 if o.dtype.kind == 'c' else xp.float64)
+                    s = complex(xp.sum(v)) + complex(xp.sum(v * v.conj()))
                 sums.append((o.shape, round(s.real, 6), round(s.imag, 6)))
         elif isinstance(o, dict):
             todo.extend(o.values())
@@ -239,7 +242,7 @@ def run_once(simul_cls, params, graph, devices, workdir, steps, warmup, sync, ta
     return sim, totals, triggers, loop_ns / max(n_iter, 1), max(n_iter, 1)
 
 
-def _transfer_times(obj, dev, repeat=15):
+def _transfer_times(obj, dev, repeat=15):  # pragma: gpu
     '''
     Host time (ns) to copy each output of *obj*, on GPU *dev*, to another GPU
     (if there is one) and to the CPU, as InputValue.get() copies an input from
@@ -300,7 +303,7 @@ def _release(sim):
 def _free_memory():
     gc.collect()
     cp = iteras.cp
-    if cp is not None:
+    if cp is not None:  # pragma: gpu
         for i in range(cp.cuda.runtime.getDeviceCount()):
             with cp.cuda.Device(i):
                 cp.get_default_memory_pool().free_all_blocks()
@@ -380,20 +383,27 @@ def profile_run(params, graph, devices, workdir, steps=5, warmup=3, gpu_model=''
     _release(sim2)
     del sim2
     for name, (kind, c) in costs.items():
-        if kind == 'cpu' or c.syncs:
-            continue
-        # Without synchronization, the host time of a phase that waits for the GPU
-        # work of the object includes that work (and, since the stream runs in order,
-        # all the work queued before it). Only the first object waiting in a trigger
-        # level can be detected this way: objects with a CUDA graph are known above.
-        threshold = max(0.5 * c.g, 0.2e6)
-        a_trig = (totals2.get((name, 'prepare_trigger'), 0.0) + totals2.get((name, 'trigger'), 0.0)) / n_iter2
-        a_post = totals2.get((name, 'post_trigger'), 0.0) / n_iter2
-        if a_trig - (c.h_prep + c.h_trig) > threshold:
-            c.syncs = 'trigger'
-        elif a_post - c.h_post > threshold:
-            c.syncs = 'post'
+        if kind != 'cpu' and not c.syncs:
+            _detect_gpu_wait(name, c, totals2, n_iter2)
     return RunResult(costs, shared, refs, step_ns, dict(devices))
+
+
+def _detect_gpu_wait(name, c, totals, n_iter):  # pragma: gpu
+    '''
+    Set c.syncs if the object waits for the GPU in trigger or post_trigger: without
+    synchronization (*totals* of the asynchronous run), the host time of a phase
+    that waits for the GPU work of the object includes that work (and, since the
+    stream runs in order, all the work queued before it). Only the first object
+    waiting in a trigger level can be detected this way: objects with a CUDA graph
+    are known from the measurement.
+    '''
+    threshold = max(0.5 * c.g, 0.2e6)
+    a_trig = (totals.get((name, 'prepare_trigger'), 0.0) + totals.get((name, 'trigger'), 0.0)) / n_iter
+    a_post = totals.get((name, 'post_trigger'), 0.0) / n_iter
+    if a_trig - (c.h_prep + c.h_trig) > threshold:
+        c.syncs = 'trigger'
+    elif a_post - c.h_post > threshold:
+        c.syncs = 'post'
 
 
 def _measure(sim, graph, devices, totals, triggers, n_iter, checksums, gpu_model):
@@ -424,9 +434,9 @@ def _measure(sim, graph, devices, totals, triggers, n_iter, checksums, gpu_model
         prefix = 'g' if dev >= 0 else 'h'
         blocks[name] = {k: v for k, v in b.items() if k[0] == prefix}
         c._used = obj.gpu_bytes_used if dev >= 0 else 0
-        if dev >= 0:
+        if dev >= 0:  # pragma: gpu
             c.copy_gpu, c.copy_cpu = _transfer_times(obj, dev)
-        if dev >= 0 and getattr(obj, 'cuda_graph', None) is not None:
+        if dev >= 0 and getattr(obj, 'cuda_graph', None) is not None:  # pragma: gpu
             c.graph = True
             c.syncs = 'post'        # BaseProcessingObj.post_trigger() waits for the graph
         costs[name] = (kind, c)
