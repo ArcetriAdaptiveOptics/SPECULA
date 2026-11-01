@@ -203,6 +203,14 @@ Two methods can be called by derived classes to use CUDA graphs:
 something frozen in the graph at capture time changes, so that the graph is
 captured again at the next step.
 
+The GPU work of an object must run on the default stream (the current one) or
+on the stream created by ``build_stream()``, which is a blocking stream: CUDA
+then orders it with the work of the other objects, which read its outputs on
+the default stream, possibly without the host waiting (the accelerator, the
+asynchronous copies of ``DataStore``). An object must not write its outputs
+from a stream it creates as non-blocking (``Stream(non_blocking=True)``): the
+next step could overwrite them while they are still being read.
+
 Data objects
 ------------
 
