@@ -27,13 +27,17 @@ the others (allowed by the asynchronous MPI sends) is accounted for.
 '''
 import bisect
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from iteras import mpi_progress
 
 MPI_BUFFER_BYTES = 40e6     # attached MPI buffer of each process (see iteras.__init__)
 EAGER_BYTES = 64 * 1024     # larger MPI messages use a rendezvous
 MAX_PASSES = 10             # simulation passes to settle the MPI progress of large messages
+# The passes stop when the time per step changes by at most CONVERGENCE (relative)
+# STABLE_PASSES times in a row: well below the accuracy of the model (a few %)
+CONVERGENCE = 0.005
+STABLE_PASSES = 2
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,20 @@ class Evaluation:
 
     def key(self):
         return (not self.feasible, self.step_ns, self.comm_bytes)
+
+
+@dataclass
+class _Pass:
+    '''State of one pass of the simulation of the steps (see Estimator._simulate())'''
+    placement: dict
+    prev_events: dict       # process -> [(start, end)] inside MPI in the previous pass, or None
+    used: dict              # object name -> slots it uses
+    host: dict = field(default_factory=lambda: defaultdict(float))      # process -> time
+    stream: dict = field(default_factory=lambda: defaultdict(float))    # GPU slot -> end of its queued work
+    done: dict = field(default_factory=dict)        # (name, step) -> time when its results are ready
+    sent: dict = field(default_factory=dict)        # (edge, step) -> (send time, bytes)
+    events: dict = field(default_factory=lambda: defaultdict(list))     # process -> [(start, end)] inside MPI
+    remote_out: dict = field(default_factory=dict)  # name -> its edges to other processes
 
 
 class Estimator:
@@ -197,9 +215,9 @@ class Estimator:
         stable = 0
         for _ in range(MAX_PASSES if remote else 1):
             new_step, comm_bytes, events = self._simulate(placement, events)
-            if per_step is not None and abs(new_step - per_step) <= 0.005 * per_step:
+            if per_step is not None and abs(new_step - per_step) <= CONVERGENCE * per_step:
                 stable += 1
-                if stable == 2:
+                if stable == STABLE_PASSES:
                     per_step = new_step
                     break
             else:
@@ -222,15 +240,13 @@ class Estimator:
         bw, lat = m.link(s_src, s_dst)
         if nbytes <= EAGER_BYTES:
             return max(t_recv, t_send + lat + nbytes / bw)
-        ready = max(t_send + lat, t_recv)
-        if not self.buffered_sends and m.single_copy(s_src, s_dst):
-            start = ready
-        else:
-            start = ready
-            if prev_events is not None:
-                nxt = self._next_progress(prev_events.get(src_proc, []), ready)
-                if nxt is not None:
-                    start = nxt
+        start = max(t_send + lat, t_recv)
+        # Unless the receiver can pull the data by itself, it moves only while the
+        # sender is inside MPI: from the first such time (in the previous pass)
+        if (self.buffered_sends or not m.single_copy(s_src, s_dst)) and prev_events is not None:
+            nxt = self._next_progress(prev_events.get(src_proc, []), start)
+            if nxt is not None:
+                start = nxt
         return start + nbytes / bw
 
     def _simulate(self, placement, prev_events):
@@ -239,19 +255,12 @@ class Estimator:
         process inside MPI in the previous pass, or None. Return the time per
         step, the bytes exchanged between devices, and the intervals of this pass.
         '''
-        m = self.machine
-        slots = m.slots
-        host = defaultdict(float)       # process -> time
-        stream = defaultdict(float)     # GPU slot -> time when its queued work ends
-        done = {}                       # (name, step) -> time when its results are ready
-        sent = {}                       # (edge, step) -> (send time, bytes)
-        events = defaultdict(list)      # process -> [(start, end)] inside MPI
-        remote_out = {}
-        used = {name: self.devices(name, s) for name, (_, s) in placement.items()}
+        state = _Pass(placement, prev_events,
+                      used={name: self.devices(name, s) for name, (_, s) in placement.items()})
         comm_bytes = 0.0
         for name, (p, s) in placement.items():
-            remote_out[name] = [e for e in self.graph.out_edges[name]
-                                if e.dst in placement and placement[e.dst][0] != p]
+            state.remote_out[name] = [e for e in self.graph.out_edges[name]
+                                      if e.dst in placement and placement[e.dst][0] != p]
             for e in self.graph.in_edges[name]:
                 if e.src in placement:
                     ps, ss = placement[e.src]
@@ -260,6 +269,7 @@ class Estimator:
                     elif ss != s:
                         comm_bytes += self.out_bytes(e, ss)
 
+        host = state.host
         step_end = []
         for k in range(self.steps):
             for level in self.levels:
@@ -267,89 +277,121 @@ class Estimator:
                 for name in level:
                     if name in placement:
                         by_proc[placement[name][0]].append(name)
+                # As LoopControl: for each level, each process gathers the inputs of
+                # its objects, triggers them, then runs post_trigger() and sends
                 for p, names in by_proc.items():
-                    t = host[p]
-                    msg_ns = m.nodes[p.node].links['mpi_message_us'] * 1e3
-                    gpu_ready = defaultdict(float)  # name -> time when its inputs from other GPUs are there
-                    # 1. inputs
-                    for name in names:
-                        s = placement[name][1]
-                        c = self.cost(name, s)
-                        for e in self.graph.in_edges[name]:
-                            ks = k + e.delay
-                            if ks < 0 or e.src not in placement:
-                                continue
-                            ps, ss = placement[e.src]
-                            if ps != p:
-                                t0 = t
-                                t = self._delivery(sent[(e, ks)], t, ps, ss, s, prev_events)
-                                events[p].append((t0, t))
-                                t += m.host_gpu_ns(s, self.mpi_bytes(e, ss)) + msg_ns
-                            elif ss != s and slots[ss].is_gpu and slots[s].is_gpu:
-                                # Ordered on the GPUs: the host does not wait for the producer
-                                t += self.copy_host_ns(e, ss, s)
-                                gpu_ready[name] = max(gpu_ready[name], done.get((e.src, ks), 0.0)
-                                                      + m.copy_ns(ss, s, self.out_bytes(e, ss)))
-                            elif ss != s:
-                                t = max(t, done.get((e.src, ks), 0.0))
-                                t += self.copy_host_ns(e, ss, s)
-                            # the parts on other devices copy the input
-                            for d in set(used[name]) - {s}:
-                                t += m.copy_ns(s, d, self.out_bytes(e, ss))
-                        t += c.h_in
-                    # 2. trigger
-                    for name in names:
-                        s = placement[name][1]
-                        c = self.cost(name, s)
-                        parts = used[name]
-                        t += c.h_prep + c.h_trig * len(parts)
-                        if slots[s].is_gpu:
-                            end = 0.0
-                            for d in parts:
-                                start = max(t, stream[d], gpu_ready[name])
-                                stream[d] = start + c.g / len(parts)
-                                end = max(end, stream[d])
-                            done[(name, k)] = end
-                            if c.syncs == 'trigger':
-                                t = max(t, end)
-                        else:
-                            done[(name, k)] = t
-                    # 3. post_trigger and sends
-                    for name in names:
-                        s = placement[name][1]
-                        c = self.cost(name, s)
-                        if c.syncs == 'post':
-                            t0 = t
-                            t = max(t, done[(name, k)])
-                            if c.graph and self.polling:
-                                events[p].append((t0, t))      # polls its sends meanwhile
-                        if len(used[name]) > 1:
-                            # gathers the results of the parts on the other devices
-                            t = max(t, done[(name, k)])
-                            nbytes = sum(c.outputs.values()) / len(used[name])
-                            for d in used[name]:
-                                if d != s:
-                                    t += m.copy_ns(d, s, nbytes)
-                        t += c.h_post
-                        if remote_out[name]:
-                            t0 = t
-                            t = max(t, done[(name, k)])
-                            if self.polling:
-                                events[p].append((t0, t))      # wait_current_stream() polls
-                            for e in remote_out[name]:
-                                nbytes = self.mpi_bytes(e, s)
-                                t += m.host_gpu_ns(s, nbytes) + msg_ns
-                                sent[(e, k)] = (t, nbytes)
-                                events[p].append((t, t))
-                    host[p] = t
+                    t, gpu_ready = self._gather_inputs(state, p, names, k, host[p])
+                    t = self._trigger(state, names, k, t, gpu_ready)
+                    host[p] = self._post_and_send(state, p, names, k, t)
             for p in list(host):
                 host[p] += self.overhead_ns
-            step_end.append(max(list(host.values()) + list(stream.values()) + [0.0]))
+            step_end.append(max(list(host.values()) + list(state.stream.values()) + [0.0]))
+        events = state.events
         half = self.steps // 2
         per_step = (step_end[-1] - step_end[half - 1]) / (self.steps - half)
         for p in events:
             events[p].sort()
         return per_step, comm_bytes, events
+
+    def _gather_inputs(self, state, p, names, k, t):
+        '''
+        Process *p* gathers the inputs of its objects *names* at step *k*, from host
+        time *t*: messages from other processes, copies from its other devices.
+        Return the host time after it, and for each object the time when its inputs
+        copied from other GPUs are there (the copy is ordered on the GPUs).
+        '''
+        m = self.machine
+        slots = m.slots
+        msg_ns = m.nodes[p.node].links['mpi_message_us'] * 1e3
+        gpu_ready = defaultdict(float)
+        for name in names:
+            s = state.placement[name][1]
+            c = self.cost(name, s)
+            for e in self.graph.in_edges[name]:
+                ks = k + e.delay
+                if ks < 0 or e.src not in state.placement:
+                    continue
+                ps, ss = state.placement[e.src]
+                if ps != p:
+                    t0 = t
+                    t = self._delivery(state.sent[(e, ks)], t, ps, ss, s, state.prev_events)
+                    state.events[p].append((t0, t))
+                    t += m.host_gpu_ns(s, self.mpi_bytes(e, ss)) + msg_ns
+                elif ss != s and slots[ss].is_gpu and slots[s].is_gpu:
+                    # Ordered on the GPUs: the host does not wait for the producer
+                    t += self.copy_host_ns(e, ss, s)
+                    gpu_ready[name] = max(gpu_ready[name], state.done.get((e.src, ks), 0.0)
+                                          + m.copy_ns(ss, s, self.out_bytes(e, ss)))
+                elif ss != s:
+                    t = max(t, state.done.get((e.src, ks), 0.0))
+                    t += self.copy_host_ns(e, ss, s)
+                # the parts on other devices copy the input
+                for d in set(state.used[name]) - {s}:
+                    t += m.copy_ns(s, d, self.out_bytes(e, ss))
+            t += c.h_in
+        return t, gpu_ready
+
+    def _trigger(self, state, names, k, t, gpu_ready):
+        '''
+        Trigger the objects *names* at step *k* from host time *t*: their host time,
+        and their GPU work queued on the stream of each of their devices. Return the
+        host time after it (later, if an object waits for the GPU in trigger()).
+        '''
+        slots = self.machine.slots
+        for name in names:
+            s = state.placement[name][1]
+            c = self.cost(name, s)
+            parts = state.used[name]
+            t += c.h_prep + c.h_trig * len(parts)
+            if slots[s].is_gpu:
+                end = 0.0
+                for d in parts:
+                    start = max(t, state.stream[d], gpu_ready[name])
+                    state.stream[d] = start + c.g / len(parts)
+                    end = max(end, state.stream[d])
+                state.done[(name, k)] = end
+                if c.syncs == 'trigger':
+                    t = max(t, end)
+            else:
+                state.done[(name, k)] = t
+        return t
+
+    def _post_and_send(self, state, p, names, k, t):
+        '''
+        post_trigger() of the objects *names* of process *p* at step *k*, from host
+        time *t*, and the sends of their outputs to other processes. Return the
+        host time after it.
+        '''
+        m = self.machine
+        msg_ns = m.nodes[p.node].links['mpi_message_us'] * 1e3
+        for name in names:
+            s = state.placement[name][1]
+            c = self.cost(name, s)
+            used = state.used[name]
+            if c.syncs == 'post':
+                t0 = t
+                t = max(t, state.done[(name, k)])
+                if c.graph and self.polling:
+                    state.events[p].append((t0, t))      # polls its sends meanwhile
+            if len(used) > 1:
+                # gathers the results of the parts on the other devices
+                t = max(t, state.done[(name, k)])
+                nbytes = sum(c.outputs.values()) / len(used)
+                for d in used:
+                    if d != s:
+                        t += m.copy_ns(d, s, nbytes)
+            t += c.h_post
+            if state.remote_out[name]:
+                t0 = t
+                t = max(t, state.done[(name, k)])
+                if self.polling:
+                    state.events[p].append((t0, t))      # wait_current_stream() polls
+                for e in state.remote_out[name]:
+                    nbytes = self.mpi_bytes(e, s)
+                    t += m.host_gpu_ns(s, nbytes) + msg_ns
+                    state.sent[(e, k)] = (t, nbytes)
+                    state.events[p].append((t, t))
+        return t
 
     def evaluate(self, placement):
         mem = self.memory(placement)

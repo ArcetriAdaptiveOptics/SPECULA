@@ -20,6 +20,7 @@ import os
 import json
 import datetime
 import importlib.util
+from collections import namedtuple
 
 import yaml
 
@@ -37,6 +38,10 @@ META_PREFIX = '# meta: '
 
 class StaleAllocation(ValueError):
     pass
+
+
+# Placement found on the first n_nodes nodes of the machine (see Allocator._solve_nodes())
+NodesResult = namedtuple('NodesResult', 'n_nodes machine estimator solution')
 
 
 class Allocator:
@@ -164,6 +169,8 @@ class Allocator:
         if n == 1 or not machine.identical_nodes():
             est = self.estimator(graph, machine, profile)
             return machine, est, self._solve(graph, machine, est, profile), []
+        # Each number of nodes costs a search (search_time): up to 8 nodes all of
+        # them, above only the powers of 2 and all the nodes
         counts = list(range(1, n + 1)) if n <= 8 else \
             sorted({2 ** i for i in range(n.bit_length()) if 2 ** i <= n} | {n})
         results = []
@@ -178,14 +185,15 @@ class Allocator:
                     raise
                 continue
             self.logger.info(f'Allocator: {k} node(s): {sol.evaluation.step_ns / 1e6:.2f} ms per step')
-            results.append((k, sub, est, sol))
+            results.append(NodesResult(k, sub, est, sol))
         if not results:
             raise Infeasible('No number of nodes fits in memory')
-        fastest = min(r[3].evaluation.step_ns for r in results)
+        fastest = min(r.solution.evaluation.step_ns for r in results)
         limit = (1 + self.arch.node_tolerance) * fastest
-        k, sub, est, sol = min((r for r in results if r[3].evaluation.step_ns <= limit),
-                               key=lambda r: r[0])
-        return sub, est, sol, [(r[0], r[3].evaluation.step_ns) for r in results]
+        best = min((r for r in results if r.solution.evaluation.step_ns <= limit),
+                   key=lambda r: r.n_nodes)
+        return best.machine, best.estimator, best.solution, \
+            [(r.n_nodes, r.solution.evaluation.step_ns) for r in results]
 
     def estimator(self, graph, machine, profile):
         '''Estimator built from the measured costs, for the slot kinds of *machine*'''
@@ -444,18 +452,17 @@ class Allocator:
 
     def _ensure_profile(self, graph, params, profile, machine):
         missing = self._missing(graph, profile, machine)
+        missing_cpu = []
         if self.arch.profile_cpu:
-            missing += [n for n in graph.procs if profile.cost(graph, n, 'cpu', self.cost_tag) is None]
-        if not missing:
+            missing_cpu = [n for n in graph.procs if profile.cost(graph, n, 'cpu', self.cost_tag) is None]
+        if not missing and not missing_cpu:
             self.logger.info(f'Allocator: costs read from {self.arch.profile_file}')
             return
         dev = self._profile_device() if self._use_gpu(machine) else -1
-        gpu_model = ''
-        if dev >= 0:
-            gpu_model = iteras.cp.cuda.runtime.getDeviceProperties(dev)['name'].decode()
-        self.logger.info(f'Allocator: measuring {len(missing)} objects '
+        gpu_model = self._local_gpu_model() if dev >= 0 else ''
+        self.logger.info(f'Allocator: measuring {len(missing) + len(missing_cpu)} objects '
                          f'on {"GPU " + str(dev) if dev >= 0 else "the CPU"}')
-        if self._missing(graph, profile, machine):
+        if missing:
             self._profile_gpu(graph, params, profile, dev, gpu_model)
         if self.arch.profile_cpu and not self._has_cpu_costs(graph, profile):
             devices = {n: -1 for n in graph.procs}
@@ -501,7 +508,7 @@ class Allocator:
         chosen = cpu_candidates(graph, machine, est)
         self.logger.info(f'Allocator: measuring on the CPU: {chosen}')
         dev = self._profile_device()
-        gpu_model = iteras.cp.cuda.runtime.getDeviceProperties(dev)['name'].decode()
+        gpu_model = self._local_gpu_model()
         devices = {n: (-1 if n in chosen or graph.cls(n).runs_on_cpu_only() else dev)
                    for n in graph.procs}
         warmup, steps = self._profile_steps(graph)
@@ -535,6 +542,7 @@ def cpu_candidates(graph, machine, est):
               if not graph.cls(n).runs_on_cpu_only() and est.cost(n, ref) is not None}
     chosen = []
     used = est.memory(on_gpu).get(ref, 0.0)
+    # 20% of the GPU memory to spare: the memory of a placement is an estimate
     while used > 0.8 * capacity:
         best = None
         for n in on_gpu:
@@ -542,6 +550,8 @@ def cpu_candidates(graph, machine, est):
                 continue
             rest = {k: v for k, v in on_gpu.items() if k != n}
             left = est.memory(rest).get(ref, 0.0)
+            # Memory freed per GPU time lost; 0.1 ms is added so that objects with
+            # almost no GPU time do not win only because of a tiny denominator
             ratio = (used - left) / (est.cost(n, ref).g + 1e5)
             if best is None or ratio > best[0]:
                 best = (ratio, n, left)
@@ -594,6 +604,9 @@ def make_allocation(graph, machine, solution):
     for d in graph.data_objs:
         for p, s in (placement[c] for c in graph.ref_consumers.get(d, []) if c in placement):
             devices.setdefault(d, {}).setdefault(rank_map[p.rank], machine.slots[s].idx)
+    # A data object referenced by another data object is needed on the same ranks
+    # and devices: propagate them along the references, until nothing changes
+    # (references can be chained)
     changed = True
     while changed:
         changed = False
