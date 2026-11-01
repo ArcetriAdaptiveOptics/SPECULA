@@ -55,6 +55,30 @@ class TestBaseDataObj(unittest.TestCase):
         assert b.value is dest
         assert float(b.value) == 3.0
 
+    def test_update_numpy_scalar_from_cpu_to_cpu(self):
+        '''
+        Test that transferDataTo() copies a numpy scalar, as built by BaseValue(value=1.0)
+        '''
+        a = BaseValue(value=1.0, target_device_idx=-1)
+        b = BaseValue(value=0.0, target_device_idx=-1)
+        a.transferDataTo(b)
+        assert float(b.value) == 1.0
+
+        a.value = a.dtype(2.0)
+        a.transferDataTo(b)
+        assert float(b.value) == 2.0
+
+    @unittest.skipIf(cp is None or cp.cuda.runtime.getDeviceCount() < 2, 'at least 2 GPUs are needed')
+    def test_update_numpy_scalar_from_gpu_to_gpu(self):
+        '''
+        Test that transferDataTo() copies a numpy scalar between two GPUs
+        '''
+        a = BaseValue(value=1.0, target_device_idx=0)
+        b = a.copyTo(target_device_idx=1)
+        BaseValue(value=2.0, target_device_idx=0).transferDataTo(b)
+        assert float(b.value) == 2.0
+        assert b.target_device_idx == 1
+
     @unittest.skipIf(cp is None, 'GPU not available')
     def test_copy_from_cpu_to_gpu(self):
         '''
