@@ -9,11 +9,21 @@ class DataBuffer(BaseProcessingObj):
     """
     Data buffering processing object.
     Accumulates data and outputs it every N steps.
+
+    Parameters
+    ----------
+    buffer_size : int
+        Number of steps accumulated before each emission
+    align : bool
+        If True, emit only the steps in which all inputs were updated, so that
+        the rows of the outputs refer to the same steps (e.g. features and labels
+        for training). If False, each output holds all the samples of its input.
     """
 
-    def __init__(self, buffer_size: int = 10):
+    def __init__(self, buffer_size: int = 10, align: bool = True):
         super().__init__()
         self.buffer_size = buffer_size
+        self.align = align
         self.storage = defaultdict(OrderedDict)
         self.step_counter = 0
         self.buffered_outputs = {}
@@ -57,11 +67,20 @@ class DataBuffer(BaseProcessingObj):
             self.reset_buffers()
 
     def emit_buffered_data(self):
-        for input_name, data_dict in self.storage.items():
-            if len(data_dict) == 0:
-                continue
+        active = [k for k, d in self.storage.items() if len(d) > 0]
+        if self.align and active:
+            steps = set(self.storage[active[0]]).intersection(*(self.storage[k] for k in active[1:]))
+            dropped = {k: len(self.storage[k]) - len(steps) for k in active if len(self.storage[k]) > len(steps)}
+            if dropped:
+                self.logger.warning(f"DataBuffer: steps dropped to align the inputs: {dropped}")
+            steps = sorted(steps)
+        for input_name in active:
+            data_dict = self.storage[input_name]
             output_name = f"{input_name}_buffered"
-            values = self.xp.array(list(data_dict.values()))
+            if self.align:
+                values = self.xp.array([data_dict[s] for s in steps])
+            else:
+                values = self.xp.array(list(data_dict.values()))
             if output_name in self.buffered_outputs:
                 self.buffered_outputs[output_name].value = values
                 self.buffered_outputs[output_name].generation_time = self.current_time

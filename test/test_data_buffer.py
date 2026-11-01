@@ -10,9 +10,11 @@ from specula.loop_control import LoopControl
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.data_buffer import DataBuffer
 from specula.base_data_obj import BaseDataObj
+from specula.base_value import BaseValue
 
 import numpy as np
 import unittest
+from unittest import mock
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -219,3 +221,29 @@ class TestDataBuffer(unittest.TestCase):
         with self.assertRaises(TypeError):
             buffer.setup()
 
+
+    def _emit(self, align):
+        '''Emit two inputs: "a" stored at steps 0, 1, 2 and "b" only at steps 0 and 2'''
+        buffer = DataBuffer(buffer_size=3, align=align)
+        buffer.logger = mock.Mock()
+        for name in ('a', 'b'):
+            buffer.buffered_outputs[f'{name}_buffered'] = BaseValue(target_device_idx=buffer.target_device_idx)
+        buffer.storage['a'] = {0: np.array([0.0]), 1: np.array([1.0]), 2: np.array([2.0])}
+        buffer.storage['b'] = {0: np.array([10.0]), 2: np.array([12.0])}
+        buffer.emit_buffered_data()
+        self.warnings = buffer.logger.warning.call_count
+        return [cpuArray(buffer.buffered_outputs[f'{name}_buffered'].value).ravel() for name in ('a', 'b')]
+
+    def test_data_buffer_align(self):
+        """With align=True, only the steps where all inputs were updated are emitted"""
+        a, b = self._emit(align=True)
+        self.assertEqual(self.warnings, 1)
+        np.testing.assert_array_equal(a, [0.0, 2.0])
+        np.testing.assert_array_equal(b, [10.0, 12.0])
+
+    def test_data_buffer_no_align(self):
+        """With align=False, each output holds all the samples of its input"""
+        a, b = self._emit(align=False)
+        self.assertEqual(self.warnings, 0)
+        np.testing.assert_array_equal(a, [0.0, 1.0, 2.0])
+        np.testing.assert_array_equal(b, [10.0, 12.0])
