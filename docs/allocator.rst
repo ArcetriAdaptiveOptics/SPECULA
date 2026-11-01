@@ -203,7 +203,10 @@ How far to trust the estimates
 Time per step estimated by the allocator for the placement it chose, and
 measured (full runs, median after the first 20% of the steps), on a computer
 with two NVIDIA RTX PRO 5000 Blackwell GPUs, for the configurations in
-``config/`` (processes: ``auto``, or ``per_gpu`` for two processes):
+``config/``. "1 process" is the layout ``auto``, which chose one process driving
+both GPUs; "2 processes" is ``per_gpu``. For reference, with all the objects on
+one GPU (no allocation), MORFEO runs at 64.1 ms per step (62.3 ms with the
+accelerator):
 
 .. list-table::
    :header-rows: 1
@@ -313,7 +316,10 @@ with two NVIDIA RTX PRO 5000 Blackwell GPUs, for the configurations in
      - -5%
 
 The estimates of the simulations set by the GPUs (ANDES, MORFEO) are within a
-few percent; those of the small simulations, set by the host, are within 20%:
+few percent, and all optimistic: the search favors the placements where the
+model errs on the fast side, so the estimated time per step of the chosen
+placement is best read as a lower bound. Those of the small simulations, set by
+the host, are within 20%:
 the host time of a step is the sum of many short phases, each measured with
 some error, and the copies between devices are a large part of it. This is
 why the allocator keeps the simplest placement (fewest nodes, one GPU) unless

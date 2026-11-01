@@ -183,7 +183,11 @@ Both are deterministic and, on the matrices of MORFEO and SOUL (influence
 functions, mode-to-command and reconstruction matrices), as fast as cuBLAS,
 without copying the transposed matrix. ``Modalrec``, ``DM``, ``ModalAnalysis``
 and the slope computers use it, so their results with the accelerator on and off
-differ by rounding.
+differ by rounding. Objects that build their own CUDA graph (like ``ShSlopec``
+with a reconstruction or filtering matrix) use these kernels also with the
+accelerator off: since this version, their results differ by rounding from
+those of the previous versions (reference results of tests or scripts may need
+a tolerance).
 
 With the allocator
 ------------------
