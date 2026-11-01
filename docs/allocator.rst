@@ -185,14 +185,151 @@ Limitations
   less reliable. With TCP between two processes of the same computer, MORFEO ran
   about 60% slower than with single-copy shared memory.
 * Small, host-bound simulations: without the :doc:`accelerator <accelerator>`,
-  the placements on two GPUs of SCAO, space8m and SOUL ran 4-14% slower than
-  all the objects on one GPU, although the copy times are measured and
+  the placements on two GPUs of SCAO and SOUL ran 4-8% slower than all the
+  objects on one GPU, although the copy times are measured and
   ``device_tolerance`` prefers one GPU for small estimated gains: the host time
-  of these runs is not modeled accurately enough. With the accelerator, the
-  placements run as fast as one GPU. On MORFEO, the placement on two GPUs runs
-  1.66 times faster than one GPU (1.72 with the accelerator).
+  of these runs is not modeled accurately enough (see below). With the
+  accelerator, they run as fast as one GPU, or faster. On MORFEO, the placement
+  on two GPUs runs 1.53 times faster than one GPU (1.72 with the accelerator).
 * Accuracy: on a computer with two GPUs, the estimates of MORFEO for ten
   placements, with one or two processes, were within 5% of the measured times,
   except for the placements chosen by the allocator itself, which were
   optimistic by up to 10% (the search favors the placements where the model
   errs on the fast side), and for the old buffered MPI sends (15%).
+
+How far to trust the estimates
+------------------------------
+
+Time per step estimated by the allocator for the placement it chose, and
+measured (full runs, median after the first 20% of the steps), on a computer
+with two NVIDIA RTX PRO 5000 Blackwell GPUs, for the configurations in
+``config/`` (processes: ``auto``, or ``per_gpu`` for two processes):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 12 14 16 16 12
+
+   * - Simulation
+     - processes
+     - accelerator
+     - estimated (ms)
+     - measured (ms)
+     - error
+   * - SCAO SH
+     - 1
+     - no
+     - 1.88
+     - 2.25
+     - -17%
+   * - SCAO SH
+     - 1
+     - yes
+     - 1.17
+     - 1.22
+     - -4%
+   * - SCAO pyramid
+     - 1
+     - no
+     - 2.36
+     - 2.87
+     - -18%
+   * - SCAO pyramid
+     - 1
+     - yes
+     - 1.34
+     - 1.18
+     - +13%
+   * - space8m
+     - 1
+     - no
+     - 3.00
+     - 2.82
+     - +6%
+   * - space8m
+     - 1
+     - yes
+     - 1.06
+     - 1.34
+     - -21%
+   * - SOUL
+     - 1
+     - no
+     - 3.08
+     - 3.48
+     - -11%
+   * - SOUL
+     - 1
+     - yes
+     - 1.59
+     - 1.31
+     - +21%
+   * - SOUL
+     - 2
+     - no
+     - 3.04
+     - 3.60
+     - -15%
+   * - SOUL
+     - 2
+     - yes
+     - 1.91
+     - 1.82
+     - +5%
+   * - ANDES
+     - 1
+     - no
+     - 32.55
+     - 34.01
+     - -4%
+   * - ANDES
+     - 1
+     - yes
+     - 30.94
+     - 31.50
+     - -2%
+   * - MORFEO (full)
+     - 1
+     - no
+     - 37.47
+     - 41.89
+     - -11%
+   * - MORFEO (full)
+     - 1
+     - yes
+     - 36.83
+     - 37.19
+     - -1%
+   * - MORFEO (full)
+     - 2
+     - no
+     - 40.77
+     - 41.88
+     - -3%
+   * - MORFEO (full)
+     - 2
+     - yes
+     - 39.41
+     - 41.34
+     - -5%
+
+The estimates of the simulations set by the GPUs (ANDES, MORFEO) are within a
+few percent; those of the small simulations, set by the host, are within 20%:
+the host time of a step is the sum of many short phases, each measured with
+some error, and the copies between devices are a large part of it. This is
+why the allocator keeps the simplest placement (fewest nodes, one GPU) unless
+another one is estimated faster by more than ``node_tolerance`` or
+``device_tolerance``.
+
+The constants of the model and of the search, and why:
+
+* ``node_tolerance``, ``device_tolerance`` (5%): the accuracy of the estimates
+  of large simulations; a placement on more nodes or devices must be faster by
+  more than that to be chosen.
+* Convergence of the simulation of the steps (0.5%, twice in a row): well below
+  the accuracy of the model; only placements with large MPI messages need
+  more than one pass.
+* Measuring objects on the CPU when the GPUs are too small: until the objects
+  left on the GPUs need at most 80% of their memory (the memory of a placement
+  is an estimate), choosing first those that free the most memory per GPU time.
+* Number of nodes searched: each one costs a search of ``search_time``; up to 8
+  nodes all the numbers are tried, above only the powers of 2 and all the nodes.

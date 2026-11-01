@@ -231,48 +231,48 @@ the :doc:`allocator <allocator>` (one process):
      - allocated, accelerated
      - accelerated objects
    * - SCAO SH (``scao``)
-     - 2.09
-     - 1.07
-     - 2.32
-     - 1.21
+     - 2.06
+     - 1.12
+     - 2.25
+     - 1.22
      - 11 of 13
    * - SCAO pyramid (``scao``)
-     - 2.79
-     - 1.02
-     - 2.91
-     - 1.20
+     - 2.77
+     - 1.16
+     - 2.87
+     - 1.18
      - 11 of 13
    * - space8m
-     - 2.81
-     - 1.17
-     - 2.93
+     - 2.94
+     - 1.20
+     - 2.82
      - 1.34
      - 9 of 12
    * - SOUL
-     - 3.16
+     - 3.23
      - 1.58
-     - 3.61
+     - 3.48
      - 1.31
      - 13 of 14
    * - ANDES
-     - 33.3
+     - 33.4
      - 32.9
-     - 33.3
+     - 34.0
      - 31.5
      - 14 of 19
    * - MORFEO (full)
-     - 63.9
-     - 62.4
-     - 38.5
-     - 37.3
-     - 47 of 63
+     - 64.1
+     - 62.3
+     - 41.9
+     - 37.2
+     - 53 of 63
 
-The small simulations, whose time is set by the host, run two to two and a
-half times faster, close to the time of their GPU work; the large ones, set by
+The small simulations, whose time is set by the host, run 1.8 to 2.5 times
+faster, close to the time of their GPU work; the large ones, set by
 the GPUs, gain little from the accelerator alone (MORFEO gains from the
 placement on two GPUs). Detector noise is the main host work left in the small
 simulations: a ``CCD`` with noise is not accelerated (space8m runs at 0.70 ms
-per step accelerated with the noise off, 1.17 ms with it). The "allocated"
+per step accelerated with the noise off, 1.20 ms with it). The "allocated"
 columns use the placement chosen by the allocator for each mode; without the
 accelerator, it is slower than one GPU on the small simulations (see
 :doc:`allocator`).
