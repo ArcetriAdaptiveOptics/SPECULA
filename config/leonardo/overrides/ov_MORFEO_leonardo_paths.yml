@@ -2,7 +2,7 @@
 # (target_rank, target_device_idx): to be used with the allocator.
 
 main_override:
-  root_dir:        '/leonardo_work/try25_rossi/MORFEO_DATA0'         # Root directory for calibration manager
+  root_dir:        '/leonardo_work/IscrC_SPECIAL/raid1/guido/PASSATA/MAORYC'         # Root directory for calibration manager
   total_time:      0.100
   display_server:  false
 

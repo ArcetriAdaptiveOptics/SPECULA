@@ -10,7 +10,7 @@
 #SBATCH --qos=boost_qos_dbg                   # Quality of Service
 #SBATCH --output=speculaJobSOULGPU.out        # File for standard output
 #SBATCH --error=speculaJobSOULGPU.err         # File for standard error
-#SBATCH --account=try25_rossi                 # Project account number
+#SBATCH --account=IscrC_SPECIAL               # Project account number
 
 module load cuda/12.3                         # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11       # Load MPI implementation

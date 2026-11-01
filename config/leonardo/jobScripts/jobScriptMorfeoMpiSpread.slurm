@@ -10,7 +10,7 @@
 #SBATCH --qos=normal                           # Quality of Service
 #SBATCH --output=speculaJobMorfeoMpiSpread.out # File for standard output
 #SBATCH --error=speculaJobMorfeoMpiSpread.err  # File for standard error
-#SBATCH --account=try25_rossi                  # Project account number
+#SBATCH --account=IscrC_SPECIAL                # Project account number
 
 module load cuda/12.3                          # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11        # Load MPI implementation
