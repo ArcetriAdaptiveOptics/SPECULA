@@ -1282,12 +1282,42 @@ class TestFlaskServerStatusReports(unittest.TestCase):
         seen = []
         srv.response_handlers['data_response'] = lambda c, n, d: seen.append(('data', n))
         srv.response_handlers['terminator'] = lambda c, n, d: seen.append(('done', n))
-        with patch.object(srv, 'forward_status',
+        with patch.object(srv, 'report_status',
                           side_effect=lambda n, d: seen.append(('status', n))):
             self._run_handler(srv, [('data_response', 'cli1', 'a', {}), ('sim', 'running'),
                                     ('terminator', 'cli1', None, '')])
         self.assertEqual(seen, [('data', 'a'), ('status', 'sim'), ('done', None)])
         self.assertTrue(srv.status_queue.empty())     # nothing put back
+
+    def test_slow_frontend_does_not_delay_the_responses(self):
+        """Reaching an absent frontend takes ~4 s on Windows: the reader must not wait."""
+        srv, _ = self._make_server()
+        seen = []
+        srv.response_handlers['data_response'] = lambda c, n, d: seen.append(time.time())
+        with patch.object(srv, 'forward_status', side_effect=lambda n, d: time.sleep(2)):
+            t0 = time.time()
+            self._run_handler(srv, [('sim', 'running'), ('data_response', 'cli1', 'a', {})])
+        self.assertEqual(len(seen), 1)
+        self.assertLess(seen[0] - t0, 0.5)
+
+    def test_frontend_thread_forwards_the_reports(self):
+        srv, _ = self._make_server()
+        forwarded = []
+        with patch.object(srv, 'forward_status', side_effect=lambda n, d: forwarded.append(n)):
+            srv.report_status('sim', 'running at 10 Hz')
+            deadline = time.time() + 2
+            while not forwarded and time.time() < deadline:
+                time.sleep(0.01)
+        self.assertEqual(forwarded, ['sim'])
+
+    def test_reports_dropped_while_the_frontend_thread_is_behind(self):
+        srv, _ = self._make_server()
+        srv._frontend_thread = MagicMock()        # started, and not reading
+        n = srv._status_reports.maxsize
+        for i in range(n + 5):
+            srv.report_status('sim', i)           # must not block
+        self.assertEqual(srv._status_reports.qsize(), n)
+        self.assertEqual(srv._status_reports.get_nowait(), ('sim', 0))
 
     def test_none_status_stops_the_server(self):
         srv, _ = self._make_server()
@@ -1376,6 +1406,73 @@ class TestFlaskServerLifetime(unittest.TestCase):
             self.assertTrue(srv.simulation_alive())   # not started by a DisplayServer
 
 
+
+# ---------------------------------------------------------------------------
+# Start-up handshake: setup() waits for the server process to report its port
+# ---------------------------------------------------------------------------
+
+class TestDisplayServerReady(unittest.TestCase):
+
+    def _make(self, items=(), alive=True):
+        from specula.processing_objects.display_server import DisplayServer
+        srv = DisplayServer.__new__(DisplayServer)
+        srv.qin = _queue_module.Queue()
+        for item in items:
+            srv.qin.put(item)
+        srv.p = MagicMock()
+        srv.p.is_alive.return_value = alive
+        srv.server_port = None
+        srv.logger = get_specula_logger('test_logger')
+        return srv
+
+    def test_waits_for_the_ready_message(self):
+        from specula.lib.display_server_api import SERVER_READY
+        srv = self._make([(SERVER_READY, 51234)])
+        self.assertTrue(srv.wait_until_ready(timeout=5))
+        self.assertEqual(srv.server_port, 51234)
+        self.assertTrue(srv.qin.empty())
+
+    def test_gives_up_when_the_process_died(self):
+        srv = self._make(alive=False)
+        t0 = time.time()
+        self.assertFalse(srv.wait_until_ready(timeout=10))
+        self.assertLess(time.time() - t0, 5)
+
+    def test_times_out(self):
+        srv = self._make()
+        self.assertFalse(srv.wait_until_ready(timeout=1))
+
+    def test_other_items_are_left_in_the_queue(self):
+        from specula.lib.display_server_api import SERVER_READY
+        srv = self._make([('cli1', ['a']), (SERVER_READY, 51234)])
+        self.assertTrue(srv.wait_until_ready(timeout=5))
+        self.assertEqual(srv.server_port, 51234)
+        self.assertEqual(srv.qin.get_nowait(), ('cli1', ['a']))
+        self.assertTrue(srv.qin.empty())
+
+    def test_late_ready_message_is_not_a_request(self):
+        from specula.lib.display_server_api import SERVER_READY
+        for mode in ('data', 'image'):
+            with self.subTest(mode=mode):
+                srv = TestDisplayServerTriggerExtra()._make_server(mode)
+                srv.data_obj_getter = lambda name: None
+                srv.server_port = None
+                srv.qin.put((SERVER_READY, 4321))
+                srv.trigger()                          # must not raise
+                self.assertEqual(srv.server_port, 4321)
+
+    def test_run_reports_ready_before_serving(self):
+        import specula.lib.display_server_api as api
+        rq = _queue_module.Queue()
+        with patch('threading.Thread'):
+            srv = api.DataFlaskServer(params_dict={}, status_queue=_queue_module.Queue(),
+                                      request_queue=rq, port=0)
+        with patch.object(api.sio, 'run') as mock_run, patch('threading.Thread'):
+            srv.run()
+        item = rq.get_nowait()
+        self.assertEqual(item, (api.SERVER_READY, srv.actual_port))
+        mock_run.assert_called_once()
+
 # ---------------------------------------------------------------------------
 # ImageFlaskServer.handle_image_responses – actual thread execution
 # ---------------------------------------------------------------------------
@@ -1433,7 +1530,7 @@ class TestImageFlaskServerHandleResponsesActual(unittest.TestCase):
 
     def test_status_item_forwarded_thread_survives(self):
         srv, sq = self._make_server()
-        with patch.object(srv, 'forward_status') as mock_forward:
+        with patch.object(srv, 'report_status') as mock_forward:
             sq.put(('status_name', 'running'))
             time.sleep(0.3)
         mock_forward.assert_called_once_with('status_name', 'running')
@@ -1475,7 +1572,7 @@ class TestDataFlaskServerHandleResponsesActual(unittest.TestCase):
 
     def test_status_item_forwarded_thread_survives(self):
         srv, sq = self._make_server()
-        with patch.object(srv, 'forward_status') as mock_forward:
+        with patch.object(srv, 'report_status') as mock_forward:
             sq.put(('sim_name', 'running'))
             time.sleep(0.3)
         mock_forward.assert_called_once_with('sim_name', 'running')
