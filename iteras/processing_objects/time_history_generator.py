@@ -5,10 +5,13 @@ from iteras.data_objects.time_history import TimeHistory
 class TimeHistoryGenerator(BaseGenerator):
     """
     Time History Generator processing object.
-    Generates signals from pre-computed time history data.
+    Generates signals from pre-computed time history data, one row per step.
+    After the last row, the last values are kept or, with loop, the history
+    starts again from the first row.
     """
     def __init__(self,
                  time_hist: TimeHistory,
+                 loop: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
 
@@ -22,10 +25,13 @@ class TimeHistoryGenerator(BaseGenerator):
         )
 
         self.time_hist = self.to_xp(time_history_array)
+        self.loop = loop
 
     def trigger_code(self):
         # time_hist might be either 1d or 2d, indexing syntax is the same.
-        if self.iter_counter < self.time_hist.shape[0]:
+        if self.loop:
+            self.output.value[:] = self.time_hist[self.iter_counter % self.time_hist.shape[0]]
+        elif self.iter_counter < self.time_hist.shape[0]:
             self.output.value[:] = self.time_hist[self.iter_counter]
         else:
             # Beyond available data, use last values
