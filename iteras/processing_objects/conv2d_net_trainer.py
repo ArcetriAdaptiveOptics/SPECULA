@@ -96,8 +96,8 @@ class Conv2dNetTrainer(BaseProcessingObj):
 
     input_channels : int
         Channels of the buffered maps, per frame: 2 for the x/y slope maps
-        Slopes2D gives for ordinary slopes, 1 for a single map per frame
-        (e.g. Slopes2D on slopes-from-intensity slopes).
+        of a slope computer (its out_slopes_map), 1 for a single map per
+        frame (e.g. out_slopes_map of slopes from intensity).
     channel_product : bool
         Use the per-pixel product of the 2 channels of the buffered maps
         (e.g. amplitude and phase) as a single-channel input: requires
@@ -361,8 +361,11 @@ class Conv2dNetTrainer(BaseProcessingObj):
         else:
             self.device = torch.device(f'cuda:{self.target_device_idx}')
         n_gpus = torch.cuda.device_count()
-        if data_parallel and n_gpus > 1:
-            model = nn.DataParallel(model.to(self.device), device_ids=list(range(n_gpus)))
+        if data_parallel and self.device.type == 'cuda' and n_gpus > 1:
+            # DataParallel wants the model on device_ids[0]: the object's GPU first
+            t = self.device.index
+            device_ids = [t] + [i for i in range(n_gpus) if i != t]
+            model = nn.DataParallel(model.to(self.device), device_ids=device_ids)
             self.logger.info(f'Training on {n_gpus} GPUs (DataParallel)')
         else:
             self.logger.info(f'Training on {self.device}')
@@ -400,7 +403,7 @@ class Conv2dNetTrainer(BaseProcessingObj):
     def input_names(cls):
         return {
             'input_2d_batch': InputDesc(BaseValue, 'Buffered 2D maps, (B, H, W) or (B, C, H, W), '
-                                                   'e.g. Slopes2D through a DataBuffer'),
+                                                   'e.g. a Slopec out_slopes_map through a DataBuffer'),
             'labels': InputDesc(BaseValue, 'Buffered modes to predict, (B, >= label_offset + nmodes)'),
             'baseline': InputDesc(BaseValue, 'Buffered baseline modes: the network learns '
                                              'labels - baseline (optional)'),

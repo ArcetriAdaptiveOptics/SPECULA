@@ -261,6 +261,23 @@ class TestConv2dNetTrainerDevice(unittest.TestCase):
             self.assertEqual(str(trainer.device), 'cuda:0')
             self.assertNotIsInstance(trainer.model, torch.nn.DataParallel)
 
+    def test_cpu_object_ignores_data_parallel(self):
+        with tempfile.TemporaryDirectory() as d, \
+                unittest.mock.patch.object(torch.cuda, 'device_count', return_value=2):
+            trainer = build_trainer(d, target_device_idx=-1, data_parallel=True)
+            self.assertEqual(trainer.device.type, 'cpu')
+            self.assertNotIsInstance(trainer.model, torch.nn.DataParallel)
+
+    @unittest.skipIf(not TORCH_AVAILABLE or specula.cp is None or not torch.cuda.is_available()
+                     or torch.cuda.device_count() < 2, "fewer than 2 GPUs")
+    def test_data_parallel_starts_from_the_object_gpu(self):
+        # DataParallel wants the model on device_ids[0]
+        with tempfile.TemporaryDirectory() as d:
+            trainer = build_trainer(d, target_device_idx=1, data_parallel=True)
+            self.assertIsInstance(trainer.model, torch.nn.DataParallel)
+            self.assertEqual(trainer.model.device_ids[0], 1)
+            self.assertEqual(sorted(trainer.model.device_ids), list(range(torch.cuda.device_count())))
+
 
 @unittest.skipIf(not TORCH_AVAILABLE, "torch is not installed")
 class TestNormalization(unittest.TestCase):
@@ -529,7 +546,7 @@ class TestConv2dNetTrainerTrigger(unittest.TestCase):
 
     def test_input_channels_one_uses_a_single_map_per_frame_as_is(self):
         # A buffered value with one map per frame and no channel axis
-        # (Slopes2D on slopes-from-intensity slopes): used unchanged, with
+        # (out_slopes_map of slopes from intensity): used unchanged, with
         # the channel axis added for the network.
         with tempfile.TemporaryDirectory() as d:
             trainer = build_trainer(d, epoch_len=1, input_channels=1)
