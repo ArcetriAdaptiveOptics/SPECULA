@@ -15,8 +15,10 @@ simulating a few steps of the loop as LoopControl runs it:
   copying data out of a GPU;
 * an object that splits its work over k devices (graph.spread, e.g.
   DistributedSH, or a split chosen by the solver, see Estimator.spread())
-  launches k parts, each with 1/k of the measured GPU time and memory, copies
-  its inputs to its other devices and gathers the results;
+  launches k parts, each with 1/k of the measured memory and g * (f + (1 - f) / k)
+  of the measured GPU time g, where f is the fraction of the work every part
+  repeats (see BaseProcessingObj.repeated_work_fraction()); it copies its inputs
+  to its other devices and gathers the results;
 * MPI messages are sent as iteras.mpi_progress sends them. A small message
   (up to EAGER_BYTES) travels at once. The data of a larger one moves once
   both the send and the receive have been posted: on a single-copy link the
@@ -120,9 +122,21 @@ class Estimator:
         # The MPI behavior of the framework (see iteras.mpi_progress)
         self.buffered_sends = mpi_progress.buffered_sends()
         self.polling = mpi_progress.polling_enabled() and not self.buffered_sends
+        # {(name, number of parts): fraction of the GPU work that every part repeats},
+        # see BaseProcessingObj.repeated_work_fraction(). The objects split in the
+        # parameter file are here; the solver adds those it may split.
+        self.repeated = {(name, k): graph.cls(name).repeated_work_fraction(graph.params[name])
+                         for name, k in graph.spread.items() if k > 1}
 
     def cost(self, name, slot):
         return self.costs.get((name, self.machine.slots[slot].kind))
+
+    def part_gpu_ns(self, name, c, parts):
+        '''GPU time of each of the *parts* parts of object *name*, whose cost is *c*'''
+        if parts == 1:
+            return c.g
+        f = self.repeated.get((name, parts), 0.0)
+        return c.g * (f + (1 - f) / parts)
 
     def spread(self, split=None):
         '''
@@ -363,9 +377,10 @@ class Estimator:
             t += c.h_prep + c.h_trig * len(parts)
             if slots[s].is_gpu:
                 end = 0.0
+                part_ns = self.part_gpu_ns(name, c, len(parts))
                 for d in parts:
                     start = max(t, state.stream[d], gpu_ready[name])
-                    state.stream[d] = start + c.g / len(parts)
+                    state.stream[d] = start + part_ns
                     end = max(end, state.stream[d])
                 state.done[(name, k)] = end
                 if c.syncs == 'trigger':

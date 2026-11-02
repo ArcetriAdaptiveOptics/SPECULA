@@ -188,6 +188,12 @@ The default implementations do nothing; override them to change how
        ``devices_used()`` and ``single_device_params()`` describe the split
        object. None by default; SPECULA's ``SH`` offers ``DistributedSH`` with
        ``n_slices`` dividing its subaperture rows.
+   * - ``repeated_work_fraction(params)``
+     - Class method, for objects that split their work: the fraction ``f`` of
+       the GPU work of the whole object that each part repeats. The allocator
+       estimates each of ``k`` parts as ``g * (f + (1 - f) / k)``. 0 by default;
+       ``DistributedSH`` declares 0.05 (each slice interpolates the whole
+       input field), measured on Leonardo.
    * - ``is_schedule_barrier()``
      - Class method. Return ``True`` for classes whose position in the trigger
        order must never change, because they interact with the outside world

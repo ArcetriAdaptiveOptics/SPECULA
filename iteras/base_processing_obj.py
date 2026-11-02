@@ -512,6 +512,18 @@ class BaseProcessingObj(BaseTimeObj):
         return {}
 
     @classmethod
+    def repeated_work_fraction(cls, params):
+        '''
+        For objects that split their work over devices_used(params) devices:
+        the fraction of the GPU work of the whole object that each part repeats
+        (e.g. a preparation of the input done by every part). The allocator
+        estimates the GPU time of each of k parts as g * (f + (1 - f) / k),
+        where g is the time of the whole object on one device. Default 0: the
+        work divides exactly.
+        '''
+        return 0.0
+
+    @classmethod
     def is_schedule_barrier(cls):
         '''
         Override to return True for classes whose position in the trigger order

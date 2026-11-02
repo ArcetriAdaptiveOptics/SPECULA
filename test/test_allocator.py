@@ -443,6 +443,19 @@ class TestEstimator(AllocatorTestCase):
         self.assertAlmostEqual(mem[2], 10 * MiB + 1 * MiB + 100 * MiB)   # with table
         self.assertLess(est.step_time(place)[0], one_time - 5 * ms)
 
+    def test_repeated_work_of_the_parts(self):
+        # Each of the k parts repeats a fraction f of the work: g * (f + (1 - f) / k) per part
+        m, est, place = self.split_estimator(parts=4)
+        exact = est.step_time(place)[0]
+        klass = est.graph.cls('work2')
+        with mock.patch.object(klass, 'repeated_work_fraction', classmethod(lambda cls, p: 0.5)):
+            m, est, place = self.split_estimator(parts=4)
+        self.assertEqual(est.repeated[('work2', 4)], 0.5)
+        c = est.cost('work2', 1)
+        self.assertAlmostEqual(est.part_gpu_ns('work2', c, 4), c.g * (0.5 + 0.5 / 4))
+        self.assertEqual(est.part_gpu_ns('work2', c, 1), c.g)
+        self.assertGreater(est.step_time(place)[0], exact + 1 * ms)
+
     def test_memory_per_process(self):
         # work2 in a second process on the same GPU: that process has its own copy
         # of the referenced data object (100 MiB) and of its input from gen (1 MiB),
@@ -709,6 +722,19 @@ class TestSplitDecision(AllocatorTestCase):
         # About 6 x 20 / 4 ms: for example two of them split over two GPUs each, or all
         self.assertTrue(results[True].split)
         self.assertLess(results[True].evaluation.step_ns, 35 * ms)
+
+    def test_parts_that_repeat_the_work_are_not_split(self):
+        # The class of the split object declares the work that its parts repeat:
+        # if each part repeats all of it, splitting only adds copies
+        m = machine(ngpu=4)
+        klass = __import__('alloc_objs').SplitWork
+        _, est, solver, sol = self.solve(m, work2_ms=40.0)
+        self.assertEqual(est.repeated[('work2', 4)], 0.0)
+        self.assertTrue(sol.split)
+        with mock.patch.object(klass, 'repeated_work_fraction', classmethod(lambda cls, p: 1.0)):
+            _, est, solver, sol = self.solve(m, work2_ms=40.0)
+        self.assertEqual(est.repeated[('work2', 2)], 1.0)
+        self.assertEqual(sol.split, {})
 
     def test_light_object_not_split(self):
         # Little GPU work and a large output: the copies to the other GPUs cost more

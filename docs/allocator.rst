@@ -132,7 +132,14 @@ true``, the default). Classes that allow it say how (``split_options()`` in
 4 GPUs of a node, when that number divides its subaperture rows. The search
 tries each number of GPUs for each such object, and keeps a split only when the
 estimated time per step is lower; the costs are those measured for the
-unsplit object, so no further profiling is needed. A split object needs a
+unsplit object, so no further profiling is needed. Each part is estimated with
+its share of the work plus the work it repeats, as declared by the class
+(``repeated_work_fraction()`` in :doc:`extension_api`).
+
+On Leonardo, the host time of each MPI message measured with MORFEO is about
+150 µs (``mpi_message_us`` in the ``links``, 30 µs by default): declaring it,
+and with the work repeated by the slices, the estimates of the measured MORFEO plans are within
++3% to -12% of the measured times (they were 5% to 28% optimistic). A split object needs a
 process that drives all its GPUs: with one process per GPU (``processes:
 'per_gpu'``) nothing is split, and an object split in the parameter files must
 be placed by hand. The allocation file then also sets the class and settings

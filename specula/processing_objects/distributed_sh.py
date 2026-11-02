@@ -71,6 +71,14 @@ class DistributedSH(SH):
         return {**params, 'n_slices': 1}
 
     @classmethod
+    def repeated_work_fraction(cls, params):
+        # Each slice interpolates the whole input field before computing its rows.
+        # Measured on Leonardo (A100) for the MORFEO LGS sensors (68 rows, 4 slices):
+        # 3.80 ms per slice for 13.2 ms in all, f = 0.05. Small sensors repeat a
+        # larger fraction (0.13 to 0.42 for 2 and 8 rows), but less than 0.2 ms.
+        return 0.05
+
+    @classmethod
     def input_names(cls):
         return super().input_names()
 

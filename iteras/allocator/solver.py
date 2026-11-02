@@ -18,6 +18,7 @@ Search for the placement of the processing objects.
 import time
 from dataclasses import dataclass, field
 
+from iteras.lib.utils import import_class
 from .cost import Proc
 
 
@@ -137,6 +138,11 @@ class Solver:
                 opts = {k: p for k, p in opts.items() if 1 < k <= max_gpus}
                 if opts:
                     self.options[name] = opts
+                    # The work that the parts repeat, as declared by the class of the split object
+                    for k, p in opts.items():
+                        klass = import_class(p['class'], graph.main_params.get('add_modules', [])) \
+                            if 'class' in p else graph.cls(name)
+                        estimator.repeated[(name, k)] = klass.repeated_work_fraction(p)
 
     # -- constraints ---------------------------------------------------
 
