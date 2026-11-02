@@ -1,4 +1,5 @@
 import copy
+import math
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
@@ -72,11 +73,17 @@ class DistributedSH(SH):
 
     @classmethod
     def repeated_work_fraction(cls, params):
-        # Each slice interpolates the whole input field before computing its rows.
-        # Measured on Leonardo (A100) for the MORFEO LGS sensors (68 rows, 4 slices):
-        # 3.80 ms per slice for 13.2 ms in all, f = 0.05. Small sensors repeat a
-        # larger fraction (0.13 to 0.42 for 2 and 8 rows), but less than 0.2 ms.
-        return 0.05
+        # Each slice interpolates the whole input field before computing its rows,
+        # a larger fraction of the work for sensors with few rows. Measured on
+        # Leonardo (A100), 2 and 4 slices, 480x480 input field: f = 0.22 for the
+        # MORFEO NGS and reference sensors (2 and 8 rows), 0.05 for the LGS ones
+        # (68 rows, with the laser launch telescope). Interpolated in log(rows).
+        rows = params.get('subap_on_diameter', 0)
+        if not isinstance(rows, int) or rows <= 8:
+            return 0.22
+        if rows >= 68:
+            return 0.05
+        return 0.22 + (0.05 - 0.22) * math.log(rows / 8) / math.log(68 / 8)
 
     @classmethod
     def input_names(cls):

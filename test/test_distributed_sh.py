@@ -75,6 +75,15 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         self.assertEqual(DistributedSH.single_device_params(params)['n_slices'], 1)
         self.assertEqual(params['n_slices'], 4)
 
+    def test_repeated_work_fraction_decreases_with_the_rows(self):
+        def f(rows):
+            return DistributedSH.repeated_work_fraction({'subap_on_diameter': rows})
+        self.assertEqual(f(2), 0.22)
+        self.assertEqual(f(8), 0.22)
+        self.assertEqual(f(68), 0.05)
+        self.assertEqual(f(80), 0.05)
+        self.assertTrue(0.22 > f(10) > f(40) > 0.05)
+
     def test_slices_prepare_after_fetching_their_inputs(self):
         '''
         At each step each slice prepares its trigger once, after getting its

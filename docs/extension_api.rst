@@ -192,8 +192,9 @@ The default implementations do nothing; override them to change how
      - Class method, for objects that split their work: the fraction ``f`` of
        the GPU work of the whole object that each part repeats. The allocator
        estimates each of ``k`` parts as ``g * (f + (1 - f) / k)``. 0 by default;
-       ``DistributedSH`` declares 0.05 (each slice interpolates the whole
-       input field), measured on Leonardo.
+       ``DistributedSH`` declares from 0.22 for sensors of up to 8 subaperture
+       rows to 0.05 from 68 rows (each slice interpolates the whole input
+       field), measured on Leonardo.
    * - ``is_schedule_barrier()``
      - Class method. Return ``True`` for classes whose position in the trigger
        order must never change, because they interact with the outside world
