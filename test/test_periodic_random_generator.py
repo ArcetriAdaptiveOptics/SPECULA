@@ -97,5 +97,16 @@ class TestPeriodicRandomGenerator(unittest.TestCase):
         self.assertTrue(9.0 <= values[0][0] <= 11.0)
 
 
+class TestPeriodicRandomGeneratorAlignment(unittest.TestCase):
+
+    def test_draws_at_the_multiples_of_the_interval(self):
+        # A 0.5 s interval with 0.3 s steps: draws at the first step after
+        # 0, 0.5, 1.0, 1.5 s (0, 0.6, 1.2, 1.5), not every 0.6 s
+        gen = PeriodicRandomGenerator(update_interval=0.5, amp=[1.0], seed=1, target_device_idx=-1)
+        values = drive(gen, [0.3 * k for k in range(7)])
+        changed = [k for k in range(1, 7) if not np.array_equal(values[k], values[k - 1])]
+        self.assertEqual(changed, [2, 4, 5])
+
+
 if __name__ == '__main__':
     unittest.main()
