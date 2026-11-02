@@ -7,16 +7,31 @@ class ScheduleGenerator(BaseGenerator):
     """
     Schedule Generator processing object.
     Generates scheduled values which change at specified times.
+
+    Parameters
+    ----------
+    scheduled_values : list of lists
+        Values of each interval: one more than scheduled_times.
+    scheduled_times : list of float [s]
+        Times at which the next values start.
+    modes_per_group : int or list of int
+        Number of outputs each value of a set is repeated on.
+    period : float [s], optional
+        If set, the schedule restarts every period seconds (the times are
+        taken within each period, and must be smaller than it).
     """
     def __init__(self,
                  scheduled_values: list,
                  scheduled_times: list,
                  modes_per_group: int | List[int],
+                 period: float = None,
                  target_device_idx: int = None,
                  precision: int = None):
 
         if len(scheduled_values) != len(scheduled_times) + 1:
             raise ValueError('Length of scheduled_values must be length of scheduled_times + 1')
+        if period is not None and (period <= 0 or any(t >= period for t in scheduled_times)):
+            raise ValueError(f'period must be > 0 and larger than all the scheduled times, got {period}')
 
         # Expand scheduled_values according to modes_per_group
         if isinstance(modes_per_group, int):
@@ -39,12 +54,21 @@ class ScheduleGenerator(BaseGenerator):
 
         self.scheduled_values = self.to_xp(expanded_values, dtype=self.dtype)
         self.scheduled_times = self.to_xp(scheduled_times, dtype=self.dtype)
+        self.period_t = self.seconds_to_t(period) if period is not None else None
+        # Time within the period; without a period, the time itself (current_time_gpu)
+        self.schedule_time_gpu = self.xp.zeros(1, dtype=self.dtype) if period is not None else None
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+        if self.period_t is not None:
+            # Computed on the integer time to avoid rounding
+            self.schedule_time_gpu[:] = self.t_to_seconds(self.current_time % self.period_t)
 
     def trigger_code(self):
         # Find the index of the current time in the time schedule
         time_idx = self.xp.searchsorted(
             self.scheduled_times,
-            self.current_time_gpu,
+            self.current_time_gpu if self.period_t is None else self.schedule_time_gpu,
             side='right'
         )
 

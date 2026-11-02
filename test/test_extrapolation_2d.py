@@ -506,6 +506,27 @@ class TestExtrapolation2D(unittest.TestCase):
         self.assertEqual(interp.interpolated_ef().size, (64, 64))
 
     @cpu_and_gpu
+    def test_efinterpolator_update_parameters_without_initial_interpolation(self, target_device_idx, xp):
+        """
+        An interpolator created with parameters that need no interpolation
+        (the input is used as is) can be updated with parameters that do
+        """
+        ef_in = ElectricField(32, 32, 0.01, target_device_idx=target_device_idx)
+        mask = CircularMask((32, 32), 14, xp.array((32, 32)) / 2.0, xp=xp)
+        ef_in.A[:] = xp.asarray(mask.mask() == 0, dtype=ef_in.A.dtype)
+        ef_in.phaseInNm[:] = xp.arange(32)[None, :] * 10.0
+        interp = EFInterpolator(ef_in, (32, 32), target_device_idx=target_device_idx)
+        self.assertFalse(interp.do_interpolation)
+        interp.update_parameters(rotAnglePhInDeg=3.0)
+        interp.interpolate()
+
+        expected = EFInterpolator(ef_in, (32, 32), rotAnglePhInDeg=3.0, target_device_idx=target_device_idx)
+        expected.interpolate()
+        self.assertTrue(interp.do_interpolation)
+        np.testing.assert_allclose(cpuArray(interp.interpolated_ef().phaseInNm),
+                                   cpuArray(expected.interpolated_ef().phaseInNm), rtol=1e-6)
+
+    @cpu_and_gpu
     def test_initialize_extrapolation(self, target_device_idx, xp):
         '''
         initialize_extrapolation() computes the extrapolation data only once,

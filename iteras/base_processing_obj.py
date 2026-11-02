@@ -622,8 +622,9 @@ class BaseProcessingObj(BaseTimeObj):
             if not isinstance(input_obj, (InputValue, InputList)):
                 raise TypeError(f"Input {input_name} must be an InputValue or an InputList")
 
+            # A class, or a tuple of classes accepted by the input
             expected_type = declared_desc[0]
-            if input_obj.type is not expected_type:
+            if input_obj.type != expected_type:
                 raise TypeError(
                     f"Input {input_name} must be of type {expected_type}, "
                     f"but got {input_obj.type}"

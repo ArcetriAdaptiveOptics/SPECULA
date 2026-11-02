@@ -63,4 +63,7 @@ class PeriodicRandomGenerator(RandomGenerator):
     def trigger_code(self):
         if self.current_time >= self._next_update_t:
             super().trigger_code()
-            self._next_update_t = self.current_time + self.update_interval_t
+            # The next multiple of the interval: the draws stay aligned with
+            # other periodic objects even if the interval is not a whole
+            # number of steps
+            self._next_update_t = (self.current_time // self.update_interval_t + 1) * self.update_interval_t
