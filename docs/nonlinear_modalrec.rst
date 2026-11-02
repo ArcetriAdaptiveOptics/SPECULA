@@ -59,3 +59,10 @@ about the modes whose curve rolls over, and the reconstructor refuses them.
 Reduce the largest amplitudes, or calibrate fewer modes (``first_mode`` and
 ``nmodes`` select them). Modes outside the calibration are reconstructed
 linearly. ``NonlinearModalrec`` can be accelerated.
+
+Outside the calibrated range, the estimate stops at the ends of the amplitude
+grid: a mode whose linear estimate is beyond the largest response of its curve
+is reconstructed as the largest amplitude of the grid (and likewise for the
+smallest). This is still larger than the linear estimate of a saturated
+sensor, but it underestimates larger amplitudes: the grid should cover the
+amplitudes expected in closed loop, as far as the curves stay increasing.
