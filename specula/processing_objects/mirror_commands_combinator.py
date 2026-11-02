@@ -3,6 +3,7 @@ from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.connections import InputValue
 from specula.data_objects.recmat import Recmat
+from specula.lib.graph_matmul import matmul
 
 
 class MirrorCommandsCombinator(BaseProcessingObj):
@@ -63,6 +64,10 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
         self.z1 = self.xp.zeros( self.dims_LO[0], dtype=self.dtype)
         self.z2 = self.xp.zeros( self.out_dims[0]-self.dims_LO[0]-self.dims_LO[2], dtype=self.dtype)
+        # In the dtype of this object, like x_P at each step: the product is then
+        # the same with and without a CUDA graph (see graph_matmul.matmul()).
+        # A copy only if the dtype differs: later changes to the matrix are then not seen
+        self._A_P = self.to_xp(self.A_matrix.recmat[:self.out_dims[0],:], dtype=self.dtype)
 
     @classmethod
     def input_names(cls):
@@ -76,6 +81,10 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         return {'out_result_commands1': OutputDesc(BaseValue, 'First chunk of combined output commands'),
                 'out_result_commands2': OutputDesc(BaseValue, 'Second chunk of combined output commands'),
                 'out_result_commands3': OutputDesc(BaseValue, 'Third chunk of combined output commands')}
+
+    def can_accelerate(self):
+        # The product uses graph_matmul.matmul(), which can be captured
+        return True
 
     def trigger_code(self):
         x_HO = self.local_inputs['in_commandsHO'].value
@@ -97,7 +106,7 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
         y1 = v11 + v12
         if self.dims_P > 0:
-            y1 += self.A_matrix.recmat[:self.out_dims[0],:] @ x_P        
+            y1 += matmul(self._A_P, x_P.astype(self.dtype, copy=False), self.xp)        
         y2 = x_HO2
         y3 = self.xp.concatenate( ( x_LO3, x_HO3 ) )
 

@@ -4,6 +4,7 @@ from iteras.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from iteras.connections import InputValue
 from iteras.base_value import BaseValue
 from iteras.data_objects.matrix import Matrix
+from iteras.lib.graph_matmul import matmul
 
 class SoftLimiter(BaseProcessingObj):
     """
@@ -124,10 +125,10 @@ class SoftLimiter(BaseProcessingObj):
 
         if do_check:
             # 1. Estimation: coordinates of the command in the subspace
-            est_sub = self.estimator @ in_comm
+            est_sub = matmul(self.estimator, in_comm, self.xp)
 
             # 2. Re-projection: back into the command space
-            delta_comm_full = self.reprojector @ est_sub
+            delta_comm_full = matmul(self.reprojector, est_sub, self.xp)
 
             # 3. Apply the correction gain (Soft Limiting)
             delta_comm = delta_comm_full * self.gain

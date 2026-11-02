@@ -1,6 +1,7 @@
 from specula.processing_objects.base_modalrec import BasePolcModalrec
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
+from specula.lib.graph_matmul import matmul
 
 
 class ModalrecImplicitPolc(BasePolcModalrec):
@@ -36,5 +37,6 @@ class ModalrecImplicitPolc(BasePolcModalrec):
             return
 
         # Memory pre-allocation optimization with self.recmat hosting C
-        self.modes.value[:] = self.recmat.recmat @ self.slopes - self.h_mat.recmat @ self.commands
+        self.modes.value[:] = (matmul(self.recmat.recmat, self.slopes, self.xp)
+                               - matmul(self.h_mat.recmat, self.commands, self.xp))
         self.modes.generation_time = self.current_time
