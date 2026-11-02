@@ -163,7 +163,7 @@ class TestConv2dNetTesterTrigger(unittest.TestCase):
             self.assertEqual(tester.outputs['prediction'].value.shape, (BATCH, NMODES))
 
     def test_input_channels_one_uses_a_single_map_per_frame_as_is(self):
-        # Slopes2D on slopes-from-intensity slopes buffers one map per frame,
+        # out_slopes_map of slopes from intensity buffers one map per frame,
         # with no channel axis; the two-channel product convention must not
         # kick in (see Conv2dNetTrainer.network_input).
         with tempfile.TemporaryDirectory() as d:

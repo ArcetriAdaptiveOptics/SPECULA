@@ -10,8 +10,8 @@ is then tested on an independent simulation.
 
 **What you'll learn:**
 
-* How to feed simulated data to a network: :class:`Slopes2D` and
-  :class:`DataBuffer`
+* How to feed simulated data to a network: the slope maps of the slope
+  computer and :class:`DataBuffer`
 * How to train while the simulation runs: :class:`Conv2dNetTrainer`
 * How to follow the training
 * How to test the trained network on new data: :class:`Conv2dNetTester`
@@ -61,8 +61,8 @@ At every frame:
 
 * :class:`ModalAnalysis` computes the rms (std, piston removed) of the phase
   in the pupil: the **label**.
-* :class:`Slopes2D` turns the slopes into two 12x12 maps (x and y): the
-  **network input**.
+* :class:`ShSlopec` gives the slopes also as two 12x12 maps (x and y), its
+  ``out_slopes_map`` output: the **network input**.
 * :class:`DataBuffer` collects both. Every 500 frames it passes the batch to
   the trainer (or the tester).
 
@@ -169,7 +169,7 @@ Create ``params_sh_cnn.yml``:
      subapdata_object:  'cnn_tutorial_subaps_n12_th0.5'   # from calib_subaps.yml
      inputs:
        in_pixels:       'detector.out_pixels'
-     outputs: ['out_slopes', 'out_subapdata']
+     outputs: ['out_slopes', 'out_slopes_map', 'out_subapdata']
 
    # Label: rms of the phase in the pupil (piston removed), every frame
    modal_analysis:
@@ -183,18 +183,12 @@ Create ``params_sh_cnn.yml``:
        in_ef:           'prop.out_on_axis_source_ef'
      outputs: ['out_modes', 'rms']
 
-   # Input: x and y slope maps (2 channels, 12x12)
-   slopes2d:
-     class:             'Slopes2D'
-     inputs:
-       in_slopes:       'slopec.out_slopes'
-     outputs: ['out_value']
-
+   # Input: the x and y slope maps of slopec (2 channels, 12x12)
    data_buffer:
      class:             'DataBuffer'
      buffer_size:       500                    # frames per batch
      inputs:
-       input_list: ['input_2d-slopes2d.out_value',
+       input_list: ['input_2d-slopec.out_slopes_map',
                     'rms-modal_analysis.rms']
 
 :class:`DataBuffer` names its outputs after the prefixes in ``input_list``:
@@ -220,7 +214,7 @@ Create ``calib_subaps.yml``:
 
    # Flat wavefront; nothing downstream of the detector
    remove: ['atmo', 'seeing', 'wind_speed', 'wind_direction',
-            'slopec', 'modal_analysis', 'slopes2d', 'data_buffer']
+            'slopec', 'modal_analysis', 'data_buffer']
 
 Run it once:
 
