@@ -518,6 +518,24 @@ class TestSolver(AllocatorTestCase):
         self.assertNotEqual(slots['work1'], slots['work2'])
         self.assertTrue(sol.evaluation.feasible)
 
+    def test_heft_tries_one_of_the_empty_identical_nodes(self):
+        '''The same placement as trying every node, with fewer evaluations'''
+        m = machine(ngpu=2, nodes=4)
+        g = self.graph()
+        costs = {(n, s.kind): cost(gpu_ms=5.0) for n in g.procs for s in m.slots}
+        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        layout = Layout(m, 'single')
+        groups = build_groups(g, [])
+        results = []
+        for identical in (True, False):
+            solver = Solver(g, m, est, groups, {})
+            eligible = {grp: solver.eligible(grp, layout) for grp in groups}
+            with mock.patch.object(m, 'identical_nodes', return_value=identical):
+                results.append((solver._heft(groups, eligible, layout), solver.n_evals))
+        (pruned, n_pruned), (full, n_full) = results
+        self.assertEqual(pruned, full)
+        self.assertLess(n_pruned, n_full)
+
     def test_measured_copy_time_used(self):
         '''The host time to copy an output to another GPU, when measured, replaces the estimate'''
         from iteras.allocator.cost import Proc

@@ -31,6 +31,7 @@ the others (allowed by the asynchronous MPI sends) is accounted for.
 import bisect
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 from iteras import mpi_progress
 
@@ -43,8 +44,7 @@ CONVERGENCE = 0.005
 STABLE_PASSES = 2
 
 
-@dataclass(frozen=True)
-class Proc:
+class Proc(NamedTuple):
     rank: int
     node: int
 
@@ -80,6 +80,7 @@ class _Pass:
     placement: dict
     prev_events: dict       # process -> [(start, end)] inside MPI in the previous pass, or None
     used: dict              # object name -> slots it uses
+    cost: dict              # object name -> its Cost on its slot
     host: dict = field(default_factory=lambda: defaultdict(float))      # process -> time
     stream: dict = field(default_factory=lambda: defaultdict(float))    # GPU slot -> end of its queued work
     done: dict = field(default_factory=dict)        # (name, step) -> time when its results are ready
@@ -114,6 +115,7 @@ class Estimator:
         self.shared = shared
         self.overhead_ns = overhead_ns
         self.steps = steps
+        self.kinds = [s.kind for s in machine.slots]
         levels = defaultdict(list)
         for name in graph.procs:
             levels[graph.level[name]].append(name)
@@ -129,7 +131,7 @@ class Estimator:
                          for name, k in graph.spread.items() if k > 1}
 
     def cost(self, name, slot):
-        return self.costs.get((name, self.machine.slots[slot].kind))
+        return self.costs.get((name, self.kinds[slot]))
 
     def part_gpu_ns(self, name, c, parts):
         '''GPU time of each of the *parts* parts of object *name*, whose cost is *c*'''
@@ -288,7 +290,8 @@ class Estimator:
         step, the bytes exchanged between devices, and the intervals of this pass.
         '''
         state = _Pass(placement, prev_events,
-                      used={name: self.devices(name, s, split) for name, (_, s) in placement.items()})
+                      used={name: self.devices(name, s, split) for name, (_, s) in placement.items()},
+                      cost={name: self.cost(name, s) for name, (_, s) in placement.items()})
         comm_bytes = 0.0
         for name, (p, s) in placement.items():
             state.remote_out[name] = [e for e in self.graph.out_edges[name]
@@ -338,7 +341,7 @@ class Estimator:
         gpu_ready = defaultdict(float)
         for name in names:
             s = state.placement[name][1]
-            c = self.cost(name, s)
+            c = state.cost[name]
             for e in self.graph.in_edges[name]:
                 ks = k + e.delay
                 if ks < 0 or e.src not in state.placement:
@@ -372,7 +375,7 @@ class Estimator:
         slots = self.machine.slots
         for name in names:
             s = state.placement[name][1]
-            c = self.cost(name, s)
+            c = state.cost[name]
             parts = state.used[name]
             t += c.h_prep + c.h_trig * len(parts)
             if slots[s].is_gpu:
@@ -399,7 +402,7 @@ class Estimator:
         msg_ns = m.nodes[p.node].links['mpi_message_us'] * 1e3
         for name in names:
             s = state.placement[name][1]
-            c = self.cost(name, s)
+            c = state.cost[name]
             used = state.used[name]
             if c.syncs == 'post':
                 t0 = t

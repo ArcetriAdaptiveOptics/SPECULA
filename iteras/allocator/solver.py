@@ -248,10 +248,20 @@ class Solver:
 
     def _heft(self, order, eligible, layout, split=None):
         split = split or {}
+        slots = self.machine.slots
+        symmetric = len(self.machine.nodes) > 1 and self.machine.identical_nodes()
         assign = {}
         for g in order:
             best = None
-            for s in eligible[g]:
+            # On identical nodes, a device of a node still empty gives the same time
+            # per step as the same device of another empty node: only the first is tried
+            used_nodes = {slots[s].node for s in assign.values()}
+            tried_empty = set()
+            for s in sorted(eligible[g]):
+                if symmetric and slots[s].node not in used_nodes:
+                    if slots[s].idx in tried_empty:
+                        continue
+                    tried_empty.add(slots[s].idx)
                 if not self.valid_split(layout, g, s, split):
                     continue
                 trial = dict(assign)

@@ -6,7 +6,7 @@ reference.
 import json
 import inspect
 import hashlib
-from dataclasses import dataclass
+from typing import NamedTuple
 
 from iteras.base_processing_obj import BaseProcessingObj
 from iteras.base_data_obj import BaseDataObj
@@ -20,8 +20,7 @@ MAIN_RUN_KEYS = ('total_time', 'display_server', 'root_dir')
 PATH_KEYS = ('store_dir',)
 
 
-@dataclass(frozen=True)
-class Edge:
+class Edge(NamedTuple):
     src: str        # producer
     out: str        # output name of the producer
     dst: str        # consumer
