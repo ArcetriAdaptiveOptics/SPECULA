@@ -15,6 +15,7 @@
 module load cuda/12.3                         # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11       # Load MPI implementation
 module load nvhpc/23.11
+export ITERAS_MPI_GPU_DIRECT=1                 # CUDA-aware Open MPI: GPU data sent directly, not through the host
 
 srun --mpi=none bash -c "specula --mpi --diagram-filename morfeo1.png --diagram-colors-on $WORK/SPECULA/config/MORFEO/params_morfeo_full.yml $WORK/SPECULA/config/leonardo/overrides/ov_MORFEO_leonardo.yml"
 
