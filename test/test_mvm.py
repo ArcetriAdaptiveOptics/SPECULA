@@ -46,6 +46,7 @@ class TestMVM(unittest.TestCase):
         expected = matrix @ input_vector
 
         xp.testing.assert_allclose(mvm.output.value, expected, rtol=1e-10, atol=1e-12)
+        self.assertTrue(mvm.can_accelerate())
 
     @cpu_and_gpu
     def test_mvm_wrong_input_size(self, target_device_idx, xp):

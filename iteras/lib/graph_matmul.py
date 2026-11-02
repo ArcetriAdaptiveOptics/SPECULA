@@ -83,6 +83,10 @@ def left_mul(a, x, out, xp):
     if xp is np:
         np.matmul(a, x, out=out)
         return
+    _left_mul_gpu(a, x, out, xp)  # pragma: gpu
+
+
+def _left_mul_gpu(a, x, out, xp):  # pragma: gpu
     # The kernel reads a and writes out as row-major arrays of out.dtype
     if not (a.flags.c_contiguous and out.flags.c_contiguous):
         raise ValueError('left_mul: a and out must be C-contiguous')
