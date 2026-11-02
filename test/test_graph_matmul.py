@@ -39,6 +39,7 @@ class TestLeftMul(unittest.TestCase):
         a = xp.asarray(rng.standard_normal((5, 40)))
         x = xp.asarray(rng.standard_normal((4, 40, 30)))
         out = xp.zeros((4, 5, 30))
+        xp.cuda.Device().synchronize()     # written on the default stream, which a non-blocking stream does not wait for
         stream = xp.cuda.Stream(non_blocking=True)
         with stream:
             left_mul(a, x, out, xp)    # compiles the kernel outside the capture
@@ -126,12 +127,13 @@ class TestMatmul(unittest.TestCase):
             with self.subTest(name):
                 a, b = self.operands(xp, np.float32, a_shape, b_shape, transposed)
                 matmul(a, b, xp)    # compiles the kernels outside the capture
+                xp.cuda.Device().synchronize()     # operands written on the default stream (see TestLeftMul)
                 with stream:
                     stream.begin_capture()
                     out = matmul(a, b, xp)
                     graph = stream.end_capture()
-                a *= 2              # the graph uses the current values
-                graph.launch(stream=stream)
-                stream.synchronize()
+                    a *= 2          # on the stream of the graph, which uses the current values
+                    graph.launch(stream=stream)
+                    stream.synchronize()
                 np.testing.assert_allclose(cpuArray(out), cpuArray(a @ b), rtol=1e-4, atol=1e-4)
 
