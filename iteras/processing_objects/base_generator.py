@@ -65,5 +65,3 @@ class BaseGenerator(BaseProcessingObj):
                 raise ValueError(
                     f"Shape mismatch: parameter lengths are {details} (must all be equal if not scalar)"
                 )
-            return unique_lengths.pop()
-        return 1
