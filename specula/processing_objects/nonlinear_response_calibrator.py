@@ -6,7 +6,7 @@ from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.slopes import Slopes
-from specula.data_objects.intmat import Intmat
+from specula.data_objects.recmat import Recmat
 from specula.data_objects.nonlinear_calibration import NonlinearCalibration
 
 
@@ -20,10 +20,17 @@ class NonlinearResponseCalibrator(BaseProcessingObj):
     example by a :class:`~specula.processing_objects.push_pull_generator.PushPullGenerator`
     with ``push_pull_type: 'PUSHPULL'``, ``constant_amp: true`` and the
     amplitude grid as ``pattern``. At each step the measured slopes are
-    projected on the small-signal interaction vector of the active mode (its
-    column of `intmat`), which gives that mode's "response" at the commanded
-    amplitude. At :meth:`finalize`, the responses are averaged over repeated
-    amplitudes and saved.
+    reconstructed with the row of `recmat` of the active mode, which gives that
+    mode's "response" at the commanded amplitude: ``(recmat @ slopes)[mode]``.
+    It is the linear estimate of NonlinearModalrec, which must use the same
+    recmat, so that inverting the curve recovers the amplitude of a mode
+    injected alone, even when the saturated slopes change shape. At
+    :meth:`finalize`, the responses are averaged over repeated amplitudes and
+    saved.
+
+    The curves depend on the residual wavefront during the calibration, as
+    the optical gains do: a calibration without turbulence overestimates the
+    response in closed loop.
 
     As in :class:`~specula.processing_objects.im_calibrator.ImCalibrator`, the
     active mode and its amplitude are the non-zero entry of `in_commands`, so
@@ -33,9 +40,9 @@ class NonlinearResponseCalibrator(BaseProcessingObj):
     ----------
     nmodes : int
         Number of calibrated modes: first_mode, ..., first_mode + nmodes - 1.
-    intmat : Intmat
-        Small-signal interaction matrix; its columns are indexed as the
-        commands (column k is the interaction vector of command k).
+    recmat : Recmat
+        Reconstruction matrix of NonlinearModalrec; its rows are indexed as the
+        commands (row k reconstructs command k).
     data_dir : str
         Directory of the calibration file (set by the calibration manager).
     calib_tag : str
@@ -48,7 +55,7 @@ class NonlinearResponseCalibrator(BaseProcessingObj):
 
     def __init__(self,
                  nmodes: int,
-                 intmat: Intmat,
+                 recmat: Recmat,
                  data_dir: str,
                  calib_tag: str,
                  first_mode: int = 0,
@@ -57,9 +64,9 @@ class NonlinearResponseCalibrator(BaseProcessingObj):
                  precision: int = None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
-        if first_mode + nmodes > intmat.nmodes:
-            raise ValueError(f'modes {first_mode}..{first_mode + nmodes - 1} are not all in the intmat, '
-                             f'which has {intmat.nmodes} modes')
+        if first_mode + nmodes > recmat.nmodes:
+            raise ValueError(f'modes {first_mode}..{first_mode + nmodes - 1} are not all in the recmat, '
+                             f'which has {recmat.nmodes} modes')
         self.nmodes = nmodes
         self.first_mode = first_mode
         self.data_dir = data_dir
@@ -71,13 +78,10 @@ class NonlinearResponseCalibrator(BaseProcessingObj):
         if os.path.exists(self.calib_path) and not overwrite:
             raise FileExistsError(f'Calibration file {self.calib_path} already exists, please remove it')
 
-        # Small-signal interaction vectors of the calibrated modes, divided by
-        # their squared norm: the response is the dot product with the slopes
-        vectors = self.to_xp(intmat.intmat[:, first_mode:first_mode + nmodes].T, dtype=self.dtype)
-        norms = self.xp.sum(vectors ** 2, axis=1)
-        if self.xp.any(norms <= 0):
-            raise ValueError('the intmat has modes with no signal among the calibrated ones')
-        self._projectors = vectors / norms[:, None]
+        # Recmat rows of the calibrated modes: the response is the dot product with the slopes
+        self._projectors = self.to_xp(recmat.recmat[first_mode:first_mode + nmodes], dtype=self.dtype)
+        if self.xp.any(self.xp.all(self._projectors == 0, axis=1)):
+            raise ValueError('the recmat has all-zero rows among the calibrated modes')
 
         self._amplitude_samples = [[] for _ in range(nmodes)]
         self._response_samples = [[] for _ in range(nmodes)]

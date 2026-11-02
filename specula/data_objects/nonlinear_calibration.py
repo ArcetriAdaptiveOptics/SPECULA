@@ -12,11 +12,10 @@ class NonlinearCalibration(BaseDataObj):
     pyramid), as measured by
     :class:`~specula.processing_objects.nonlinear_response_calibrator.NonlinearResponseCalibrator`.
 
-    For each calibrated mode it holds a sampled curve of the "projected
-    response" (the slopes projected on the mode's small-signal interaction
-    vector) versus the true amplitude of the mode, injected alone. In the
-    linear regime the response equals the amplitude; at larger amplitudes it
-    saturates.
+    For each calibrated mode it holds a sampled curve of the "response" (the
+    mode's linear reconstruction, ``(recmat @ slopes)[mode]``) versus the true
+    amplitude of the mode, injected alone. In the linear regime the response
+    equals the amplitude; at larger amplitudes it saturates.
 
     The calibrated modes are first_mode, ..., first_mode + nmodes - 1; all of
     them share the same amplitude grid, so the calibration is a 1D amplitude
@@ -32,7 +31,7 @@ class NonlinearCalibration(BaseDataObj):
     amplitudes : array-like [nsamples]
         Amplitude grid shared by every mode, strictly increasing.
     responses : array-like [nmodes, nsamples]
-        Projected response of each calibrated mode at each amplitude. It must
+        Response of each calibrated mode at each amplitude. It must
         be strictly increasing along the amplitudes to be inverted (see
         :meth:`non_monotonic_modes`).
     first_mode : int

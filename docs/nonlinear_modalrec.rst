@@ -6,11 +6,18 @@ Nonlinear modal reconstructor
 ``NonlinearModalrec`` is the linear ``Modalrec`` plus a per-mode correction of
 the sensor saturation, for sensors whose response saturates mode by mode.
 ``NonlinearResponseCalibrator`` measures the response of each mode,
-injected alone at a grid of amplitudes: the slopes projected on the mode's
-small-signal interaction vector. The curves are saved as a
-``NonlinearCalibration``. At each step the reconstructor inverts the curves on
-the linear estimate, then adds one linear correction of the signal the
-curves do not explain (see the class documentation).
+injected alone at a grid of amplitudes: the mode's linear reconstruction,
+``(recmat @ slopes)[mode]``. The curves are saved as a
+``NonlinearCalibration``. At each step the reconstructor computes the linear
+estimate with the same recmat and inverts the curves on it: the amplitude of
+a mode injected alone is recovered exactly, also when the saturated slopes
+change shape. The coupling between modes in the saturated regime is not
+corrected.
+
+The curves depend on the residual wavefront during the calibration, as the
+optical gains do: a calibration without turbulence overestimates the response
+in closed loop. Calibrate on a residual representative of the closed loop,
+for example with a turbulence that is partially corrected.
 
 The calibrator is driven one mode at a time, for example by a
 ``PushPullGenerator`` with the amplitude grid as ``pattern``:
@@ -29,7 +36,7 @@ The calibrator is driven one mode at a time, for example by a
    nonlinear_calibrator:
      class:             'NonlinearResponseCalibrator'
      nmodes:            54
-     intmat_object:     'my_intmat'
+     recmat_object:     'my_recmat'
      calib_tag:         'my_nonlinear_calib'
      inputs:
        in_slopes:       'slopec.out_slopes'
@@ -42,7 +49,6 @@ and the reconstructor replaces ``Modalrec``:
    modalrec:
      class:             'NonlinearModalrec'
      recmat_object:     'my_recmat'
-     intmat_object:     'my_intmat'
      nonlinear_calib_object: 'my_nonlinear_calib'
      inputs:
        in_slopes:       'slopec.out_slopes'
