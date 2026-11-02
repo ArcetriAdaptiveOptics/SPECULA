@@ -277,6 +277,7 @@ class EFInterpolator():
         self.in_ef = in_ef
         self.force_extrapolation = force_extrapolation
         self.target_device_idx = target_device_idx
+        self.precision = precision
         self.use_out_ef_cache = use_out_ef_cache
 
         if (in_ef.size == out_shape and
@@ -349,6 +350,21 @@ class EFInterpolator():
 
         if magnification is not None and magnification < 1e-6:
             raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
+
+        if not self.do_interpolation:
+            # No interpolator yet (the initial parameters needed none): build
+            # everything, as the constructor does with the new parameters
+            self.__init__(self.in_ef, self.in_ef.size,
+                          rotAnglePhInDeg=rotAnglePhInDeg or 0,
+                          xShiftPhInPixel=xShiftPhInPixel or 0,
+                          yShiftPhInPixel=yShiftPhInPixel or 0,
+                          magnification=1.0 if magnification is None else magnification,
+                          mask_threshold=self.mask_threshold,
+                          force_extrapolation=self.force_extrapolation,
+                          use_out_ef_cache=self.use_out_ef_cache,
+                          target_device_idx=self.target_device_idx,
+                          precision=self.precision)
+            return
 
         # Retrieve current parameters if not provided
         current_rot = -self.interp.rot_angle * 180.0 / np.pi
