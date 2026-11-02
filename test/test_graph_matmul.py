@@ -31,7 +31,7 @@ class TestLeftMul(unittest.TestCase):
                     np.testing.assert_allclose(cpuArray(out), expected, rtol=tol, atol=tol)
 
     @cpu_and_gpu
-    def test_captured_in_cuda_graph(self, target_device_idx, xp):
+    def test_captured_in_cuda_graph(self, target_device_idx, xp):  # pragma: gpu
         """The reason for this module: the product can be captured in a CUDA graph"""
         if xp is np:
             self.skipTest('CUDA graphs are GPU only')
@@ -52,7 +52,7 @@ class TestLeftMul(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(out), cpuArray(a[None] @ x), rtol=1e-12, atol=1e-12)
 
     @cpu_and_gpu
-    def test_raw_kernel_rejects_unsupported_layouts(self, target_device_idx, xp):
+    def test_raw_kernel_rejects_unsupported_layouts(self, target_device_idx, xp):  # pragma: gpu
         """The GPU kernel reads a row-major and uses the dtype of the output"""
         if xp is np:
             self.skipTest('the checks apply to the GPU kernel only')
@@ -117,7 +117,7 @@ class TestMatmul(unittest.TestCase):
                     np.testing.assert_allclose(cpuArray(matvec(a, v, xp)), cpuArray(expected), rtol=tol, atol=tol)
 
     @cpu_and_gpu
-    def test_captured_in_cuda_graph(self, target_device_idx, xp):
+    def test_captured_in_cuda_graph(self, target_device_idx, xp):  # pragma: gpu
         """Inside a capture, cuBLAS is replaced by kernels that can be captured"""
         if xp is np:
             self.skipTest('CUDA graphs are GPU only')
@@ -130,8 +130,10 @@ class TestMatmul(unittest.TestCase):
                     stream.begin_capture()
                     out = matmul(a, b, xp)
                     graph = stream.end_capture()
-                a *= 2              # the graph uses the current values
-                graph.launch(stream=stream)
-                stream.synchronize()
+                    # On the same stream as the graph: the non-blocking stream
+                    # does not wait for work on the default stream
+                    a *= 2          # the graph uses the current values
+                    graph.launch(stream=stream)
+                    stream.synchronize()
                 np.testing.assert_allclose(cpuArray(out), cpuArray(a @ b), rtol=1e-4, atol=1e-4)
 

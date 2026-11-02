@@ -429,6 +429,26 @@ class TestShSlopec(unittest.TestCase):
                                              cpuArray(slopes1.yslopes - sn.yslopes))
 
     @cpu_and_gpu
+    def test_out_slopes_map(self, target_device_idx, xp):
+        # out_slopes_map is the 2D map of the slopes (Slopes.get2d()), at every step
+        _, _, m, _, subapdata = self.get_sh(target_device_idx, xp)
+        slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
+        pixels = Pixels(24, 24, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.setup()
+        rng = np.random.default_rng(0)
+        for t in (1, 2):
+            pixels.pixels[:] = xp.asarray(rng.uniform(0, 100, (24, 24)))
+            pixels.generation_time = t
+            slopec.check_ready(t)
+            slopec.trigger()
+            slopec.post_trigger()
+            slopes_map = slopec.outputs['out_slopes_map']
+            self.assertEqual(slopes_map.value.shape, (2, 2, 2))
+            np.testing.assert_allclose(cpuArray(slopes_map.value), cpuArray(slopec.slopes.get2d()))
+            self.assertEqual(slopes_map.generation_time, t)
+
+    @cpu_and_gpu
     def test_flux_outputs(self, target_device_idx, xp):
         """
         Test that verifies flux_per_subaperture, total_counts, and subap_counts outputs.

@@ -21,6 +21,7 @@ DEFAULT_LINKS = {
     'shm_latency_us': 30.0,
     'shm_single_copy': True, # the receiver can pull large MPI messages by itself (CMA, XPMEM)
     'mpi_message_us': 30.0,  # host time to send or receive one MPI message, besides the copies
+    'mpi_gpu_direct': False, # MPI moves GPU data from and to GPU memory (ITERAS_MPI_GPU_DIRECT=1)
 }
 DEFAULT_INTER_NODE = {
     'bandwidth_gb_s': 10.0,
@@ -46,7 +47,9 @@ class Architecture:
           where ``relative_speed`` is the GPU speed relative to the GPU used for
           profiling, used only when no profile exists for that model (default 1);
         - ``links``: optional, ``{gpu_gpu_gb_s, host_gpu_gb_s, shm_gb_s, shm_latency_us,
-          shm_single_copy, mpi_message_us}`` (see DEFAULT_LINKS).
+          shm_single_copy, mpi_message_us, mpi_gpu_direct}`` (see DEFAULT_LINKS);
+          ``mpi_gpu_direct: true`` when the simulation runs with GPU-direct MPI
+          (ITERAS_MPI_GPU_DIRECT=1).
     inter_node : dict, optional
         ``{bandwidth_gb_s: float, latency_us: float, single_copy: bool}`` between nodes.
     memory_source : str, optional

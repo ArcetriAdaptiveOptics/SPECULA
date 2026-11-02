@@ -220,11 +220,16 @@ class Estimator:
                         clones.add((e.src, e.out, p, d))
                         use[d] += self.out_bytes(e, ss)
                 if ps != p:
-                    # host copies: up to two steps in flight at the sender, one at the receiver
+                    # copies of the message: up to two steps in flight at the sender, one
+                    # at the receiver; on the host, or on the GPUs with GPU-direct MPI
                     nbytes = self.mpi_bytes(e, ss)
-                    use[self.machine.nodes[ps.node].cpu_slot] += 2 * nbytes
-                    if slots[s].is_gpu:
-                        use[self.machine.nodes[p.node].cpu_slot] += nbytes
+                    if self.machine.gpu_direct(ss, s):
+                        use[ss] += 2 * nbytes
+                        use[s] += nbytes
+                    else:
+                        use[self.machine.nodes[ps.node].cpu_slot] += 2 * nbytes
+                        if slots[s].is_gpu:
+                            use[self.machine.nodes[p.node].cpu_slot] += nbytes
         for p in {p for p, _ in placement.values()}:
             use[self.machine.nodes[p.node].cpu_slot] += MPI_BUFFER_BYTES
         return dict(use)
@@ -351,7 +356,7 @@ class Estimator:
                     t0 = t
                     t = self._delivery(state.sent[(e, ks)], t, ps, ss, s, state.prev_events)
                     state.events[p].append((t0, t))
-                    t += m.host_gpu_ns(s, self.mpi_bytes(e, ss)) + msg_ns
+                    t += m.mpi_copy_ns(s, self.mpi_bytes(e, ss), ss) + msg_ns
                 elif ss != s and slots[ss].is_gpu and slots[s].is_gpu:
                     # Ordered on the GPUs: the host does not wait for the producer
                     t += self.copy_host_ns(e, ss, s)
@@ -424,7 +429,7 @@ class Estimator:
                     state.events[p].append((t0, t))      # wait_current_stream() polls
                 for e in state.remote_out[name]:
                     nbytes = self.mpi_bytes(e, s)
-                    t += m.host_gpu_ns(s, nbytes) + msg_ns
+                    t += m.mpi_copy_ns(s, nbytes, state.placement[e.dst][1]) + msg_ns
                     state.sent[(e, k)] = (t, nbytes)
                     state.events[p].append((t, t))
         return t

@@ -137,8 +137,9 @@ its share of the work plus the work it repeats, as declared by the class
 (``repeated_work_fraction()`` in :doc:`extension_api`).
 
 On Leonardo, the host time of each MPI message measured with MORFEO is about
-150 µs (``mpi_message_us`` in the ``links``, 30 µs by default): declaring it,
-and with the work repeated by the slices, the estimates of the measured MORFEO plans are within
+150 µs (``mpi_message_us`` in the ``links``, 30 µs by default), which
+``config/leonardo/arch_MORFEO_leonardo.yml`` declares: with it and the work
+repeated by the slices, the estimates of the measured MORFEO plans are within
 +3% to -12% of the measured times (they were 5% to 28% optimistic). A split object needs a
 process that drives all its GPUs: with one process per GPU (``processes:
 'per_gpu'``) nothing is split, and an object split in the parameter files must

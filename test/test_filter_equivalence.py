@@ -30,6 +30,7 @@ class TestSsrIirEquivalence(unittest.TestCase):
         ssr_data = SsrFilterData.from_integrator(gains,
                                                 target_device_idx=target_device_idx)
         ssr_filter = SsrFilter(ssr_data, target_device_idx=target_device_idx)
+        self.assertTrue(ssr_filter.can_accelerate())
 
         # Create IIR integrator (ff=1.0 for pure integration, no forgetting)
         iir_integrator = Integrator(int_gain=gains, ff=None,
