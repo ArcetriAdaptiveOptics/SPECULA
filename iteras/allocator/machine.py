@@ -64,6 +64,7 @@ class Machine:
         self.inter_node = inter_node
         self.context_overhead = context_overhead
         self.memory_margin = memory_margin
+        self._gpu_direct = {}
         for spec in nodes:
             for _ in range(spec.get('count', 1)):
                 n = len(self.nodes)
@@ -114,20 +115,53 @@ class Machine:
     def gpu_slots(self):
         return [i for i, s in enumerate(self.slots) if s.is_gpu]
 
+    def gpu_direct(self, a, b):
+        '''
+        True if an MPI message from slot *a* to slot *b* moves between GPU memories
+        (both are GPUs, and their nodes have mpi_gpu_direct in their links)
+        '''
+        direct = self._gpu_direct.get((a, b))
+        if direct is None:
+            sa, sb = self.slots[a], self.slots[b]
+            direct = sa.is_gpu and sb.is_gpu and \
+                bool(self.nodes[sa.node].links['mpi_gpu_direct']) and \
+                bool(self.nodes[sb.node].links['mpi_gpu_direct'])
+            self._gpu_direct[(a, b)] = direct
+        return direct
+
     def link(self, a, b):
-        '''(bandwidth in bytes/ns, latency in ns) between the processes of slots *a* and *b*'''
+        '''
+        (bandwidth in bytes/ns, latency in ns) between the processes of slots *a*
+        and *b*. With GPU-direct MPI, GPUs of the same node use their direct link.
+        '''
         na, nb = self.slots[a].node, self.slots[b].node
         if na == nb:
             links = self.nodes[na].links
-            return links['shm_gb_s'], links['shm_latency_us'] * 1e3
+            bw = links['gpu_gpu_gb_s'] if self.gpu_direct(a, b) else links['shm_gb_s']
+            return bw, links['shm_latency_us'] * 1e3
         return self.inter_node['bandwidth_gb_s'], self.inter_node['latency_us'] * 1e3
 
     def single_copy(self, a, b):
-        '''True if the receiver of a large MPI message from slot *a* to slot *b* can pull it by itself'''
+        '''
+        True if the receiver of a large MPI message from slot *a* to slot *b* can
+        pull it by itself (also between GPU memories, with GPU-direct MPI)
+        '''
+        if self.gpu_direct(a, b):
+            return True
         na, nb = self.slots[a].node, self.slots[b].node
         if na == nb:
             return bool(self.nodes[na].links['shm_single_copy'])
         return bool(self.inter_node.get('single_copy', False))
+
+    def mpi_copy_ns(self, slot, nbytes, other):
+        '''
+        Time to copy the data of an MPI message of *nbytes* at its end on *slot*
+        (*other*: the slot at the other end): between the GPU and the host,
+        or, with GPU-direct MPI, a copy in GPU memory
+        '''
+        if self.gpu_direct(slot, other):
+            return 10e3
+        return self.host_gpu_ns(slot, nbytes)
 
     def copy_ns(self, a, b, nbytes):
         '''Time to copy *nbytes* between two devices of the same process'''

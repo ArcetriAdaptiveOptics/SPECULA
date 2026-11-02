@@ -2,6 +2,7 @@ from collections import namedtuple
 
 import iteras
 from iteras import cpuArray, np
+from iteras import mpi_progress
 from iteras.lib.utils import flatten
 from iteras.log import get_iteras_logger
 
@@ -94,6 +95,8 @@ class _InputItem():
         self.type = type_
         self.cloned_value = None
         self._host_buffer = None     # receives the data of a remote input whose copy is on a GPU
+        self._gpu_buffer_array = None    # the same, with GPU-direct MPI (see _gpu_buffer())
+        self._gpu_buffer_event = None    # its copy into the value, queued on the GPU
         self.optional = optional
         self.remote_rank = remote_rank
         self.tag = tag
@@ -112,12 +115,14 @@ class _InputItem():
                 new_value.xp = iteras.cp
             else:
                 new_value.xp = np
-        else:            
+        else:
             self.logger.mpi_send_debug(f'Recv with Buffer')
             new_value = self.cloned_value
             value = self.cloned_value.get_value()
             if isinstance(value, np.ndarray):
                 buffer = value      # received in place
+            elif mpi_progress.gpu_direct():  # pragma: gpu
+                buffer = self._gpu_buffer(value)
             else:  # pragma: gpu
                 # A host buffer kept between steps (copying the GPU value to the
                 # host just to get one would also wait for the GPU)
@@ -132,8 +137,29 @@ class _InputItem():
             gen_time = iteras.process_comm.recv(source=self.remote_rank, tag=self.tag+1)
             self.cloned_value.generation_time = gen_time
             self.cloned_value.set_value(buffer)
+            if buffer is self._gpu_buffer_array:  # pragma: gpu
+                # The copy into the value is queued on the GPU: the next message
+                # must not overwrite the buffer before it has run
+                self._gpu_buffer_event = iteras.cp.cuda.get_current_stream().record()
 
         return new_value
+
+    def _gpu_buffer(self, value):  # pragma: gpu
+        '''
+        GPU buffer kept between steps, where MPI writes the data of a GPU value
+        (GPU-direct MPI): writing directly into the value could race with the
+        GPU work still reading it. The data is then copied into the value on
+        the current stream.
+        '''
+        buf = self._gpu_buffer_array
+        if buf is None or buf.shape != value.shape or buf.dtype != value.dtype \
+                or buf.device != value.device:
+            with value.device:
+                self._gpu_buffer_array = iteras.cp.empty(value.shape, dtype=value.dtype)
+            self._gpu_buffer_event = None
+        elif self._gpu_buffer_event is not None:
+            mpi_progress.wait_event(self._gpu_buffer_event)
+        return self._gpu_buffer_array
 
     def get(self, target_device_idx):
         if self.remote_rank is None:

@@ -3,6 +3,7 @@ from specula.base_value import BaseValue
 from specula.base_processing_obj import OutputDesc
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
+from specula.lib.graph_matmul import matmul
 
 
 class ModalrecExplicitPolc(BasePolcModalrec):
@@ -83,12 +84,12 @@ class ModalrecExplicitPolc(BasePolcModalrec):
 
         # (1) Compute pseudo open loop modes
         if self.intmat is not None:
-            comm_slopes = self.intmat.intmat @ self.commands
-            self.pseudo_ol_modes.value[:] = self.recmat.recmat @ (self.slopes + comm_slopes)
+            comm_slopes = matmul(self.intmat.intmat, self.commands, self.xp)
+            self.pseudo_ol_modes.value[:] = matmul(self.recmat.recmat, self.slopes + comm_slopes, self.xp)
         else:
             # If no interaction matrix is provided, we assume the pseudo open-loop modes
             # are just the reconstruction of the measured slopes
-            self.pseudo_ol_modes.value[:] = self.recmat.recmat @ self.slopes
+            self.pseudo_ol_modes.value[:] = matmul(self.recmat.recmat, self.slopes, self.xp)
 
         self.pseudo_ol_modes.generation_time = self.current_time
 
@@ -98,7 +99,7 @@ class ModalrecExplicitPolc(BasePolcModalrec):
             # This ensures that step (3) doesn't modify pseudo_ol_modes.value in-place
             output_modes = self.pseudo_ol_modes.value.copy()
         else:
-            output_modes = self.projmat.recmat @ self.pseudo_ol_modes.value
+            output_modes = matmul(self.projmat.recmat, self.pseudo_ol_modes.value, self.xp)
 
         # (3) Remove the effect of the commands: m_out = P * m_pol - c
         output_modes -= self.commands

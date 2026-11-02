@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=spSOULCPU                  # Descriptive job name
+#SBATCH --job-name=spANDES                    # Descriptive job name
 #SBATCH --time=00:10:00                       # Maximum wall time (hh:mm:ss)
 #SBATCH --nodes=1                             # Number of nodes to use
 #SBATCH --ntasks-per-node=1                   # Number of MPI tasks per node (e.g., 1 per GPU)
@@ -8,12 +8,14 @@
 #SBATCH --gres=gpu:4                          # Number of GPUs per node (adjust to match hardware)
 #SBATCH --partition=boost_usr_prod            # GPU-enabled partition
 #SBATCH --qos=boost_qos_dbg                   # Quality of Service
-#SBATCH --output=speculaJobSOULCPU.out        # File for standard output
-#SBATCH --error=speculaJobSOULCPU.err         # File for standard error
-#SBATCH --account=try25_rossi                 # Project account number
+#SBATCH --output=speculaJobANDES.out          # File for standard output
+#SBATCH --error=speculaJobANDES.err           # File for standard error
+#SBATCH --account=IscrC_SPECIAL               # Project account number
 
 module load cuda/12.3                         # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11       # Load MPI implementation
 module load nvhpc/23.11
+export ITERAS_MPI_GPU_DIRECT=1                 # CUDA-aware Open MPI: GPU data sent directly, not through the host
 
-srun --mpi=none bash -c "specula --mpi --cpu --diagram-filename soulcpu.png $WORK/SPECULA/config/SOUL/params_pyr_soul.yml $WORK/SPECULA/config/leonardo/overrides/ov_SOUL_CPU_leonardo.yml"
+srun --mpi=none bash -c "specula --mpi --diagram-filename andes.png $WORK/SPECULA/config/ANDES/params_andes.yml $WORK/SPECULA/config/leonardo/overrides/ov_ANDES_leonardo.yml"
+

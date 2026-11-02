@@ -1,6 +1,7 @@
 import specula
 specula.init(0)  # Default target device
 
+import os
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -339,3 +340,52 @@ class TestReceiveInPlace(unittest.TestCase):
         self.assertIs(result, item.cloned_value)
         np.testing.assert_array_equal(value, [1, 2, 3])
         self.assertEqual(result.generation_time, 7)
+
+    def receive(self, xp, gpu_direct, steps=2):
+        '''Receive *steps* messages into a value on *xp* (np or cp); return the buffers MPI wrote into'''
+
+        class XpValue(DummyValue):
+            def set_value(self, val):
+                self._value[...] = xp.asarray(val)      # as the data objects do
+
+        item = _InputItem(type_=DummyValue, value=None, remote_rank=1, tag=10)
+        self.value = xp.zeros(3)
+        item.cloned_value = XpValue(val=self.value)
+        comm = MagicMock()
+        buffers = []
+
+        def recv_into(buffer, source, tag):
+            buffers.append(buffer)
+            buffer[...] = len(buffers)
+        comm.Recv.side_effect = recv_into
+        comm.recv.return_value = 7
+        env = {'ITERAS_MPI_GPU_DIRECT': '1' if gpu_direct else '0'}
+        with patch('iteras.process_comm', comm), patch.dict(os.environ, env):
+            for _ in range(steps):
+                item.receive_new_value(first_mpi_receive=False)
+        return item, buffers
+
+    def test_host_value_received_in_place_with_gpu_direct(self):
+        '''GPU-direct MPI changes only the receives of GPU values'''
+        item, buffers = self.receive(np, gpu_direct=True)
+        self.assertIs(buffers[0], self.value)
+        self.assertIs(buffers[1], self.value)
+        self.assertIsNone(item._gpu_buffer_array)
+        np.testing.assert_array_equal(self.value, [2, 2, 2])
+
+    @unittest.skipIf(cp is None, 'needs a GPU')
+    def test_gpu_direct_receive_through_a_gpu_buffer(self):
+        '''With GPU-direct MPI a GPU value is received into a GPU buffer, kept between steps'''
+        item, buffers = self.receive(cp, gpu_direct=True)
+        self.assertIsInstance(buffers[0], cp.ndarray)
+        self.assertIsNot(buffers[0], self.value)        # not into the value: the GPU may read it
+        self.assertIs(buffers[1], buffers[0])
+        self.assertIsNotNone(item._gpu_buffer_event)
+        np.testing.assert_array_equal(cp.asnumpy(self.value), [2, 2, 2])
+
+    @unittest.skipIf(cp is None, 'needs a GPU')
+    def test_gpu_value_received_through_the_host_by_default(self):
+        item, buffers = self.receive(cp, gpu_direct=False, steps=1)
+        self.assertIsInstance(buffers[0], np.ndarray)
+        self.assertIsNone(item._gpu_buffer_array)
+        np.testing.assert_array_equal(cp.asnumpy(self.value), [1, 1, 1])

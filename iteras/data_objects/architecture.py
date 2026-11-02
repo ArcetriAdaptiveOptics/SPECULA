@@ -21,6 +21,7 @@ DEFAULT_LINKS = {
     'shm_latency_us': 30.0,
     'shm_single_copy': True, # the receiver can pull large MPI messages by itself (CMA, XPMEM)
     'mpi_message_us': 30.0,  # host time to send or receive one MPI message, besides the copies
+    'mpi_gpu_direct': False, # MPI moves GPU data from and to GPU memory (ITERAS_MPI_GPU_DIRECT=1)
 }
 DEFAULT_INTER_NODE = {
     'bandwidth_gb_s': 10.0,
@@ -46,7 +47,9 @@ class Architecture:
           where ``relative_speed`` is the GPU speed relative to the GPU used for
           profiling, used only when no profile exists for that model (default 1);
         - ``links``: optional, ``{gpu_gpu_gb_s, host_gpu_gb_s, shm_gb_s, shm_latency_us,
-          shm_single_copy, mpi_message_us}`` (see DEFAULT_LINKS).
+          shm_single_copy, mpi_message_us, mpi_gpu_direct}`` (see DEFAULT_LINKS);
+          ``mpi_gpu_direct: true`` when the simulation runs with GPU-direct MPI
+          (ITERAS_MPI_GPU_DIRECT=1).
     inter_node : dict, optional
         ``{bandwidth_gb_s: float, latency_us: float, single_copy: bool}`` between nodes.
     memory_source : str, optional
@@ -105,6 +108,14 @@ class Architecture:
         Execution order: only 'fixed' (the trigger order) for now.
     search_time : float, optional
         Maximum time in seconds spent improving the allocation (default 60).
+    split_objects : bool, optional
+        If True (default), the allocator may split the work of objects that
+        allow it over several GPUs of a node, when the estimated time per step
+        is lower: for example a SPECULA SH becomes a DistributedSH over 2 or 4
+        GPUs (see BaseProcessingObj.split_options()). The allocation file then
+        also sets their class and settings. Objects placed in the parameter
+        files, or already split there (an explicit DistributedSH), are kept as
+        written.
     '''
 
     def __init__(self,
@@ -129,6 +140,7 @@ class Architecture:
                  device_tolerance: float=0.05,
                  schedule: str='fixed',
                  search_time: float=60.0,
+                 split_objects: bool=True,
                  ):
         self._check('objective', objective, OBJECTIVES)
         self._check('mode', mode, MODES)
@@ -169,6 +181,7 @@ class Architecture:
         self.device_tolerance = device_tolerance
         self.schedule = schedule
         self.search_time = search_time
+        self.split_objects = split_objects
 
     @staticmethod
     def _check(name, value, allowed):
@@ -201,4 +214,4 @@ class Architecture:
         return {k: getattr(self, k) for k in ('nodes', 'inter_node', 'memory_source', 'memory_margin',
                                               'context_overhead_gb', 'objective', 'override_placement',
                                               'processes', 'pin_ranks_per_node', 'node_tolerance',
-                                              'device_tolerance', 'schedule')}
+                                              'device_tolerance', 'schedule', 'split_objects')}

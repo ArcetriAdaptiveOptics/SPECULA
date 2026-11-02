@@ -1,5 +1,6 @@
 from iteras.processing_objects.base_filter import BaseFilter
 from iteras.data_objects.ssr_filter_data import SsrFilterData
+from iteras.lib.graph_matmul import matmul
 
 
 class SsrFilter(BaseFilter):
@@ -48,6 +49,11 @@ class SsrFilter(BaseFilter):
 
         # SSR-specific state
         self._x = self.xp.zeros(ssr_filter_data.total_states, dtype=self.dtype)
+        # Matrices in the dtype of this object, like the state and the input: the products
+        # are then the same with and without a CUDA graph (see graph_matmul.matmul()).
+        # Copies only if the dtype differs: later changes to the matrices are then not seen
+        self._A, self._B, self._C, self._D = (self.to_xp(m, dtype=self.dtype) for m in
+            (ssr_filter_data.A, ssr_filter_data.B, ssr_filter_data.C, ssr_filter_data.D))
 
     @classmethod
     def input_names(cls):
@@ -57,25 +63,27 @@ class SsrFilter(BaseFilter):
     def output_names(cls):
         return super().output_names()
 
+    def can_accelerate(self):
+        # The products use graph_matmul.matmul(), which can be captured,
+        # and the state is updated in place
+        return True
+
     def trigger_code(self):
         """State-space filter computation."""
-        A = self.ssr_filter_data.A
-        B = self.ssr_filter_data.B
-        C = self.ssr_filter_data.C
-        D = self.ssr_filter_data.D
+        A, B, C, D = self._A, self._B, self._C, self._D
 
         # Modulated input
         u = self.delta_comm * self._gain_mod
 
         # State update
-        x_new = A @ self._x + B @ u
+        x_new = matmul(A, self._x, self.xp) + matmul(B, u, self.xp)
 
         # Output
         x_for_output = x_new if self.output_uses_new_state else self._x
-        y = C @ x_for_output + D @ u
+        y = matmul(C, x_for_output, self.xp) + matmul(D, u, self.xp)
 
-        # Update state
-        self._x = x_new
+        # Update state, in place: the CUDA graph of an accelerated object keeps using it
+        self._x[:] = x_new
 
         # Store in buffer
         self.output_buffer[:, 0] = y

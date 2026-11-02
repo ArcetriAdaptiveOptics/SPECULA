@@ -28,7 +28,12 @@ Environment variables (read at each use):
 * ITERAS_MPI_SEND_MODE: 'nonblocking' (default) or 'buffered' (the previous
   behavior: MPI Ibsend through the buffer attached by iteras.main_simul(),
   never tested again, whose data moves only when the sender calls MPI);
-* ITERAS_MPI_POLL: '0' to block in the waits even with sends in flight.
+* ITERAS_MPI_POLL: '0' to block in the waits even with sends in flight;
+* ITERAS_MPI_GPU_DIRECT: '1' to send and receive the data of GPU objects
+  directly from and to GPU memory (default '0': through host memory). It
+  needs a CUDA-aware MPI, like Open MPI built with CUDA and UCX: with any
+  other MPI the processes crash. Between nodes it was 4-5 times faster than
+  through the host on Leonardo, between the GPUs of a node 15-20 times.
 '''
 import time
 
@@ -69,6 +74,17 @@ def polling_enabled():
     return registry.getenv('ITERAS_MPI_POLL', '1') != '0'
 
 
+def gpu_direct():
+    '''
+    True if ITERAS_MPI_GPU_DIRECT is '1': the data of GPU objects is sent and
+    received from GPU memory (CUDA-aware MPI), not through host memory
+    '''
+    mode = registry.getenv('ITERAS_MPI_GPU_DIRECT', '0')
+    if mode not in ('0', '1'):
+        raise ValueError(f"ITERAS_MPI_GPU_DIRECT must be '0' or '1', got {mode!r}")
+    return mode == '1'
+
+
 def pending():
     '''Number of sends in flight'''
     return len(_pending)
@@ -76,8 +92,9 @@ def pending():
 
 def isend(buffer, dest, tag, step):
     '''
-    Send *buffer* (a host array, not modified afterwards) to rank *dest* with
-    *tag*, as the data of time step *step*, without waiting for the receiver.
+    Send *buffer* (a host array, or a GPU array with gpu_direct(), not modified
+    afterwards) to rank *dest* with *tag*, as the data of time step *step*,
+    without waiting for the receiver.
     '''
     if buffered_sends():
         iteras.process_comm.Ibsend(buffer, dest=dest, tag=tag)
