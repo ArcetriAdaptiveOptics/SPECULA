@@ -546,3 +546,43 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         # Verify that the layer has the correct generation time and amplitude
         self.assertEqual(atmo.layer_list[0].generation_time, atmo.current_time)
         np.testing.assert_array_equal(cpuArray(atmo.layer_list[0].A), 1)
+
+
+class TestAtmoInfiniteEvolutionMotion(unittest.TestCase):
+
+    PITCH, DT, SPEED = 0.037372727, 0.000588, 37.0          # 0.58 pixels per step
+
+    def _atmo(self, direction, precision=0, pixel_pupil=48, extra_delta_time=0):
+        from specula.base_value import BaseValue
+        params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=self.PITCH, time_step=self.DT)
+        atmo = AtmoInfiniteEvolution(params, L0=[40.0], heights=[0.0], Cn2=[1.0], seed=1,
+                                     extra_delta_time=extra_delta_time,
+                                     target_device_idx=-1, precision=precision)
+        self.inputs = [BaseValue(value=np.array([v]), target_device_idx=-1)
+                       for v in (1.0, self.SPEED, direction)]
+        for name, v in zip(('seeing', 'wind_speed', 'wind_direction'), self.inputs):
+            atmo.inputs[name].set(v)
+        atmo.setup()
+        return atmo
+
+    def _step(self, atmo, k):
+        t = atmo.seconds_to_t(k * self.DT)
+        for v in self.inputs:
+            v.generation_time = t
+        atmo.check_ready(t)
+        atmo.trigger()
+        atmo.post_trigger()
+
+    def test_frozen_flow_in_any_direction(self):
+        # Temporal structure function of the layer: one step against two steps.
+        # With a correct interpolation the ratio is the same for all directions
+        def ratio(direction):
+            atmo = self._atmo(direction)
+            frames = []
+            for k in range(150):
+                self._step(atmo, k)
+                frames.append(np.array(cpuArray(atmo.layer_list[0].phaseInNm[8:40, 8:40])))
+            frames = np.array(frames)
+            d = [np.mean((frames[lag:] - frames[:-lag]) ** 2) for lag in (1, 2)]
+            return d[0] / d[1]
+        self.assertAlmostEqual(ratio(30.0), ratio(0.0), delta=0.05)
