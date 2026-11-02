@@ -1,30 +1,40 @@
+import warnings
+
 from astropy.io import fits
 
+from specula import cpuArray
 from specula.base_data_obj import BaseDataObj
 from specula.base_value import BaseValue
 from iteras.lib import storage
+from specula.lib.slopes_layout import SlopesLayout
 
 
 class Slopes(BaseDataObj):
     """
     Slopes data object.
     Holds a slopes vector, which can be interleaved (XYXYXY...) or not (XXX...YYY...).
-    X and Y slopes can be accessed independently, and a 2d map is available.
+    X and Y slopes can be accessed independently, and a 2d map is available
+    through :meth:`get2d` when a :class:`~specula.lib.slopes_layout.SlopesLayout`
+    is set (*layout* argument or attribute), usually by the slope computer
+    from its :class:`~specula.data_objects.subap_data.SubapData` or
+    :class:`~specula.data_objects.pupdata.PupData`.
     """
     def __init__(self,
                  length: int=None,
                  slopes=None,
                  interleave: bool=False,
                  target_device_idx: int=None,
-                 precision: int=None):
+                 precision: int=None,
+                 layout: SlopesLayout=None):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
         if slopes is not None:
             self.slopes = self.to_xp(slopes, dtype=self.dtype)
         else:
             self.slopes = self.xp.zeros(length, dtype=self.dtype)
         self.interleave = interleave
-        self.single_mask = None
-        self.display_map = None
+        self.layout = layout
+        self._legacy_mask_shape = None
+        self._legacy_map = None
         self.pupdata_tag = None
         self.subapdata_tag = None
 
@@ -167,28 +177,68 @@ class Slopes(BaseDataObj):
 
     def get2d(self):
         """
-        Get the slopes as a 2d map.
+        Get the slopes as a 2d map, using :attr:`layout`: an array of shape
+        (2, ny, nx) with the X and Y slopes, or of shape (ny, nx) for layouts
+        with one value per position (e.g. slopes from intensity).
         """
-        if self.single_mask is None:
-            raise ValueError('Slopes single_mask has not been set')
-        if self.display_map is None:
-            raise ValueError('Slopes display_map has not been set')
-        mask = self.single_mask
-        idx = self.display_map
-        if self.slopes.size == len(idx):
-            # slopes from intensity case
-            f = self.xp.zeros_like(mask, dtype=self.dtype)
-            if len(idx.shape) == 1:
-                self.xp.put(f.ravel(), idx, self.slopes)
-            elif len(idx.shape) == 2:
-                f[idx] = self.slopes
-            return self.to_xp(f, dtype=self.dtype)
+        if self.layout is None:
+            raise ValueError('Slopes layout has not been set')
+        return self.layout.to_2d(self.slopes, self.xp, dtype=self.dtype, interleave=self.interleave)
+
+    # Deprecated single_mask / display_map pair, replaced by the layout.
+    # They are properties, so they are not copied by transferDataTo().
+
+    @property
+    def single_mask(self):
+        """Deprecated: frame with ones at the positions of :attr:`layout` (None without a layout)."""
+        if self.layout is None:
+            return None
+        return self.layout.mask(self.xp, dtype=self.dtype)
+
+    @single_mask.setter
+    def single_mask(self, mask):
+        warnings.warn('Slopes.single_mask is deprecated: set Slopes.layout instead '
+                      '(e.g. subapdata.slopes_layout() or pupdata.slopes_layout())',
+                      DeprecationWarning, stacklevel=2)
+        self._legacy_mask_shape = None if mask is None else tuple(mask.shape)
+        self._update_legacy_layout()
+
+    @property
+    def display_map(self):
+        """Deprecated: flat frame indices of :attr:`layout` (None without a layout)."""
+        if self.layout is None:
+            return None
+        return self.layout.device_idx(self.xp)
+
+    @display_map.setter
+    def display_map(self, idx):
+        warnings.warn('Slopes.display_map is deprecated: set Slopes.layout instead '
+                      '(e.g. subapdata.slopes_layout() or pupdata.slopes_layout())',
+                      DeprecationWarning, stacklevel=2)
+        self._legacy_map = None if idx is None else tuple(cpuArray(idx).tolist())
+        self._update_legacy_layout()
+
+    def _update_legacy_layout(self):
+        if self._legacy_mask_shape is None or self._legacy_map is None:
+            self.layout = None
         else:
-            fx = self.xp.zeros_like(mask, dtype=self.dtype)
-            fy = self.xp.zeros_like(mask, dtype=self.dtype)
-            self.x_remap2d(fx, idx)
-            self.y_remap2d(fy, idx)
-            return self.to_xp([fx, fy], dtype=self.dtype)
+            self.layout = SlopesLayout.from_mask_and_map(
+                self._legacy_mask_shape, self._legacy_map, self.size)
+
+    def transferDataTo(self, destobj, force_reallocation=False):
+        super().transferDataTo(destobj, force_reallocation=force_reallocation)
+        # The layout is static and shared, not copied
+        destobj.layout = self.layout
+
+    def get_metadata_arrays(self):
+        """The :attr:`layout`, if set, as named arrays (see SlopesLayout.to_arrays())."""
+        return {} if self.layout is None else self.layout.to_arrays()
+
+    def set_metadata_arrays(self, arrays):
+        """Restore the :attr:`layout` saved by :meth:`get_metadata_arrays`, if present."""
+        layout = SlopesLayout.from_arrays(arrays)
+        if layout is not None:
+            self.layout = layout
 
     def rotate(self, angle, flipx=False, flipy=False):
         """
@@ -240,9 +290,11 @@ class Slopes(BaseDataObj):
 
         The method writes the slopes data and relevant metadata to a FITS file.
         The main HDU contains only the header, and the slopes data is stored
-        in an image extension named 'SLOPES'.
+        in an image extension named 'SLOPES'. The :attr:`layout`, if set, is
+        stored in the following extensions (see :meth:`get_metadata_arrays`).
         """
-        storage.write_object(filename, self.get_fits_header(), {'slopes': self.slopes},
+        storage.write_object(filename, self.get_fits_header(),
+                             {'slopes': self.slopes, **self.get_metadata_arrays()},
                              overwrite=overwrite)
         
     @staticmethod
@@ -266,7 +318,9 @@ class Slopes(BaseDataObj):
         with storage.read_object(filename) as f:
             hdr = f.header
             slopesdata = f.read('slopes', 1)
+            metadata = {name: f.read(name) for name in f.names() if name.lower() != 'slopes'}
         slopes = Slopes.from_header(hdr, target_device_idx=target_device_idx)
+        slopes.set_metadata_arrays(metadata)
         if hdr['VERSION'] >= 3:
             slopes.set_value(slopesdata)
         else:
@@ -275,4 +329,6 @@ class Slopes(BaseDataObj):
         return slopes
 
     def array_for_display(self):
-        return self.xp.hstack(self.get2d())
+        frames = self.get2d()
+        # X and Y side by side; layouts with one value per position are already 2d
+        return self.xp.hstack(frames) if frames.ndim == 3 else frames

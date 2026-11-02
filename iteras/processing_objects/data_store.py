@@ -171,10 +171,14 @@ class DataStore(BaseProcessingObj):
                     continue
 
                 filename = os.path.join(self.tn_dir, k + '.pickle')
-                hdr = self.inputs[k].get(target_device_idx=-1).get_fits_header()
+                obj = self.inputs[k].get(target_device_idx=-1)
+                hdr = obj.get_fits_header()
                 self.update_header_with_storage_metadata(hdr, input_name=k)
                 with open(filename, 'wb') as handle:
                     data_to_save = {'data': data[k], 'times': times[k], 'hdr': hdr}
+                    metadata = self._metadata_arrays(obj)
+                    if metadata:
+                        data_to_save['metadata'] = metadata
                     pickle.dump(data_to_save, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
             except Exception as e:
@@ -203,9 +207,11 @@ class DataStore(BaseProcessingObj):
         '''
         Save the stored inputs, one file per input, in *data_format* (default:
         the format of this DataStore): the data, the times and the header of
-        the input data object (see iteras.lib.storage). For FITS files, the data
-        is in the primary HDU, with the header, and the times in the first
-        extension. The pickle format is saved by save_pickle().
+        the input data object (see iteras.lib.storage), followed by the arrays of
+        its get_metadata_arrays(), written once per file. For FITS files, the data
+        is in the primary HDU, with the header, the times in the first
+        extension and the metadata arrays in the following ones.
+        The pickle format is saved by save_pickle().
         '''
         data_format = data_format or self.data_format
         times = {k: np.array(list(v.keys()), dtype=np.uint64)
@@ -220,14 +226,25 @@ class DataStore(BaseProcessingObj):
                               f"- not in local_inputs or value is None")
                     continue
 
-                hdr = self.local_inputs[k].get_fits_header()
+                obj = self.local_inputs[k]
+                hdr = obj.get_fits_header()
                 self.update_header_with_storage_metadata(hdr, input_name=k)
+                arrays = {'data': data[k], 'times': times[k], **self._metadata_arrays(obj)}
                 storage.write_object(storage.filename(self.tn_dir, k, data_format), hdr,
-                                     {'data': data[k], 'times': times[k]}, layout='primary')
+                                     arrays, layout='primary')
 
             except Exception as e:
                 self.logger.error(f"Error saving {data_format} file for key '{k}': {str(e)}")
                 continue
+
+    @staticmethod
+    def _metadata_arrays(obj):
+        '''Metadata arrays of *obj* (see BaseDataObj.get_metadata_arrays()), as numpy arrays'''
+        metadata = obj.get_metadata_arrays()
+        for name in metadata:
+            if name.lower() in ('data', 'times'):
+                raise ValueError(f'{type(obj).__name__}: metadata array name {name!r} is reserved')
+        return {name: np.asarray(cpuArray(array)) for name, array in metadata.items()}
 
     def save_fits(self):
         self.save_data('fits')

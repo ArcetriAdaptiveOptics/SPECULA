@@ -8,6 +8,7 @@ from astropy.io import fits
 
 from specula import cpuArray
 from specula.data_objects.slopes import Slopes
+from specula.lib.slopes_layout import SlopesLayout
 from specula.base_value import BaseValue
 
 from test.specula_testlib import cpu_and_gpu
@@ -222,44 +223,38 @@ class TestSlopes(unittest.TestCase):
     @cpu_and_gpu
     def test_get2d_intensity_case(self, target_device_idx, xp):
         """
-        Test get2d() for the intensity case where slopes.size == len(display_map).
+        Test get2d() for a scalar layout (e.g. slopes from intensity): one value per position.
         """
-        slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx)
+        slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx,
+                        layout=SlopesLayout((2, 2), [0, 1, 2, 3], SlopesLayout.SCALAR))
         slopes.slopes[:] = xp.array([10, 20, 30, 40])
-        slopes.single_mask = xp.zeros((2, 2))
-        slopes.display_map = xp.array([0, 1, 2, 3])
         result = slopes.get2d()
-        expected = xp.zeros_like(slopes.single_mask)
-        xp.put(expected.ravel(), slopes.display_map, slopes.slopes)
+        expected = xp.array([[10, 20], [30, 40]], dtype=slopes.dtype)
         xp.testing.assert_array_equal(result, expected)
 
     @cpu_and_gpu
     def test_get2d_with_slopes_xy(self, target_device_idx, xp):
-        """Test get2d returns stacked XY slopes when slopes size != len(display_map)."""
-        slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx)
-        mask = xp.zeros((2, 2), dtype=bool)
-        slopes.single_mask = mask
-        slopes.display_map = xp.array([0, 1])
-        slopes.slopes = xp.arange(4)
+        """Test get2d returns stacked XY slopes for an XY layout."""
+        slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx,
+                        layout=SlopesLayout((2, 2), [0, 1], SlopesLayout.XY))
+        slopes.slopes[:] = xp.arange(4)
         result = slopes.get2d()
-        self.assertEqual(result.shape[0], 2)  # two arrays stacked
-        self.assertEqual(result.shape[1:], mask.shape)
+        self.assertEqual(result.shape, (2, 2, 2))
+        xp.testing.assert_array_equal(result[0], xp.array([[0, 1], [0, 0]], dtype=slopes.dtype))
+        xp.testing.assert_array_equal(result[1], xp.array([[2, 3], [0, 0]], dtype=slopes.dtype))
 
     @cpu_and_gpu
-    def test_get2d_without_single_mask_raises(self, target_device_idx, xp):
-        """Test get2d raises ValueError if single_mask is None."""
+    def test_get2d_without_layout_raises(self, target_device_idx, xp):
+        """Test get2d raises ValueError if no layout has been set."""
         slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx)
-        slopes.single_mask = None
-        slopes.display_map = xp.zeros(4)
         with self.assertRaises(ValueError):
             slopes.get2d()
 
     @cpu_and_gpu
-    def test_get2d_without_display_map_raises(self, target_device_idx, xp):
-        """Test get2d raises ValueError if display_map is None."""
-        slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx)
-        slopes.single_mask = xp.zeros((2, 2))
-        slopes.display_map = None
+    def test_get2d_with_wrong_layout_raises(self, target_device_idx, xp):
+        """Test get2d raises ValueError if the layout does not match the slopes length."""
+        slopes = Slopes(length=4, interleave=False, target_device_idx=target_device_idx,
+                        layout=SlopesLayout((2, 2), [0, 1, 2], SlopesLayout.XY))
         with self.assertRaises(ValueError):
             slopes.get2d()
 

@@ -103,8 +103,7 @@ class ShSlopec(Slopec):
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 
-        self.slopes.single_mask = self.subapdata.single_mask()
-        self.slopes.display_map = self.subapdata.display_map
+        self.slopes.layout = self.subapdata.slopes_layout()
 
     @classmethod
     def output_names(cls):

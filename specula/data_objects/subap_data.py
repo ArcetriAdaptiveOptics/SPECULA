@@ -4,6 +4,7 @@ from astropy.io import fits
 
 from specula.base_data_obj import BaseDataObj
 from iteras.lib import storage
+from specula.lib.slopes_layout import SlopesLayout
 
 
 class SubapData(BaseDataObj):
@@ -62,6 +63,14 @@ class SubapData(BaseDataObj):
         f = self.xp.zeros(self.nx * self.ny, dtype=self.dtype)
         self.xp.put(f, self.display_map, 1)
         return f.reshape((self.nx, self.ny))
+
+    def slopes_layout(self):
+        """
+        :class:`~specula.lib.slopes_layout.SlopesLayout` of the X/Y slopes
+        of these subapertures: one position per subaperture on the
+        (nx, ny) grid of :meth:`single_mask`, at :attr:`display_map`.
+        """
+        return SlopesLayout((self.nx, self.ny), self.display_map, SlopesLayout.XY)
 
     def subap_idx(self, n):
         """Returns the indices of subaperture `n`."""

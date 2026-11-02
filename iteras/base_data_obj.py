@@ -71,6 +71,27 @@ class BaseDataObj(BaseTimeObj):
         '''
         return False
 
+    def get_metadata_arrays(self):
+        '''
+        Static metadata of this object that does not fit in a header, as a
+        dictionary of numpy arrays by name (e.g. the 2d display layout of
+        Slopes). It describes the object, not a single sample of its data:
+        DataStore writes it once per file, next to the time series, and
+        DataSource gives it back with set_metadata_arrays().
+        Names are case insensitive, and must not be "data" or "times".
+        The default implementation returns an empty dictionary.
+        '''
+        return {}
+
+    def set_metadata_arrays(self, arrays):
+        '''
+        Restore the metadata of get_metadata_arrays() from a dictionary of
+        numpy arrays by name. Names may come back in upper case (FITS files),
+        and the dictionary may contain other arrays, to be ignored.
+        The default implementation does nothing.
+        '''
+        pass
+
     def debug_summary(self):
         '''
         Value shown for this object in the MPI debug log of the inputs

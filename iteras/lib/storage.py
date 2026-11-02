@@ -364,6 +364,13 @@ class ObjectReader:
         '''True if the array *name* (or HDU *index* in FITS files) exists'''
         raise NotImplementedError
 
+    def names(self):
+        '''
+        Names of the arrays in the file. In FITS files, the names of the
+        extensions (in upper case); the primary HDU, which has no name, is left out.
+        '''
+        raise NotImplementedError
+
     def read(self, name, index=None):
         '''The array *name* (or HDU *index* in FITS files), as a numpy array in native byte order'''
         raise NotImplementedError
@@ -408,6 +415,9 @@ class _FitsReader(ObjectReader):
         i = self._index(name, index)
         return i is not None and self._hdul[i].data is not None
 
+    def names(self):
+        return [hdu.name for hdu in self._hdul[1:] if hdu.name]
+
     def read(self, name, index=None):
         i = self._index(name, index)
         if i is None or self._hdul[i].data is None:
@@ -440,6 +450,9 @@ class _NpzReader(ObjectReader):
     def has(self, name, index=None):
         return name in self._npz.files
 
+    def names(self):
+        return [name for name in self._npz.files if name != '__header__']
+
     def read(self, name, index=None):
         if name not in self._npz.files:
             raise self._missing(name, index)
@@ -459,6 +472,9 @@ class _Hdf5Reader(ObjectReader):
 
     def has(self, name, index=None):
         return name in self._file
+
+    def names(self):
+        return list(json.loads(self._file.attrs['__arrays__']))
 
     def read(self, name, index=None):
         if name not in self._file:
@@ -480,6 +496,9 @@ class _NpyReader(ObjectReader):
 
     def has(self, name, index=None):
         return name in self._names
+
+    def names(self):
+        return list(self._names)
 
     def read(self, name, index=None):
         if name not in self._names:

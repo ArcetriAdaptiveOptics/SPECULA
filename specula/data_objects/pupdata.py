@@ -4,6 +4,7 @@ from astropy.io import fits
 from specula.base_data_obj import BaseDataObj
 from specula import cpuArray
 from iteras.lib import storage
+from specula.lib.slopes_layout import SlopesLayout
 
 class PupData(BaseDataObj):
     """
@@ -118,6 +119,29 @@ class PupData(BaseDataObj):
         self.xp.put(f, self.pupil_idx(0), 1)
         f2d = f.reshape(self.framesize)
         return f2d[:self.framesize[0]//2, self.framesize[1]//2:]
+
+    def slopes_layout(self, from_intensity=None):
+        """
+        :class:`~specula.lib.slopes_layout.SlopesLayout` of the slopes
+        computed from these pupils.
+
+        Parameters
+        ----------
+        from_intensity : bool, optional
+            If True, one value per valid pixel of each pupil, in pupil order,
+            displayed on the whole frame (shape :attr:`framesize`, as
+            :meth:`complete_mask`). If False, X/Y slopes displayed on a
+            single-pupil crop (shape of :meth:`single_mask`, indices of
+            :meth:`local_display_map`). Default: the
+            :attr:`slopes_from_intensity` setting of this object.
+        """
+        if from_intensity is None:
+            from_intensity = self.slopes_from_intensity
+        if from_intensity:
+            idx = self.xp.concatenate([self.pupil_idx(i)[self.pupil_idx(i) >= 0]
+                                       for i in range(self.n_pupils)])
+            return SlopesLayout(tuple(self.framesize), idx, SlopesLayout.SCALAR)
+        return SlopesLayout(self.single_mask().shape, self.local_display_map(), SlopesLayout.XY)
 
     def complete_mask(self):
         f = self.xp.zeros(self.framesize, dtype=self.dtype)

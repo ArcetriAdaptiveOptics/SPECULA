@@ -257,6 +257,13 @@ corresponding feature.
      - Description of the data, stored with it by ``DataStore`` (``OBJ_TYPE``
        must be the class name), and creation of an empty object from it by
        ``DataSource``.
+   * - ``get_metadata_arrays()``, ``set_metadata_arrays(arrays)``
+     - Static metadata that does not fit in a header, as a dictionary of
+       numpy arrays by name (for example the 2d display layout of ``Slopes``).
+       ``DataStore`` writes it once per file, next to the time series, and
+       ``DataSource`` gives it back to the object created by ``from_header()``.
+       Names are case insensitive; ``data`` and ``times`` are reserved.
+       Default: no metadata.
    * - ``save(filename)``, ``restore(filename, target_device_idx=None)``
      - Saving and loading: ``restore()`` is used for the ``_object`` and
        ``tag`` parameters, through the calibration manager. Implement them
@@ -272,7 +279,10 @@ corresponding feature.
 
 All the arrays of a data object are copied by ``transferDataTo()`` and
 ``copyTo()``, which the framework uses to move data between devices: derived
-classes do not need to implement them.
+classes do not need to implement them. Attributes that are not arrays are not
+copied at each step: keep static data that never changes (such as the
+``SlopesLayout`` of ``Slopes``) in such an attribute, and share it in
+``transferDataTo()``.
 
 Class hooks
 ~~~~~~~~~~~

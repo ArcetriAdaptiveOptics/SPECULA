@@ -64,7 +64,19 @@ SPECULA data objects implement specialized methods for seamless integration with
 
    * :meth:`get_value` - Extracts the core numerical data for storage
    * :meth:`from_header` - Reconstructs objects from stored headers
+   * :meth:`get_metadata_arrays` / :meth:`set_metadata_arrays` - Static metadata stored as arrays, once per file (e.g. the 2d layout of slopes)
    * :meth:`set_value` - Restores numerical data from storage
+
+**Slopes display layout**
+   A :class:`~specula.lib.slopes_layout.SlopesLayout` maps a slopes
+   vector to its 2d display: X/Y frames (``'xy'``) or a single frame with one
+   value per position (``'scalar'``, e.g. slopes from intensity). Slope
+   computers set it on their output slopes from their geometry, with
+   :meth:`SubapData.slopes_layout() <specula.data_objects.subap_data.SubapData.slopes_layout>` or
+   :meth:`PupData.slopes_layout() <specula.data_objects.pupdata.PupData.slopes_layout>`,
+   and :meth:`Slopes.get2d() <specula.data_objects.slopes.Slopes.get2d>` uses it.
+   The layout is saved with the slopes by :meth:`Slopes.save() <specula.data_objects.slopes.Slopes.save>`
+   and by ``DataStore``, so stored slopes can be displayed in 2d after a replay.
 
 **Supported Data Formats:**
 
