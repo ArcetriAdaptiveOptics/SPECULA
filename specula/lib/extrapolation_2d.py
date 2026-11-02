@@ -270,20 +270,27 @@ class EFInterpolator():
         if magnification < 1e-6:
             raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
 
-        oversampling_factor = out_shape[0] / in_ef.size[0]
-
         self.debug_output = False
         self.mask_threshold = mask_threshold
         self.in_ef = in_ef
         self.force_extrapolation = force_extrapolation
         self.target_device_idx = target_device_idx
+        self.precision = precision
         self.use_out_ef_cache = use_out_ef_cache
+
+        self._build(out_shape, rotAnglePhInDeg, xShiftPhInPixel, yShiftPhInPixel, magnification)
+
+    def _build(self, out_shape, rotAnglePhInDeg, xShiftPhInPixel, yShiftPhInPixel, magnification):
+        '''The output field and the interpolator for the given parameters, or none
+        of them if the parameters need no interpolation'''
+        in_ef, target_device_idx, precision = self.in_ef, self.target_device_idx, self.precision
+        oversampling_factor = out_shape[0] / in_ef.size[0]
 
         if (in_ef.size == out_shape and
             rotAnglePhInDeg == 0 and
             xShiftPhInPixel == 0 and
             yShiftPhInPixel == 0 and
-            magnification == 1.0 and force_extrapolation is False):
+            magnification == 1.0 and self.force_extrapolation is False):
             self.do_interpolation = False
             self.out_ef = in_ef
             return
@@ -349,6 +356,16 @@ class EFInterpolator():
 
         if magnification is not None and magnification < 1e-6:
             raise ValueError("Magnification must be greater than 1e-6 to avoid numerical issues.")
+
+        if not self.do_interpolation:
+            # No interpolator yet (the initial parameters needed none, so the
+            # output shape is the input one): build it with the new parameters
+            self._build(self.in_ef.size,
+                        rotAnglePhInDeg or 0,
+                        xShiftPhInPixel or 0,
+                        yShiftPhInPixel or 0,
+                        1.0 if magnification is None else magnification)
+            return
 
         # Retrieve current parameters if not provided
         current_rot = -self.interp.rot_angle * 180.0 / np.pi

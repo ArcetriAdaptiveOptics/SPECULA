@@ -9,6 +9,7 @@
 
 ### Interface changes
 
+- `ModulatedPyramid`: new optional input `in_misregistration`, `[pupil shift x, pupil shift y, rotation]` (pixels as `pup_shifts`, degrees as `rotAnglePhInDeg`), to change the mis-registration during a simulation. The shifts move the pupil images on the detector, the rotation is applied to the input field. Each change builds new interpolators and captures the CUDA graph again: it is meant for occasional changes. A static `pup_shifts` of `[0, 0]` given as a list no longer turns on the pupil-shift interpolation.
 - `DynamicIntegrator`, `DynamicIirFilter`: the `reset` input also accepts a `BaseValue` (e.g. a periodic `ScheduleGenerator` that outputs 1 for one step), and resets the filter only when it is updated with a non-zero value: before, any update reset it, also a value of 0. The value is read on the host, so a source updated at every step should be on the CPU. To allow this, an input may declare a tuple of accepted types (`InputDesc((IntValue, BaseValue), ...)`).
 - `ScheduleGenerator`: new `period` option, the schedule restarts every `period` seconds (the time within the period is computed on the integer simulation time). `TimeHistoryGenerator`: new `loop` option, the history starts again from its first row after the last.
 - `IirFilterData.max_stable_gain()` is computed exactly from the gains at which a closed-loop pole crosses the unit circle, instead of scanning `n_gain` gains up to `max_gain` (step 0.002 by default, and the stable range was assumed to be contiguous); `n_gain` and `tolerance` are no longer used. `resonance_frequency()` returns the frequency and the value of the peak of |RTF| (or of |NTF| with `transfer_function='ntf'`), instead of the minimum of the unnormalized closed-loop denominator. `stability_analysis()` computed the resonance at 0.99 times the maximum stable gain multiplied again by the current gain of the filter; it now uses 0.99 times the maximum stable gain.
@@ -21,6 +22,7 @@
 
 ### Other
 
+- `EFInterpolator.update_parameters()` failed on an interpolator created with parameters that need no interpolation (same size, no shift, rotation or magnification); it now builds the interpolator with the new parameters.
 - `PeriodicRandomGenerator` draws at the multiples of its interval: it drew at the previous draw plus the interval, so with an interval that is not a whole number of steps it drifted against other periodic objects by up to one step per period.
 - `LowPassFilter` without `n_ord` and `amplif_fact` failed with a `TypeError`; it now uses the second-order Butterworth filter, the default of `IirFilterData.lpf_from_fc()`.
 - `IirFilterData`: `num` and `den` with a different number of columns are given the same width, adding zeros on the lowest order side. `IirFilter` aligns them on the highest order coefficient, while the analysis methods (`frequency_response()`, `RTF()`, `NTF()`, the stability methods, `to_control_tf()`) aligned them on the lowest order one, so their transfer function differed from the simulated one (e.g. `num=[0.5]`, `den=[-1, 1]`: 0.5/(z-1) instead of 0.5 z/(z-1)). The simulation does not change.
