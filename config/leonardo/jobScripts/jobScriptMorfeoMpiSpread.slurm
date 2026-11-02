@@ -10,11 +10,12 @@
 #SBATCH --qos=normal                           # Quality of Service
 #SBATCH --output=speculaJobMorfeoMpiSpread.out # File for standard output
 #SBATCH --error=speculaJobMorfeoMpiSpread.err  # File for standard error
-#SBATCH --account=try25_rossi                  # Project account number
+#SBATCH --account=IscrC_SPECIAL                # Project account number
 
 module load cuda/12.3                          # Load CUDA toolkit
 module load openmpi/4.1.6--nvhpc--23.11        # Load MPI implementation
 module load nvhpc/23.11
+export ITERAS_MPI_GPU_DIRECT=1                 # CUDA-aware Open MPI: GPU data sent directly, not through the host
 
 srun --mpi=none bash -c "specula --mpi --diagram-filename morfeoSpread.png --diagram-colors-on $WORK/SPECULA/config/MORFEO/params_morfeo_full.yml $WORK/SPECULA/config/leonardo/overrides/ov_MORFEO_leonardo_spread.yml"
 

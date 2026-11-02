@@ -75,6 +75,78 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         self.assertEqual(DistributedSH.single_device_params(params)['n_slices'], 1)
         self.assertEqual(params['n_slices'], 4)
 
+    def test_repeated_work_fraction_decreases_with_the_rows(self):
+        def f(rows):
+            return DistributedSH.repeated_work_fraction({'subap_on_diameter': rows})
+        self.assertEqual(f(2), 0.22)
+        self.assertEqual(f(8), 0.22)
+        self.assertEqual(f(68), 0.05)
+        self.assertEqual(f(80), 0.05)
+        self.assertTrue(0.22 > f(10) > f(40) > 0.05)
+
+    def test_slices_prepare_after_fetching_their_inputs(self):
+        '''
+        At each step each slice prepares its trigger once, after getting its
+        inputs. SH initializes the extrapolation of the input field at its first
+        prepare_trigger(): a slice on another device than its input, which reads a
+        copy of it, would initialize it from the copy of the previous step (at the
+        first step, the field before its producer's first trigger, e.g. a field
+        received by MPI, sent before the producer's setup).
+        '''
+        from specula.data_objects.electric_field import ElectricField
+        n = 120
+        ef = ElectricField(n, n, 0.0802 * 4, S0=100.0, target_device_idx=-1)
+        ef.generation_time = 0
+        sh = DistributedSH(wavelengthInNm=750, subap_wanted_fov=4.6, sensor_pxscale=0.153,
+                           subap_on_diameter=8, subap_npx=30, n_slices=4, target_device_idx=-1)
+        sh.inputs['in_ef'].set(ef)
+        sh.setup()
+        calls = {i: [] for i in range(len(sh.sub_sh))}
+        for i, sub in enumerate(sh.sub_sh):
+            def record(method, event, i=i):
+                def wrapper(*args, **kwargs):
+                    calls[i].append(event)
+                    return method(*args, **kwargs)
+                return wrapper
+            sub.get_all_inputs = record(sub.get_all_inputs, 'inputs')
+            sub.prepare_trigger = record(sub.prepare_trigger, 'prepare')
+        sh.check_ready(0)
+        for i in calls:
+            self.assertEqual(calls[i], ['inputs', 'prepare'], f'slice {i}')
+
+    def test_sh_split_options(self):
+        from specula.processing_objects.sh import SH
+        params = {'class': 'SH', 'wavelengthInNm': 589, 'subap_wanted_fov': 16.1,
+                  'sensor_pxscale': 1.15, 'subap_on_diameter': 68, 'subap_npx': 14,
+                  'fov_ovs_coeff': 1.2, 'laser_launch_tel_ref': 'llt',
+                  'inputs': {'in_ef': 'prop.out_ef'}}
+        options = SH.split_options(params, 4)
+        # The divisors of the 68 subaperture rows, up to the GPUs of a node
+        self.assertEqual(sorted(options), [2, 4])
+        for k, split in options.items():
+            self.assertEqual(split['class'], 'DistributedSH')
+            self.assertEqual(split['n_slices'], k)
+            self.assertEqual(DistributedSH.devices_used(split), k)
+            self.assertEqual(split['fov_ovs_coeff'], 1.2)
+            self.assertEqual(split['inputs'], params['inputs'])
+        self.assertEqual(params['class'], 'SH')         # not modified
+        self.assertEqual(sorted(SH.split_options(params, 8)), [2, 4])
+        self.assertEqual(SH.split_options(dict(params, subap_on_diameter=7), 4), {})
+        self.assertEqual(SH.split_options(params, 1), {})
+        # DistributedSH has the defaults of SH, so none is added to the parameters
+        import inspect
+        sh_defaults = inspect.signature(SH.__init__).parameters
+        for name, p in inspect.signature(DistributedSH.__init__).parameters.items():
+            if name in sh_defaults and p.default is not inspect.Parameter.empty:
+                self.assertEqual(p.default, sh_defaults[name].default, name)
+        no_fov = {k: v for k, v in params.items() if k != 'fov_ovs_coeff'}
+        self.assertNotIn('fov_ovs_coeff', SH.split_options(no_fov, 2)[2])
+        # Not split: parameters that DistributedSH does not accept, a slice of rows
+        # already given, and DistributedSH itself (its number of slices is kept)
+        self.assertEqual(SH.split_options(dict(params, data_dir='x'), 4), {})
+        self.assertEqual(SH.split_options(dict(params, subap_rows_slice=[0, 10]), 4), {})
+        self.assertEqual(DistributedSH.split_options(dict(params, n_slices=2), 4), {})
+
     @cpu_and_gpu
     def test_distributed_sh_flux(self, target_device_idx, xp):
         

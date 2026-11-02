@@ -206,11 +206,20 @@ sender is inside an MPI call. So a process that waits for its GPU while some of 
 in flight keeps testing them, instead of blocking. At most two steps of each output can be in
 flight to a process; a process that runs further ahead waits for its receivers.
 
-Two environment variables change this behavior, for comparisons or as a fallback:
+Environment variables change this behavior:
 
+``ITERAS_MPI_GPU_DIRECT``
+    ``1`` to send and receive the outputs of GPU objects directly from and to GPU memory,
+    without copies to the host (default ``0``). It needs a CUDA-aware MPI, like Open MPI built
+    with CUDA and UCX (``ompi_info`` shows ``mpi_built_with_cuda_support:value:true``): with
+    any other MPI the processes crash. On Leonardo it moved a 2 MiB message between nodes in
+    0.11 ms instead of 0.51 ms, and between the GPUs of a node in 0.04 ms instead of 0.58 ms.
+    For the :doc:`allocator <allocator>`, set ``mpi_gpu_direct: true`` in the ``links`` of the
+    nodes.
 ``ITERAS_MPI_SEND_MODE``
     ``nonblocking`` (default) or ``buffered``: the previous behavior, with buffered sends
-    (``MPI_Ibsend``), whose data moves only when the sender calls MPI.
+    (``MPI_Ibsend``), whose data moves only when the sender calls MPI. Buffered sends always
+    go through the host.
 ``ITERAS_MPI_POLL``
     ``0`` to block while waiting for the GPU, even with sends in flight.
 
