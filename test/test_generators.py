@@ -404,6 +404,35 @@ class TestGenerators(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(value), cpuArray(data[-1]))
 
     @cpu_and_gpu
+    def test_time_history_loop(self, target_device_idx, xp):
+        data = xp.arange(3 * 2).reshape((3, 2))
+        f = TimeHistoryGenerator(TimeHistory(data, target_device_idx=target_device_idx), loop=True,
+                                 target_device_idx=target_device_idx)
+        for it in range(7):
+            f.check_ready(it)
+            f.trigger()
+            f.post_trigger()
+            np.testing.assert_allclose(cpuArray(f.outputs['output'].value), cpuArray(data[it % 3]))
+
+    @cpu_and_gpu
+    def test_schedule_generator_period(self, target_device_idx, xp):
+        f = ScheduleGenerator(scheduled_values=[[0.0], [0.5], [1.0]], scheduled_times=[0.1, 0.2],
+                              modes_per_group=[1], period=1.0, target_device_idx=target_device_idx)
+        f.setup()
+        for t_sec, expected in [(0.05, 0.0), (0.15, 0.5), (0.9, 1.0), (1.05, 0.0), (2.15, 0.5), (3.95, 1.0)]:
+            f.check_ready(f.seconds_to_t(t_sec))
+            f.trigger()
+            f.post_trigger()
+            np.testing.assert_allclose(cpuArray(f.outputs['output'].value), [expected])
+
+    @cpu_and_gpu
+    def test_schedule_generator_period_errors(self, target_device_idx, xp):
+        for period in [0.0, 0.2]:
+            with self.assertRaises(ValueError):
+                ScheduleGenerator(scheduled_values=[[0.0], [1.0]], scheduled_times=[0.2],
+                                  modes_per_group=[1], period=period, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
     def test_schedule_generator(self, target_device_idx, xp):
         scheduled_values = [
             [0.1, 0.0],    # Values for t < 0.1s
