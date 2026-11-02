@@ -88,11 +88,17 @@ jobs:
       if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
       run: |
         pip install orthogram control
+        # The CPU build of torch on Linux: the default one also installs CUDA
+        if [ "$RUNNER_OS" = "Linux" ]; then
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+        else
+          pip install torch
+        fi
 
     - name: Test optional packages and append to coverage report
       if: ${{ matrix.mpi == 'none' && matrix.os != 'windows-latest'}}
       run: |
-        pytest -k "diagram or control or iirfilter" --cov=./ --cov-append
+        pytest -k "diagram or control or iirfilter or cnn or conv2d or efficient_u_net" --cov=./ --cov-append
   
     - name: Setup MPI
       if: ${{ matrix.mpi != 'none' }}
