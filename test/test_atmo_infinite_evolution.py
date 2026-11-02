@@ -546,3 +546,65 @@ class TestAtmoInfiniteEvolution(unittest.TestCase):
         # Verify that the layer has the correct generation time and amplitude
         self.assertEqual(atmo.layer_list[0].generation_time, atmo.current_time)
         np.testing.assert_array_equal(cpuArray(atmo.layer_list[0].A), 1)
+
+
+class TestAtmoInfiniteEvolutionMotion(unittest.TestCase):
+
+    PITCH, DT, SPEED = 0.037372727, 0.000588, 37.0          # 0.58 pixels per step
+
+    def _atmo(self, direction, precision=0, pixel_pupil=48, extra_delta_time=0):
+        from specula.base_value import BaseValue
+        params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=self.PITCH, time_step=self.DT)
+        atmo = AtmoInfiniteEvolution(params, L0=[40.0], heights=[0.0], Cn2=[1.0], seed=1,
+                                     extra_delta_time=extra_delta_time,
+                                     target_device_idx=-1, precision=precision)
+        self.inputs = [BaseValue(value=np.array([v]), target_device_idx=-1)
+                       for v in (1.0, self.SPEED, direction)]
+        for name, v in zip(('seeing', 'wind_speed', 'wind_direction'), self.inputs):
+            atmo.inputs[name].set(v)
+        atmo.setup()
+        return atmo
+
+    def _step(self, atmo, k):
+        t = atmo.seconds_to_t(k * self.DT)
+        for v in self.inputs:
+            v.generation_time = t
+        atmo.check_ready(t)
+        atmo.trigger()
+        atmo.post_trigger()
+
+    def test_motion_stays_exact_after_a_long_time(self):
+        # Positions of ~4e6 pixels (about one hour at 37 m/s) and a layer offset
+        # (extra_delta_time): in single precision the step from one effective
+        # position to the next would be quantized to the precision of the position
+        from unittest import mock
+        extra = 0.01                                          # [s]
+        atmo = self._atmo(0.0, precision=1, extra_delta_time=extra)
+        atmo.last_position[:] = 4e6
+        atmo.last_effective_position[:] = 4e6
+        screen = atmo.infinite_phasescreens[0]
+        lines = []
+        real_add_line = screen.add_line
+        with mock.patch.object(screen, 'add_line',
+                               side_effect=lambda row, after, flush=True: (
+                                   lines.append(row) if flush else None, real_add_line(row, after, flush))):
+            for k in range(200):
+                self._step(atmo, k)
+        moved = len(lines) + atmo.acc_rows[0]
+        # the first step moves by the offset only
+        expected = (199 * self.DT + extra) * self.SPEED / self.PITCH
+        self.assertAlmostEqual(moved, expected, delta=1e-3 * expected)
+
+    def test_frozen_flow_in_any_direction(self):
+        # Temporal structure function of the layer: one step against two steps.
+        # With a correct interpolation the ratio is the same for all directions
+        def ratio(direction):
+            atmo = self._atmo(direction)
+            frames = []
+            for k in range(150):
+                self._step(atmo, k)
+                frames.append(np.array(cpuArray(atmo.layer_list[0].phaseInNm[8:40, 8:40])))
+            frames = np.array(frames)
+            d = [np.mean((frames[lag:] - frames[:-lag]) ** 2) for lag in (1, 2)]
+            return d[0] / d[1]
+        self.assertAlmostEqual(ratio(30.0), ratio(0.0), delta=0.05)

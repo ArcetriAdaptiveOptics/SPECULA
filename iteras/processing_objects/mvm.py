@@ -2,6 +2,7 @@ from iteras.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from iteras.base_value import BaseValue
 from iteras.connections import InputValue
 from iteras.data_objects.matrix import Matrix
+from iteras.lib.graph_matmul import matmul
 
 
 class MVM(BaseProcessingObj):
@@ -35,6 +36,10 @@ class MVM(BaseProcessingObj):
             raise ValueError('matrix must be provided!')
 
         self.matrix = matrix
+        # In the dtype of this object, like the input vector at each step: the product
+        # is then the same with and without a CUDA graph (see graph_matmul.matmul()).
+        # A copy only if the dtype differs: later changes to the matrix are then not seen
+        self._matrix = self.to_xp(matrix.matrix, dtype=self.dtype)
 
         # Create outputs
         self.output = BaseValue('output from matrix-vector multiplication',
@@ -66,9 +71,13 @@ class MVM(BaseProcessingObj):
             raise ValueError(f"Input vector size mismatch: got {input_size}"
                              f", expected {expected_size}")
 
+    def can_accelerate(self):
+        # The product uses graph_matmul.matmul(), which can be captured
+        return True
+
     def trigger_code(self):
         vector = self.local_inputs['in_vector']
 
         # Simple matrix multiplication
-        self.output.value[:] = self.matrix.matrix @ vector.get_value()
+        self.output.value[:] = matmul(self._matrix, vector.get_value().astype(self.dtype, copy=False), self.xp)
         self.output.generation_time = self.current_time

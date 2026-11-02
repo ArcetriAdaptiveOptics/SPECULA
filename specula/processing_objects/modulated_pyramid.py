@@ -1,4 +1,4 @@
-from specula import fuse
+from specula import cpuArray, fuse
 from specula.lib.extrapolation_2d import EFInterpolator
 from specula.lib.interp2d import Interp2D
 
@@ -69,7 +69,11 @@ class ModulatedPyramid(BaseProcessingObj):
     fp_obs : float [pixels], optional
         Focal plane central obstruction diameter in pixels (default: None)
     pup_shifts : tuple [pixels], optional
-        Static pupil shifts in pixels (x, y) (default: (0.0, 0.0))
+        Static pupil shifts in pixels (x, y) (default: (0.0, 0.0)). The
+        optional input in_misregistration can change them, and
+        rotAnglePhInDeg, during the simulation. The shifts move the pupil
+        images on the detector, while the rotation is applied to the input
+        field.
     pyr_tlt_coeff : list [2,4], optional
         Pyramid tilt coefficients for each face. (default: None)
         The coefficient multiplies the x-tilt or y-tilt (rows) of each of each of the 
@@ -276,6 +280,8 @@ class ModulatedPyramid(BaseProcessingObj):
                                       precision=precision)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
+        self.inputs['in_misregistration'] = InputValue(type=BaseValue, optional=True)
+        self._misregistration = None     # last value applied from in_misregistration
         self.outputs['out_i'] = self.out_i
         self.outputs['out_psf_tot'] = self.psf_tot
         self.outputs['out_psf_bfm'] = self.psf_bfm
@@ -316,7 +322,15 @@ class ModulatedPyramid(BaseProcessingObj):
     def input_names(cls):
         return {'in_ef': InputDesc(ElectricField, 'Input electric field from the telescope pupil.'
                                                   'Contains complex amplitude and phase information '
-                                                  'that will be modulated and propagated through the pyramid.')}
+                                                  'that will be modulated and propagated through the pyramid.'),
+                'in_misregistration': InputDesc(BaseValue, 'Mis-registration [pupil shift x, pupil shift y '
+                                                           '(pixels, as pup_shifts), rotation (deg, as '
+                                                           'rotAnglePhInDeg)], applied when it changes: '
+                                                           'each change builds new interpolators and captures '
+                                                           'the CUDA graph again, so it is meant for occasional '
+                                                           'changes, not for a value that changes at every step. '
+                                                           'Keep its source on the CPU to avoid a GPU '
+                                                           'synchronization at each step (optional).')}
     
     @classmethod
     def output_names(cls):
@@ -570,10 +584,51 @@ class ModulatedPyramid(BaseProcessingObj):
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
+        self._update_misregistration()
         self.ef_interpolator.interpolate()
         self.ef_interpolator.interpolated_ef().ef_at_lambda(self.wavelength_in_nm, out=self.ef)
 
         self._update_s0_area()
+
+    def _update_misregistration(self):
+        '''Apply a new value of the in_misregistration input, when it changes'''
+        misreg = self.local_inputs.get('in_misregistration')
+        if misreg is None or misreg.generation_time != self.current_time:
+            return
+        value = tuple(float(v) for v in cpuArray(misreg.value).ravel())
+        if len(value) != 3:
+            raise ValueError(f'in_misregistration must have 3 values (shift x, shift y, rotation), got {value}')
+        if value == self._misregistration:
+            return
+        self._misregistration = value
+        self.pup_shifts = value[:2]
+        self._make_pup_shift_interp()
+        self.update_interpolator_parameters(rotAnglePhInDeg=value[2])
+
+    def _make_pup_shift_interp(self):
+        '''The interpolator of the pupil shifts (pup_shifts), only if they are not zero'''
+        if tuple(float(v) for v in self.pup_shifts) == (0.0, 0.0):
+            self._do_pup_shift = False
+            return
+        # Calculate scaling factor from FFT size to CCD size
+        imscale = float(self.fft_totsize) / float(self.toccd_side)
+        pup_shiftx = float(self.pup_shifts[0]) * imscale
+        pup_shifty = float(self.pup_shifts[1]) * imscale
+
+        # Create the interpolated pupil pyramid array
+        if getattr(self, '_pup_pyr_interpolated', None) is None or self._pup_pyr_interpolated is self.pup_pyr_tot:
+            self._pup_pyr_interpolated = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
+
+        self.pup_shift_interp = Interp2D(
+            (self.fft_totsize, self.fft_totsize),     # Input shape
+            (self.fft_totsize, self.fft_totsize),     # Output shape (same)
+            rotInDeg=0,                               # No rotation
+            rowShiftInPixels=pup_shifty,              # Y shift
+            colShiftInPixels=pup_shiftx,              # X shift
+            dtype=self.dtype,
+            xp=self.xp
+        )
+        self._do_pup_shift = True
 
     def _update_s0_area(self):
         '''Copy S0 * pixel_pitch**2 of the input field to the GPU, when it changes'''
@@ -701,28 +756,8 @@ class ModulatedPyramid(BaseProcessingObj):
             precision=self.precision
         )
 
-        # Create separate interpolator for pup_shifts if needed
-        if self.pup_shifts != (0.0, 0.0):
-            # Calculate scaling factor from FFT size to CCD size
-            imscale = float(self.fft_totsize) / float(self.toccd_side)
-            pup_shiftx = float(self.pup_shifts[0]) * imscale
-            pup_shifty = float(self.pup_shifts[1]) * imscale
-
-            # Create the interpolated pupil pyramid array
-            self._pup_pyr_interpolated = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
-
-            self.pup_shift_interp = Interp2D(
-                (self.fft_totsize, self.fft_totsize),     # Input shape
-                (self.fft_totsize, self.fft_totsize),     # Output shape (same)
-                rotInDeg=0,                               # No rotation
-                rowShiftInPixels=pup_shifty,              # Y shift
-                colShiftInPixels=pup_shiftx,              # X shift
-                dtype=self.dtype,
-                xp=self.xp
-            )
-            self._do_pup_shift = True
-        else:
-            self._do_pup_shift = False
+        # Separate interpolator for pup_shifts if needed
+        self._make_pup_shift_interp()
 
         self._update_s0_area()
         if self.stream_enable:

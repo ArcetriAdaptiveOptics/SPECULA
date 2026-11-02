@@ -36,17 +36,16 @@ class DistributedSH(SH):
         del args['self']
         del args['__class__']
 
-        # Calculate slices for each SH
-        subaps_per_sh = subap_on_diameter // n_slices
         del args['n_slices']
 
         # Initialize base class - we do not use the calculation routines,
         # but it is needed for inputs and outputs
         super().__init__(**args)
 
-        self.slices = []
-        for i in range(n_slices):
-            self.slices.append(slice( i * subaps_per_sh, (i+1) * subaps_per_sh))
+        # Subaperture rows of each SH, covering all rows even when
+        # subap_on_diameter is not a multiple of n_slices
+        bounds = [i * subap_on_diameter // n_slices for i in range(n_slices + 1)]
+        self.slices = [slice(bounds[i], bounds[i+1]) for i in range(n_slices)]
 
         # Initialize internal SH with the other slices.
         # If using GPUs, each one targets a different device.

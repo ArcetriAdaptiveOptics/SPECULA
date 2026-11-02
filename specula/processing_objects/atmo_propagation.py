@@ -117,7 +117,6 @@ class AtmoPropagation(BaseProcessingObj):
         self._power_loss_warned = set()
         self.mergeLayersContrib = mergeLayersContrib
         self.prop_sign = -1 if upwards else 1
-        self.pixel_pupil_size = self.pixel_pupil
         self.beam_center = self.xp.array(beam_center if beam_center is not None else [0,0])
         self.wavelengthInNm = wavelengthInNm
         self.source_dict = source_dict
@@ -135,8 +134,8 @@ class AtmoPropagation(BaseProcessingObj):
         self._block_size = {}
 
         self.ef_temp = ElectricField(
-                    self.pixel_pupil_size,
-                    self.pixel_pupil_size,
+                    self.pixel_pupil,
+                    self.pixel_pupil,
                     self.pixel_pitch,
                     target_device_idx=self.target_device_idx,
                     precision=self.precision,
@@ -161,8 +160,8 @@ class AtmoPropagation(BaseProcessingObj):
         if self.mergeLayersContrib:
             for name, source in self.source_dict.items():
                 ef = ElectricField(
-                    self.pixel_pupil_size,
-                    self.pixel_pupil_size,
+                    self.pixel_pupil,
+                    self.pixel_pupil,
                     self.pixel_pitch,
                     target_device_idx=self.target_device_idx,
                     precision=self.precision,
@@ -397,7 +396,7 @@ class AtmoPropagation(BaseProcessingObj):
 
             # reset field
             if self.doFresnel:
-                s = (self.ef_size_padded - self.pixel_pupil_size) // 2
+                s = (self.ef_size_padded - self.pixel_pupil) // 2
                 s_shifted = [s, s]
 
                 self.ef_fresnel[:] *= 0
@@ -416,8 +415,8 @@ class AtmoPropagation(BaseProcessingObj):
 
                 interpolator = self.interpolators[source][layer]
                 if interpolator is None:
-                    topleft = [(layer.size[0] - self.pixel_pupil_size) // 2, \
-                               (layer.size[1] - self.pixel_pupil_size) // 2]
+                    topleft = [(layer.size[0] - self.pixel_pupil) // 2, \
+                               (layer.size[1] - self.pixel_pupil) // 2]
                     x2 = topleft[0] + output_ef.size[0]
                     y2 = topleft[1] + output_ef.size[1]
                     self.ef_temp.A[:] = layer.A[topleft[0]: x2, topleft[1]: y2]
@@ -492,7 +491,10 @@ class AtmoPropagation(BaseProcessingObj):
         super().post_trigger()
 
         for source_name in self.source_dict.keys():
-            self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
+            out = self.outputs['out_'+source_name+'_ef']
+            # A list of fields, one per atmo layer, if mergeLayersContrib is False
+            for ef in (out if isinstance(out, list) else [out]):
+                ef.generation_time = self.current_time
 
     @staticmethod
     def _pressure_nasa(h_asl):
@@ -613,14 +615,14 @@ class AtmoPropagation(BaseProcessingObj):
         lh = self.layer_height[layer]            # projected layer height
         sh = self.source_height[source]         # projected source height
 
-        if self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and np.isinf(source.height):
+        if self.pupil_position is not None and pixel_layer > self.pixel_pupil and np.isinf(source.height):
             # Off-axis NGS (infinite height): rays from infinity are parallel.
             # The lateral offset at layer height lh is simply θ * lh (plane-wave geometry).
             # pupil_position shifts the reference point on the layer for off-pupil-centre pointings
             # (e.g. field-conjugated DMs or off-axis sub-apertures).
             pixel_position_s = source.r * lh / layer.pixel_pitch
             pixel_position = pixel_position_s * cos_sin_phi + self.pupil_position / layer.pixel_pitch
-        elif self.pupil_position is not None and pixel_layer > self.pixel_pupil_size and not np.isinf(source.height):
+        elif self.pupil_position is not None and pixel_layer > self.pixel_pupil and not np.isinf(source.height):
             # Finite-height source (LGS) with a non-centred pupil.
             # The ray goes from the source at projected height sh (sky_pixel_position)
             # to the pupil centre at pupil_pixel_position (on the ground plane).
@@ -650,22 +652,22 @@ class AtmoPropagation(BaseProcessingObj):
             pixel_position = pixel_position + chromatic_shift_px * elevation_vector
 
         if np.isinf(source.height):
-            pixel_pupmeta = self.pixel_pupil_size
+            pixel_pupmeta = self.pixel_pupil
         else:
             cone_coeff = abs(sh - abs(lh)) / sh
-            pixel_pupmeta = self.pixel_pupil_size * cone_coeff
+            pixel_pupmeta = self.pixel_pupil * cone_coeff
 
         if self.magnification_list[layer] != 1.0:
             pixel_pupmeta /= self.magnification_list[layer]
 
         angle = -layer.rotInDeg % 360
-        xx, yy = make_xy(self.pixel_pupil_size, pixel_pupmeta/2., xp=self.xp)
+        xx, yy = make_xy(self.pixel_pupil, pixel_pupmeta/2., xp=self.xp)
         xx1 = xx + half_pixel_layer[0] + pixel_position[0]
         yy1 = yy + half_pixel_layer[1] + pixel_position[1]
 
         # Check that the source falls within the usable FoV of the layer.
         # Use pixel_pupmeta (effective footprint after cone/magnification) rather than
-        # pixel_pupil_size so the check is correct for LGS (cone effect) and magnified layers.
+        # pixel_pupil so the check is correct for LGS (cone effect) and magnified layers.
         limit0 = (layer.size[0] - pixel_pupmeta) / 2
         limit1 = (layer.size[1] - pixel_pupmeta) / 2
         isInside = abs(pixel_position[0]) <= limit0 and abs(pixel_position[1]) <= limit1
@@ -677,7 +679,7 @@ class AtmoPropagation(BaseProcessingObj):
                   f' which may lead to artifacts if the layer has significant shift or rotation.')  
             return None
 
-        return Interp2D(layer.size, (self.pixel_pupil_size, self.pixel_pupil_size), xx=xx1, yy=yy1,
+        return Interp2D(layer.size, (self.pixel_pupil, self.pixel_pupil), xx=xx1, yy=yy1,
                         rotInDeg=angle, xp=self.xp, dtype=self.dtype)
 
     def setup(self):
@@ -701,8 +703,8 @@ class AtmoPropagation(BaseProcessingObj):
             for name, source in self.source_dict.items():
                 self.outputs['out_'+name+'_ef'] = []
                 for _ in range(self.nAtmoLayers):
-                    ef = ElectricField(self.pixel_pupil_size,
-                                       self.pixel_pupil_size,
+                    ef = ElectricField(self.pixel_pupil,
+                                       self.pixel_pupil,
                                        self.pixel_pitch,
                                        target_device_idx=self.target_device_idx,
                                        precision=self.precision)

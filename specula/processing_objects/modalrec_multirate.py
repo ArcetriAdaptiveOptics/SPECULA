@@ -5,6 +5,7 @@ from specula.base_value import BaseValue
 from specula.connections import InputList
 from specula.data_objects.recmat import Recmat
 from specula.data_objects.slopes import Slopes
+from specula.lib.graph_matmul import matmul
 
 class ModalrecMultirate(BaseProcessingObj):
     """
@@ -173,7 +174,7 @@ class ModalrecMultirate(BaseProcessingObj):
                 R_block = current_recmat[:, start:end]
 
                 # Project this sensor slopes into the full M-dimensional modal space
-                self.out_modes_list[i].value[:] = R_block @ s.slopes
+                self.out_modes_list[i].value[:] = matmul(R_block, s.slopes, self.xp)
             else:
                 # Sensor is inactive, output M zeros
                 self.out_modes_list[i].value[:] = 0
