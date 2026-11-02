@@ -22,7 +22,7 @@ class DistributedSH(SH):
                  subap_npx: int,
                  n_slices: int,
                  squaremask: bool = True,
-                 fov_ovs_coeff: float = 0,
+                 fov_ovs_coeff: float = 2.0,     # as SH
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,

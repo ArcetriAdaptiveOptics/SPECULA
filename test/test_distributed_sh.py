@@ -94,9 +94,14 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         self.assertEqual(sorted(SH.split_options(params, 8)), [2, 4])
         self.assertEqual(SH.split_options(dict(params, subap_on_diameter=7), 4), {})
         self.assertEqual(SH.split_options(params, 1), {})
-        # The default of SH is kept where DistributedSH has another one
+        # DistributedSH has the defaults of SH, so none is added to the parameters
+        import inspect
+        sh_defaults = inspect.signature(SH.__init__).parameters
+        for name, p in inspect.signature(DistributedSH.__init__).parameters.items():
+            if name in sh_defaults and p.default is not inspect.Parameter.empty:
+                self.assertEqual(p.default, sh_defaults[name].default, name)
         no_fov = {k: v for k, v in params.items() if k != 'fov_ovs_coeff'}
-        self.assertEqual(SH.split_options(no_fov, 2)[2]['fov_ovs_coeff'], 2.0)
+        self.assertNotIn('fov_ovs_coeff', SH.split_options(no_fov, 2)[2])
         # Not split: parameters that DistributedSH does not accept, a slice of rows
         # already given, and DistributedSH itself (its number of slices is kept)
         self.assertEqual(SH.split_options(dict(params, data_dir='x'), 4), {})
