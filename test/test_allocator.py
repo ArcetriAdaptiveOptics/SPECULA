@@ -736,9 +736,8 @@ class TestSplitDecision(AllocatorTestCase):
         self.assertEqual(joined.split, {})
         self.assertLess(sol.evaluation.step_ns, joined.evaluation.step_ns - 20 * ms)
 
-    def test_splits_balance_more_objects_than_gpus(self):
-        # Six equal objects on four GPUs: without splitting, two GPUs run two of them;
-        # splitting some of them over several GPUs balances the work
+    def six_splittable_objects(self):
+        '''Six equal objects that can be split, on four GPUs'''
         params = {k: v for k, v in self.params.items() if k in ('main', 'table', 'gen')}
         names = [f'w{i}' for i in range(6)]
         for n in names:
@@ -755,7 +754,12 @@ class TestSplitDecision(AllocatorTestCase):
                 if s.kind == 'cpu' and not g.cls(name).runs_on_cpu_only():
                     c.h_trig = 100 * ms
                 costs[(name, s.kind)] = c
-        est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
+        return g, m, Estimator(g, m, costs, {'table': 1 * MiB}, {}), names
+
+    def test_splits_balance_more_objects_than_gpus(self):
+        # Six equal objects on four GPUs: without splitting, two GPUs run two of them;
+        # splitting some of them over several GPUs balances the work
+        g, m, est, _ = self.six_splittable_objects()
         results = {}
         for split_objects in (False, True):
             solver = Solver(g, m, est, build_groups(g, []), {}, search_time=10,
@@ -765,6 +769,48 @@ class TestSplitDecision(AllocatorTestCase):
         # About 6 x 20 / 4 ms: for example two of them split over two GPUs each, or all
         self.assertTrue(results[True].split)
         self.assertLess(results[True].evaluation.step_ns, 35 * ms)
+
+    def test_search_stops_at_the_time_limit_while_trying_splits(self):
+        # The time is up while the splits of the first object are tried: the
+        # others are not tried, and the search returns
+        g, m, est, names = self.six_splittable_objects()
+        layout = Layout(m, 'single')
+        start = Solver(g, m, est, build_groups(g, []), {}, search_time=10,
+                       split_objects=False).solve(layout).assign
+        solver = Solver(g, m, est, build_groups(g, []), {}, search_time=10)
+        eligible = {grp: solver.eligible(grp, layout) for grp in solver.groups}
+        clock = mock.Mock()
+        clock.monotonic.return_value = 0.0
+        tried = []
+        real_evaluate = solver.evaluate
+
+        def evaluate(assign, layout, split=None):
+            if split:
+                clock.monotonic.return_value = 1e9
+                tried.append(set(split))
+            return real_evaluate(assign, layout, split)
+        with mock.patch('iteras.allocator.solver.time', clock), \
+                mock.patch.object(solver, 'evaluate', side_effect=evaluate):
+            solver._local_search(start, eligible, layout)
+        self.assertTrue(tried)
+        self.assertEqual(len(set.union(*tried)), 1)
+
+    def test_split_that_does_not_fit_is_not_taken(self):
+        m = machine(ngpu=4)
+        g, est = self.estimator(m, work2_ms=40.0)
+        solver = Solver(g, m, est, build_groups(g, []), {}, search_time=10)
+        real_fits = solver.fits
+        tried = []
+
+        def fits(assign, layout, split=None):
+            if split:
+                tried.append(split)
+                return False
+            return real_fits(assign, layout, split)
+        with mock.patch.object(solver, 'fits', side_effect=fits):
+            sol = solver.solve(Layout(m, 'single'))
+        self.assertTrue(tried)
+        self.assertEqual(sol.split, {})
 
     def test_parts_that_repeat_the_work_are_not_split(self):
         # The class of the split object declares the work that its parts repeat:
@@ -824,7 +870,7 @@ class TestSplitDecision(AllocatorTestCase):
         self.assertEqual(self.graph(params).spread['work2'], 4)
 
     def test_report_shows_the_split(self):
-        from iteras.allocator.report import object_table
+        from iteras.allocator.report import object_table, make_report
         m = machine(ngpu=4)
         g, est, solver, sol = self.solve(m, work2_ms=40.0)
         alloc = make_allocation(g, m, sol)
@@ -833,6 +879,8 @@ class TestSplitDecision(AllocatorTestCase):
         self.assertIn('SplitWork', line)
         first = m.slots[sol.assign['work2']].idx
         self.assertIn(','.join(str((first + i) % 4) for i in range(4)), line)
+        report = make_report(g, m, est, sol, None, None, alloc)
+        self.assertIn('Objects split over several GPUs: work2 (SplitWork, 4 GPUs)', report)
 
     def test_architecture_option(self):
         self.assertTrue(Architecture().split_objects)
