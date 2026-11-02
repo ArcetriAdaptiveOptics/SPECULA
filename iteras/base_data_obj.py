@@ -102,6 +102,9 @@ class BaseDataObj(BaseTimeObj):
             self_attr = getattr(self, attr)
             self_type = type(self_attr)
             if self_type not in iteras.array_types:
+                # A numpy/cupy scalar (e.g. BaseValue(value=1.0)) is immutable: replace it
+                if isinstance(self_attr, np.generic):
+                    setattr(destobj, attr, self_attr)
                 continue
 
             dest_attr = getattr(destobj, attr)
