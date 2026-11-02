@@ -64,6 +64,7 @@ class Machine:
         self.inter_node = inter_node
         self.context_overhead = context_overhead
         self.memory_margin = memory_margin
+        self._gpu_direct = {}
         for spec in nodes:
             for _ in range(spec.get('count', 1)):
                 n = len(self.nodes)
@@ -119,10 +120,14 @@ class Machine:
         True if an MPI message from slot *a* to slot *b* moves between GPU memories
         (both are GPUs, and their nodes have mpi_gpu_direct in their links)
         '''
-        sa, sb = self.slots[a], self.slots[b]
-        return sa.is_gpu and sb.is_gpu and \
-            bool(self.nodes[sa.node].links['mpi_gpu_direct']) and \
-            bool(self.nodes[sb.node].links['mpi_gpu_direct'])
+        direct = self._gpu_direct.get((a, b))
+        if direct is None:
+            sa, sb = self.slots[a], self.slots[b]
+            direct = sa.is_gpu and sb.is_gpu and \
+                bool(self.nodes[sa.node].links['mpi_gpu_direct']) and \
+                bool(self.nodes[sb.node].links['mpi_gpu_direct'])
+            self._gpu_direct[(a, b)] = direct
+        return direct
 
     def link(self, a, b):
         '''
