@@ -55,6 +55,30 @@ class TestDynamicFilters(unittest.TestCase):
         np.testing.assert_allclose(outputs[2], [1.0, 1.0], rtol=1e-5)  # state reset
 
     @cpu_and_gpu
+    def test_reset_from_a_periodic_schedule(self, target_device_idx, xp):
+        # A generator output is updated at every step: only its non-zero values reset
+        from iteras.processing_objects.schedule_generator import ScheduleGenerator
+        filt = DynamicIntegrator(int_gain=[1.0], target_device_idx=target_device_idx)
+        reset = ScheduleGenerator(scheduled_values=[[1], [0]], scheduled_times=[0.001], modes_per_group=[1],
+                                  period=0.004, target_device_idx=target_device_idx)
+        constant = BaseValue(value=xp.array([1.0], dtype=xp.float32), target_device_idx=target_device_idx)
+        filt.inputs['delta_comm'].set(constant)
+        filt.inputs['reset'].set(reset.outputs['output'])
+        filt.setup()
+        reset.setup()
+        outputs = []
+        for step in range(9):
+            t = filt.seconds_to_t(0.001 * step)
+            constant.generation_time = t
+            for obj in (reset, filt):
+                obj.check_ready(t)
+                obj.trigger()
+                obj.post_trigger()
+            outputs.append(float(cpuArray(filt.outputs['out_comm'].value)[0]))
+        # reset at steps 0, 4 and 8, then integration of the constant input
+        np.testing.assert_allclose(outputs, [1, 2, 3, 4, 1, 2, 3, 4, 1])
+
+    @cpu_and_gpu
     def test_dynamic_integrator(self, target_device_idx, xp):
         filt = DynamicIntegrator(int_gain=[0.5, 0.3], target_device_idx=target_device_idx)
         self._run(filt, target_device_idx, xp)

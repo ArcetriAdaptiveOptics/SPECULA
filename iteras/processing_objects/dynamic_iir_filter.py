@@ -49,14 +49,15 @@ class DynamicIirFilter(IirFilter):
             target_device_idx=target_device_idx,
             precision=precision)
 
-        self.inputs['reset'] = InputValue(type=IntValue, optional=True)
+        # An IntValue (e.g. typed by the user) or a BaseValue (e.g. a generator output)
+        self.inputs['reset'] = InputValue(type=(IntValue, BaseValue), optional=True)
         self.inputs['int_gain'] = InputValue(type=FloatValue, optional=True)
 
     @classmethod
     def input_names(cls):
         result = super().input_names()
         result.update({
-            'reset': InputDesc(BaseValue, 'Trigger to reset internal filter state (optional)'),
+            'reset': InputDesc((IntValue, BaseValue), 'Resets the internal state when updated with a non-zero value (optional)'),
             'int_gain': InputDesc(BaseValue, 'Dynamic integrator gain update (optional)')
         })
         return result
@@ -70,7 +71,8 @@ class DynamicIirFilter(IirFilter):
 
         # Reset internal state
         reset_input = self.local_inputs['reset']
-        if reset_input is not None and reset_input.generation_time == self.current_time:
+        if reset_input is not None and reset_input.generation_time == self.current_time \
+                and self.xp.any(self.xp.asarray(reset_input.value) != 0):
             self.reset_states()
 
         # Update internal IIR filter data if gain input changes
