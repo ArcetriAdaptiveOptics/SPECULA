@@ -37,7 +37,8 @@ class MVM(BaseProcessingObj):
 
         self.matrix = matrix
         # In the dtype of this object, like the input vector at each step: the product
-        # is then the same with and without a CUDA graph (see graph_matmul.matmul())
+        # is then the same with and without a CUDA graph (see graph_matmul.matmul()).
+        # A copy only if the dtype differs: later changes to the matrix are then not seen
         self._matrix = self.to_xp(matrix.matrix, dtype=self.dtype)
 
         # Create outputs

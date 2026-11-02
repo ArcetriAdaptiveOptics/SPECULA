@@ -65,7 +65,8 @@ class MirrorCommandsCombinator(BaseProcessingObj):
         self.z1 = self.xp.zeros( self.dims_LO[0], dtype=self.dtype)
         self.z2 = self.xp.zeros( self.out_dims[0]-self.dims_LO[0]-self.dims_LO[2], dtype=self.dtype)
         # In the dtype of this object, like x_P at each step: the product is then
-        # the same with and without a CUDA graph (see graph_matmul.matmul())
+        # the same with and without a CUDA graph (see graph_matmul.matmul()).
+        # A copy only if the dtype differs: later changes to the matrix are then not seen
         self._A_P = self.to_xp(self.A_matrix.recmat[:self.out_dims[0],:], dtype=self.dtype)
 
     @classmethod

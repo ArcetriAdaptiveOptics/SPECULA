@@ -50,7 +50,8 @@ class SsrFilter(BaseFilter):
         # SSR-specific state
         self._x = self.xp.zeros(ssr_filter_data.total_states, dtype=self.dtype)
         # Matrices in the dtype of this object, like the state and the input: the products
-        # are then the same with and without a CUDA graph (see graph_matmul.matmul())
+        # are then the same with and without a CUDA graph (see graph_matmul.matmul()).
+        # Copies only if the dtype differs: later changes to the matrices are then not seen
         self._A, self._B, self._C, self._D = (self.to_xp(m, dtype=self.dtype) for m in
             (ssr_filter_data.A, ssr_filter_data.B, ssr_filter_data.C, ssr_filter_data.D))
 
