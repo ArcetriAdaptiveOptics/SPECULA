@@ -70,8 +70,12 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         zenithAngleInDeg = simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
-        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        # Positions travelled [pixels], in double precision whatever the precision of the
+        # simulation: they grow without bound and, with an extra_delta_time, each step
+        # moves the screens by the difference of two of them, which single precision
+        # quantizes as they grow (16% too short after one hour at 37 m/s)
+        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=np.float64)
+        self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=np.float64)
         self.last_t = 0
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?
@@ -272,25 +276,33 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
                 for r in range(int(np.abs(cols_to_add))):
                     phase_screen.add_line(0, sc)
 
-            # reference, no copy
+            # reference, no copy
             phase_screen0_all = phase_screen.scrnRawAll
-            phase_screen0 = phase_screen.scrnRaw
 
-            # Fractional interpolation
+            # Fractional shift: bilinear interpolation between the screen and the
+            # screens moved by one more line along rows (s10), along columns (s01),
+            # and along both (s11). The lines are added without flushing their
+            # random data, so that the integer lines of the next steps continue
+            # them, and the screen is restored afterwards.
             srf = 1 if frac_rows > 0 else 0
             scf = 1 if frac_cols > 0 else 0
+            fr = float(np.abs(frac_rows)) if np.abs(frac_rows) > eps else 0.0
+            fc = float(np.abs(frac_cols)) if np.abs(frac_cols) > eps else 0.0
 
-            if np.abs(frac_rows) > eps:
+            layer_phase = (1.0 - fr) * (1.0 - fc) * phase_screen.scrnRaw
+            if fr > 0:
                 phase_screen.add_line(1, srf, False)
-            if np.abs(frac_cols) > eps:
+                rows_all = phase_screen.scrnRawAll
+                layer_phase = layer_phase + fr * (1.0 - fc) * phase_screen.scrnRaw
+                phase_screen.full_scrn = phase_screen0_all
+            if fc > 0:
                 phase_screen.add_line(0, scf, False)
-
-            phase_screen1 = phase_screen.scrnRaw
-            interpfactor = np.sqrt(frac_rows**2 + frac_cols**2)
-
-            # Use the buckup to compute the interpolated phase
-            layer_phase = interpfactor * phase_screen1 \
-                        + (1.0 - interpfactor) * phase_screen0
+                layer_phase = layer_phase + (1.0 - fr) * fc * phase_screen.scrnRaw
+                phase_screen.full_scrn = phase_screen0_all
+            if fr > 0 and fc > 0:
+                phase_screen.full_scrn = rows_all
+                phase_screen.add_line(0, scf, False)
+                layer_phase = layer_phase + fr * fc * phase_screen.scrnRaw
 
             # Restore the original state for the next direction
             phase_screen.full_scrn = phase_screen0_all
