@@ -401,7 +401,7 @@ class AtmoPropagation(BaseProcessingObj):
         return layer_list
 
     def trigger_code(self):
-        if self.geometric_propagation is not None:
+        if self.geometric_propagation is not None:  # pragma: gpu
             self.geometric_propagation.run()
             return
 
@@ -754,6 +754,9 @@ class AtmoPropagation(BaseProcessingObj):
         '''
         if not self.fused_kernel or self.target_device_idx < 0 or not self.mergeLayersContrib:
             return
+        self._setup_fused_kernel()  # pragma: gpu
+
+    def _setup_fused_kernel(self):  # pragma: gpu
         layer_list = self.propagation_layers()
         footprints = [[footprint(self.interpolators[source][layer], layer, self.pixel_pupil)
                        for layer in layer_list]

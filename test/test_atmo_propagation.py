@@ -1227,3 +1227,43 @@ class TestGeometricPropagationKernel(unittest.TestCase):
                 np.testing.assert_array_equal(fused[name][0], amplitude, err_msg=f'{name} amplitude')
                 np.testing.assert_array_equal(fused[name][1], phase, err_msg=f'{name} phase')
                 self.assertGreater(np.abs(phase).max(), 0)
+
+
+class TestGeometricPropagationFootprints(unittest.TestCase):
+    '''
+    The footprints of the single kernel (specula.lib.geometric_propagation) are
+    the coordinates of the interpolators: tested on CPU, where the interpolators
+    keep their coordinates
+    '''
+
+    def test_footprints_are_the_interpolator_coordinates(self):
+        from specula.lib.geometric_propagation import footprint, Copy, Separable, Grid
+        n, pixel_pitch = 32, 0.1
+        simul_params = SimulParams(n, pixel_pitch)
+
+        def layer(dim, height, **kwargs):
+            return Layer(dimx=dim, dimy=dim, pixel_pitch=pixel_pitch, height=height,
+                         target_device_idx=-1, **kwargs)
+        on_grid = layer(n, 0.0)
+        shifted = layer(40, 0.0, shiftXYinPixel=(3.5, -2.0))
+        rotated = layer(40, 0.0, rotInDeg=10.0)
+        high = layer(80, 5000.0)
+        source = Source(polar_coordinates=[20.0, 60.0], magnitude=8, wavelengthInNm=750)
+        prop = AtmoPropagation(simul_params, source_dict={'ngs': source}, target_device_idx=-1)
+        prop.inputs['atmo_layer_list'].set([high])
+        prop.inputs['common_layer_list'].set([on_grid, shifted, rotated])
+        prop.setup()
+        self.assertIsNone(prop.geometric_propagation)      # CPU: layer by layer
+
+        interp = prop.interpolators[source]
+        self.assertEqual(footprint(interp[on_grid], on_grid, n), Copy(row=0, col=0))
+        for lay in (shifted, high):
+            fp = footprint(interp[lay], lay, n)
+            self.assertIsInstance(fp, Separable)
+            np.testing.assert_array_equal(np.tile(fp.x, (n, 1)).ravel(), interp[lay].xx)
+            np.testing.assert_array_equal(np.repeat(fp.y, n), interp[lay].yy)
+        fp = footprint(interp[rotated], rotated, n)
+        self.assertIsInstance(fp, Grid)
+        self.assertIs(fp.x, interp[rotated].xx)
+        # the central part of a larger layer on the pupil grid
+        self.assertEqual(footprint(None, high, n), Copy(row=24, col=24))

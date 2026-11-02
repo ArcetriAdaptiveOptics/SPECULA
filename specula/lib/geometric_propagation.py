@@ -85,7 +85,7 @@ _kernel_source = Interp2D.bilinear_interp_device + f'''
 
 
 @cache
-def _kernel(type_name):  # pragma: no cover
+def _kernel(type_name):  # pragma: gpu
     return iteras.cp.RawKernel(_kernel_source.replace('TYPE', type_name),
                                name=f'geometric_propagation_{type_name}')
 
@@ -104,7 +104,7 @@ def footprint(interpolator, layer, n):
     return Grid(x=interpolator.xx, y=interpolator.yy)
 
 
-class GeometricPropagation:
+class GeometricPropagation:  # pragma: gpu
     '''
     Fields of the sources (ElectricField *outputs*, n x n) through the *layers*
     (in propagation order), with the *footprints* of each source on each layer
@@ -146,7 +146,7 @@ class GeometricPropagation:
         self.coords = cp.concatenate([cp.asarray(c, dtype=dtype) for c in coords]) if coords \
             else cp.zeros(1, dtype=dtype)
 
-    def run(self):  # pragma: no cover
+    def run(self):
         '''Compute the fields of all the sources, on the current stream'''
         block = (16, 16, 1)
         grid = ((self.n + 15) // 16, (self.n + 15) // 16, self.n_sources)
