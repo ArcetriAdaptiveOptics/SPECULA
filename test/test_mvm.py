@@ -315,15 +315,17 @@ class TestMVMParameterFiles(unittest.TestCase):
 class TestMVMAccelerated(unittest.TestCase):
     '''The product uses graph_matmul.matmul(): MVM is captured in a CUDA graph'''
 
-    def _run(self, accelerate):
+    def _run(self, accelerate, matrix_dtype, vector_dtype, precision):
         import numpy as np
         from iteras import cpuArray
         from iteras.accelerator import Accelerator
         from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
         rng = np.random.default_rng(1)
-        matrix = Matrix(rng.standard_normal((30, 70)).astype(np.float32), target_device_idx=0)
-        vector = BaseValue(value=np.zeros(70, dtype=np.float32), target_device_idx=0)
-        mvm = MVM(matrix=matrix, target_device_idx=0)
+        matrix = Matrix(rng.standard_normal((30, 70)).astype(matrix_dtype), target_device_idx=0,
+                        precision=int(matrix_dtype == np.float32))
+        vector = BaseValue(value=np.zeros(70, dtype=vector_dtype), target_device_idx=0,
+                           precision=int(vector_dtype == np.float32))
+        mvm = MVM(matrix=matrix, target_device_idx=0, precision=precision)
         mvm.inputs['in_vector'].set(vector)
         accelerator = None
         if accelerate:
@@ -333,7 +335,7 @@ class TestMVMAccelerated(unittest.TestCase):
         outputs = []
         for step in range(5):
             t = mvm.seconds_to_t(0.001 * step)
-            vector.value[:] = specula.cp.asarray(rng.standard_normal(70).astype(np.float32))
+            vector.value[:] = specula.cp.asarray(rng.standard_normal(70))
             vector.generation_time = t
             mvm.check_ready(t)
             mvm.trigger()
@@ -342,9 +344,17 @@ class TestMVMAccelerated(unittest.TestCase):
         return np.array(outputs), mvm
 
     def test_accelerated(self):
+        '''Also with a matrix and an input in a different precision from the object:
+        both are used in the precision of the object, with and without the accelerator'''
         import numpy as np
-        ref, _ = self._run(False)
-        with self.assertNoLogs('iteras.accelerator', level='WARNING'):
-            out, mvm = self._run(True)
-        np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
-        self.assertEqual(mvm._accel.status, 'accelerated')
+        for matrix_dtype, vector_dtype, precision in ((np.float32, np.float32, 1),
+                                                      (np.float64, np.float32, 1),
+                                                      (np.float32, np.float64, 1),
+                                                      (np.float32, np.float32, 0),
+                                                      (np.float64, np.float32, 0)):
+            with self.subTest(matrix_dtype=matrix_dtype, vector_dtype=vector_dtype, precision=precision):
+                ref, _ = self._run(False, matrix_dtype, vector_dtype, precision)
+                with self.assertNoLogs('iteras.accelerator', level='WARNING'):
+                    out, mvm = self._run(True, matrix_dtype, vector_dtype, precision)
+                np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+                self.assertEqual(mvm._accel.status, 'accelerated')

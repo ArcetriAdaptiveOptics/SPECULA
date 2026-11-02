@@ -49,6 +49,10 @@ class SsrFilter(BaseFilter):
 
         # SSR-specific state
         self._x = self.xp.zeros(ssr_filter_data.total_states, dtype=self.dtype)
+        # Matrices in the dtype of this object, like the state and the input: the products
+        # are then the same with and without a CUDA graph (see graph_matmul.matmul())
+        self._A, self._B, self._C, self._D = (self.to_xp(m, dtype=self.dtype) for m in
+            (ssr_filter_data.A, ssr_filter_data.B, ssr_filter_data.C, ssr_filter_data.D))
 
     @classmethod
     def input_names(cls):
@@ -65,10 +69,7 @@ class SsrFilter(BaseFilter):
 
     def trigger_code(self):
         """State-space filter computation."""
-        A = self.ssr_filter_data.A
-        B = self.ssr_filter_data.B
-        C = self.ssr_filter_data.C
-        D = self.ssr_filter_data.D
+        A, B, C, D = self._A, self._B, self._C, self._D
 
         # Modulated input
         u = self.delta_comm * self._gain_mod

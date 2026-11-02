@@ -36,6 +36,9 @@ class MVM(BaseProcessingObj):
             raise ValueError('matrix must be provided!')
 
         self.matrix = matrix
+        # In the dtype of this object, like the input vector at each step: the product
+        # is then the same with and without a CUDA graph (see graph_matmul.matmul())
+        self._matrix = self.to_xp(matrix.matrix, dtype=self.dtype)
 
         # Create outputs
         self.output = BaseValue('output from matrix-vector multiplication',
@@ -75,5 +78,5 @@ class MVM(BaseProcessingObj):
         vector = self.local_inputs['in_vector']
 
         # Simple matrix multiplication
-        self.output.value[:] = matmul(self.matrix.matrix, vector.get_value(), self.xp)
+        self.output.value[:] = matmul(self._matrix, vector.get_value().astype(self.dtype, copy=False), self.xp)
         self.output.generation_time = self.current_time

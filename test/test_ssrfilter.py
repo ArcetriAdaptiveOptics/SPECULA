@@ -433,7 +433,7 @@ class TestSsrFilterAccelerated(unittest.TestCase):
     SsrFilter is captured in a CUDA graph
     '''
 
-    def _run(self, accelerate, output_uses_new_state):
+    def _run(self, accelerate, output_uses_new_state, data_precision=1):
         from iteras.accelerator import Accelerator
         from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
         from iteras.base_value import BaseValue
@@ -443,9 +443,11 @@ class TestSsrFilterAccelerated(unittest.TestCase):
         B = np.array([[0.5], [0.3]])
         C = np.array([[1.0, -0.4]])
         D = np.array([[0.2]])
-        data = SsrFilterData([A, 0.5 * A], [B, B], [C, C], [D, D], target_device_idx=0)
+        data = SsrFilterData([A, 0.5 * A], [B, B], [C, C], [D, D], target_device_idx=0,
+                             precision=data_precision)
         delta_comm = BaseValue(value=np.zeros(2, dtype=np.float32), target_device_idx=0)
-        filt = SsrFilter(data, output_uses_new_state=output_uses_new_state, target_device_idx=0)
+        filt = SsrFilter(data, output_uses_new_state=output_uses_new_state, target_device_idx=0,
+                         precision=1)
         filt.inputs['delta_comm'].set(delta_comm)
         if accelerate:
             Accelerator(AcceleratorOptions()).apply([filt])
@@ -462,10 +464,11 @@ class TestSsrFilterAccelerated(unittest.TestCase):
         return np.array(outputs), filt
 
     def test_accelerated(self):
-        for output_uses_new_state in (True, False):
-            with self.subTest(output_uses_new_state=output_uses_new_state):
-                ref, _ = self._run(False, output_uses_new_state)
+        # Also with matrices in double precision, used in the single precision of the filter
+        for output_uses_new_state, data_precision in ((True, 1), (False, 1), (True, 0)):
+            with self.subTest(output_uses_new_state=output_uses_new_state, data_precision=data_precision):
+                ref, _ = self._run(False, output_uses_new_state, data_precision)
                 with self.assertNoLogs('iteras.accelerator', level='WARNING'):
-                    out, filt = self._run(True, output_uses_new_state)
+                    out, filt = self._run(True, output_uses_new_state, data_precision)
                 np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
                 self.assertEqual(filt._accel.status, 'accelerated')

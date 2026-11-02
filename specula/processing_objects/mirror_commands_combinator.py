@@ -64,6 +64,9 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
         self.z1 = self.xp.zeros( self.dims_LO[0], dtype=self.dtype)
         self.z2 = self.xp.zeros( self.out_dims[0]-self.dims_LO[0]-self.dims_LO[2], dtype=self.dtype)
+        # In the dtype of this object, like x_P at each step: the product is then
+        # the same with and without a CUDA graph (see graph_matmul.matmul())
+        self._A_P = self.to_xp(self.A_matrix.recmat[:self.out_dims[0],:], dtype=self.dtype)
 
     @classmethod
     def input_names(cls):
@@ -102,7 +105,7 @@ class MirrorCommandsCombinator(BaseProcessingObj):
 
         y1 = v11 + v12
         if self.dims_P > 0:
-            y1 += matmul(self.A_matrix.recmat[:self.out_dims[0],:], x_P, self.xp)        
+            y1 += matmul(self._A_P, x_P.astype(self.dtype, copy=False), self.xp)        
         y2 = x_HO2
         y3 = self.xp.concatenate( ( x_LO3, x_HO3 ) )
 

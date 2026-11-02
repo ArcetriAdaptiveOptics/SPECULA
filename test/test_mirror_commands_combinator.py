@@ -38,18 +38,20 @@ class TestMirrorCommandsCombinator(unittest.TestCase):
 class TestMirrorCommandsCombinatorAccelerated(unittest.TestCase):
     '''The product uses graph_matmul.matmul(): the combinator is captured in a CUDA graph'''
 
-    def _run(self, accelerate):
+    def _run(self, accelerate, matrix_dtype, input_dtype):
         from specula import cpuArray
         from specula.base_value import BaseValue
         from iteras.accelerator import Accelerator
         from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
         rng = np.random.default_rng(2)
-        recmat = Recmat(rng.standard_normal((6, 2)).astype(np.float32), target_device_idx=0)
+        recmat = Recmat(rng.standard_normal((6, 2)).astype(matrix_dtype), target_device_idx=0,
+                        precision=int(matrix_dtype == np.float32))
         comb = MirrorCommandsCombinator(k_vector=[0.5], recmat=recmat,
                                         dims_LO=[1, 0, 1], dims_P=2, dims_F=1,
-                                        out_dims=[4, 2, 2], target_device_idx=0)
+                                        out_dims=[4, 2, 2], target_device_idx=0, precision=1)
         sizes = {'HO': 5, 'LO': 2, 'F': 1, 'P': 2}
-        values = {name: BaseValue(value=np.zeros(n, dtype=np.float32), target_device_idx=0)
+        values = {name: BaseValue(value=np.zeros(n, dtype=input_dtype), target_device_idx=0,
+                                   precision=int(input_dtype == np.float32))
                   for name, n in sizes.items()}
         for name, value in values.items():
             comb.inputs[f'in_commands{name}'].set(value)
@@ -60,7 +62,7 @@ class TestMirrorCommandsCombinatorAccelerated(unittest.TestCase):
         for step in range(5):
             t = comb.seconds_to_t(0.001 * step)
             for name, value in values.items():
-                value.value[:] = specula.cp.asarray(rng.standard_normal(sizes[name]).astype(np.float32))
+                value.value[:] = specula.cp.asarray(rng.standard_normal(sizes[name]))
                 value.generation_time = t
             comb.check_ready(t)
             comb.trigger()
@@ -70,8 +72,13 @@ class TestMirrorCommandsCombinatorAccelerated(unittest.TestCase):
         return np.array(outputs), comb
 
     def test_accelerated(self):
-        ref, _ = self._run(False)
-        with self.assertNoLogs('iteras.accelerator', level='WARNING'):
-            out, comb = self._run(True)
-        np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
-        self.assertEqual(comb._accel.status, 'accelerated')
+        # Also with a matrix or inputs in double precision, used in the single precision of the object
+        for matrix_dtype, input_dtype in ((np.float32, np.float32),
+                                          (np.float64, np.float32),
+                                          (np.float32, np.float64)):
+            with self.subTest(matrix_dtype=matrix_dtype, input_dtype=input_dtype):
+                ref, _ = self._run(False, matrix_dtype, input_dtype)
+                with self.assertNoLogs('iteras.accelerator', level='WARNING'):
+                    out, comb = self._run(True, matrix_dtype, input_dtype)
+                np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+                self.assertEqual(comb._accel.status, 'accelerated')
