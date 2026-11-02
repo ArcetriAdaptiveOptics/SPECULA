@@ -75,6 +75,36 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         self.assertEqual(DistributedSH.single_device_params(params)['n_slices'], 1)
         self.assertEqual(params['n_slices'], 4)
 
+    def test_slices_prepare_after_fetching_their_inputs(self):
+        '''
+        At each step each slice prepares its trigger once, after getting its
+        inputs. SH initializes the extrapolation of the input field at its first
+        prepare_trigger(): a slice on another device than its input, which reads a
+        copy of it, would initialize it from the copy of the previous step (at the
+        first step, the field before its producer's first trigger, e.g. a field
+        received by MPI, sent before the producer's setup).
+        '''
+        from specula.data_objects.electric_field import ElectricField
+        n = 120
+        ef = ElectricField(n, n, 0.0802 * 4, S0=100.0, target_device_idx=-1)
+        ef.generation_time = 0
+        sh = DistributedSH(wavelengthInNm=750, subap_wanted_fov=4.6, sensor_pxscale=0.153,
+                           subap_on_diameter=8, subap_npx=30, n_slices=4, target_device_idx=-1)
+        sh.inputs['in_ef'].set(ef)
+        sh.setup()
+        calls = {i: [] for i in range(len(sh.sub_sh))}
+        for i, sub in enumerate(sh.sub_sh):
+            def record(method, event, i=i):
+                def wrapper(*args, **kwargs):
+                    calls[i].append(event)
+                    return method(*args, **kwargs)
+                return wrapper
+            sub.get_all_inputs = record(sub.get_all_inputs, 'inputs')
+            sub.prepare_trigger = record(sub.prepare_trigger, 'prepare')
+        sh.check_ready(0)
+        for i in calls:
+            self.assertEqual(calls[i], ['inputs', 'prepare'], f'slice {i}')
+
     def test_sh_split_options(self):
         from specula.processing_objects.sh import SH
         params = {'class': 'SH', 'wavelengthInNm': 589, 'subap_wanted_fov': 16.1,

@@ -108,11 +108,12 @@ class DistributedSH(SH):
         '''
         Skip the SH method for this object, since we do not perform
         any calculation, but call the BaseProcessingObj one for housekeeping.
-        Then call all sub-SHs
+        The sub-SHs prepare in their own check_ready() (see check_ready()),
+        after getting their inputs: preparing them here, before, would use the
+        inputs of the previous step, and SH initializes the extrapolation of the
+        input field from the pupil at its first prepare_trigger() only.
         '''
         BaseProcessingObj.prepare_trigger(self, t)
-        for sh in self.sub_sh:
-            sh.prepare_trigger(t)
    
     def trigger(self):
         '''
