@@ -1289,3 +1289,48 @@ class TestModulatedPyramid(unittest.TestCase):
         # Assertions (flexible matching)
         self.assertTrue(any("imperfect edges" in msg for msg in calls))
         self.assertTrue(any("imperfect tip" in msg for msg in calls))
+
+    @cpu_and_gpu
+    def test_misregistration_input(self, target_device_idx, xp):
+        """The in_misregistration input gives the output of the same static pup_shifts and rotation,
+        and changes them during the simulation"""
+        from specula.base_value import BaseValue
+        pixel_pupil = 60
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=0.1)
+        rng = np.random.default_rng(3)
+        ef = ElectricField(pixel_pupil, pixel_pupil, 0.1, S0=100, target_device_idx=target_device_idx)
+        ef.A = make_mask(pixel_pupil)
+        ef.phaseInNm[:] = xp.asarray(rng.standard_normal((pixel_pupil, pixel_pupil)) * 50)
+
+        def make(**kwargs):
+            pyr = ModulatedPyramid(simul_params=simul_params, wavelengthInNm=500, fov=2.0, pup_diam=15,
+                                   output_resolution=40, mod_amp=0.0, target_device_idx=target_device_idx,
+                                   **kwargs)
+            pyr.inputs['in_ef'].set(ef)
+            return pyr
+
+        def run(pyr, t):
+            ef.generation_time = t
+            pyr.check_ready(t)
+            pyr.trigger()
+            pyr.post_trigger()
+            return cpuArray(pyr.outputs['out_i'].i).copy()
+
+        static = make(pup_shifts=(0.7, -0.4), rotAnglePhInDeg=5.0)
+        static.setup()
+        plain = make()
+        plain.setup()
+        dynamic = make()
+        misreg = BaseValue(value=np.array([0.7, -0.4, 5.0]), target_device_idx=-1)
+        dynamic.inputs['in_misregistration'].set(misreg)
+        dynamic.setup()
+
+        misreg.generation_time = 1
+        np.testing.assert_allclose(run(dynamic, 1), run(static, 1), rtol=1e-5, atol=1e-6)
+        misreg.value[:] = 0.0
+        misreg.generation_time = 2
+        np.testing.assert_allclose(run(dynamic, 2), run(plain, 2), rtol=1e-5, atol=1e-6)
+        with self.assertRaises(ValueError):
+            misreg.value = np.zeros(2)
+            misreg.generation_time = 3
+            run(dynamic, 3)
