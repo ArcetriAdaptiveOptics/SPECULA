@@ -21,6 +21,7 @@
 
 ### Other
 
+- `PeriodicRandomGenerator` draws at the multiples of its interval: it drew at the previous draw plus the interval, so with an interval that is not a whole number of steps it drifted against other periodic objects by up to one step per period.
 - `LowPassFilter` without `n_ord` and `amplif_fact` failed with a `TypeError`; it now uses the second-order Butterworth filter, the default of `IirFilterData.lpf_from_fc()`.
 - `IirFilterData`: `num` and `den` with a different number of columns are given the same width, adding zeros on the lowest order side. `IirFilter` aligns them on the highest order coefficient, while the analysis methods (`frequency_response()`, `RTF()`, `NTF()`, the stability methods, `to_control_tf()`) aligned them on the lowest order one, so their transfer function differed from the simulated one (e.g. `num=[0.5]`, `den=[-1, 1]`: 0.5/(z-1) instead of 0.5 z/(z-1)). The simulation does not change.
 - `IirFilterData`: `get_zeros()` and `get_poles()` return complex arrays (complex roots, e.g. the poles of an underdamped second-order filter, were truncated to their real part); `set_zeros()` and `set_poles()` accept complex roots in conjugate pairs and raise a `ValueError` otherwise.
