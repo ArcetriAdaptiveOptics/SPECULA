@@ -101,6 +101,36 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
         np.testing.assert_almost_equal(xp.sum(intensity.i), ref_S0 * ef.masked_area())
 
     @cpu_and_gpu
+    def test_uneven_slices(self, target_device_idx, xp):
+        '''
+        Test that all subaperture rows are computed when the number
+        of subapertures is not a multiple of the number of slices,
+        comparing with a single slice
+        '''
+        t = 1
+        params = dict(wavelengthInNm=500,
+                      subap_wanted_fov=3,
+                      sensor_pxscale=0.5,
+                      subap_on_diameter=20,
+                      subap_npx=6,
+                      target_device_idx=target_device_idx)
+        dsh = DistributedSH(n_slices=3, **params)
+        ref = DistributedSH(n_slices=1, **params)
+
+        ef = ElectricField(120, 120, 0.05, S0=100, target_device_idx=target_device_idx)
+        ef.generation_time = t
+        for obj in [dsh, ref]:
+            obj.inputs['in_ef'].set(ef)
+            obj.setup()
+            obj.check_ready(t)
+            obj.trigger()
+            obj.post_trigger()
+
+        self.assertEqual(dsh.slices[-1].stop, 20)
+        np.testing.assert_allclose(cpuArray(dsh.outputs['out_i'].i),
+                                   cpuArray(ref.outputs['out_i'].i), rtol=1e-5, atol=1e-6)
+
+    @cpu_and_gpu
     def test_pixelscale(self, target_device_idx, xp):
         '''
         Test that pixelscale is correctly handled, by comparing spots from a flat 
