@@ -70,8 +70,12 @@ class AtmoInfiniteEvolution(BaseProcessingObj):
         zenithAngleInDeg = simul_params.zenithAngleInDeg
 
         self.n_infinite_phasescreens = len(heights)
-        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
-        self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=self.dtype)
+        # Positions travelled [pixels], in double precision whatever the precision of the
+        # simulation: they grow without bound and, with an extra_delta_time, each step
+        # moves the screens by the difference of two of them, which single precision
+        # quantizes as they grow (16% too short after one hour at 37 m/s)
+        self.last_position = np.zeros(self.n_infinite_phasescreens, dtype=np.float64)
+        self.last_effective_position = np.zeros(self.n_infinite_phasescreens, dtype=np.float64)
         self.last_t = 0
         self.delta_time = None
         # fixed at generation time, then is a input -> rescales the screen?

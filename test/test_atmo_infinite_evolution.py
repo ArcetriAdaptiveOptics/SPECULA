@@ -573,6 +573,28 @@ class TestAtmoInfiniteEvolutionMotion(unittest.TestCase):
         atmo.trigger()
         atmo.post_trigger()
 
+    def test_motion_stays_exact_after_a_long_time(self):
+        # Positions of ~4e6 pixels (about one hour at 37 m/s) and a layer offset
+        # (extra_delta_time): in single precision the step from one effective
+        # position to the next would be quantized to the precision of the position
+        from unittest import mock
+        extra = 0.01                                          # [s]
+        atmo = self._atmo(0.0, precision=1, extra_delta_time=extra)
+        atmo.last_position[:] = 4e6
+        atmo.last_effective_position[:] = 4e6
+        screen = atmo.infinite_phasescreens[0]
+        lines = []
+        real_add_line = screen.add_line
+        with mock.patch.object(screen, 'add_line',
+                               side_effect=lambda row, after, flush=True: (
+                                   lines.append(row) if flush else None, real_add_line(row, after, flush))):
+            for k in range(200):
+                self._step(atmo, k)
+        moved = len(lines) + atmo.acc_rows[0]
+        # the first step moves by the offset only
+        expected = (199 * self.DT + extra) * self.SPEED / self.PITCH
+        self.assertAlmostEqual(moved, expected, delta=1e-3 * expected)
+
     def test_frozen_flow_in_any_direction(self):
         # Temporal structure function of the layer: one step against two steps.
         # With a correct interpolation the ratio is the same for all directions
