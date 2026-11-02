@@ -491,7 +491,10 @@ class AtmoPropagation(BaseProcessingObj):
         super().post_trigger()
 
         for source_name in self.source_dict.keys():
-            self.outputs['out_'+source_name+'_ef'].generation_time = self.current_time
+            out = self.outputs['out_'+source_name+'_ef']
+            # A list of fields, one per atmo layer, if mergeLayersContrib is False
+            for ef in (out if isinstance(out, list) else [out]):
+                ef.generation_time = self.current_time
 
     @staticmethod
     def _pressure_nasa(h_asl):

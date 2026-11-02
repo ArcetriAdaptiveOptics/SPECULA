@@ -1137,3 +1137,38 @@ class TestAtmoPropagation(unittest.TestCase):
             f"LGS (cone effect) should sample at least as much of the bright disc "
             f"as NGS, but mean_lgs={mean_lgs:.4f} < mean_ngs={mean_ngs:.4f}"
         )
+
+    @cpu_and_gpu
+    def test_separate_layer_outputs(self, target_device_idx, xp):
+        """With mergeLayersContrib=False each atmo layer has its own output field"""
+        pixel_pupil = 60
+        simul_params = SimulParams(pixel_pupil, 0.1)
+        phases = [10.0, 20.0]
+        layers = []
+        for phase, height in zip(phases, [0.0, 5000.0]):
+            layer = Layer(dimx=120, dimy=120, pixel_pitch=0.1, height=height,
+                          target_device_idx=target_device_idx)
+            layer.A = xp.ones((120, 120))
+            layer.phaseInNm = xp.full((120, 120), phase)
+            layer.generation_time = 1
+            layers.append(layer)
+
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750,
+                        target_device_idx=target_device_idx)
+        prop = AtmoPropagation(simul_params,
+                               source_dict={'src': source},
+                               mergeLayersContrib=False,
+                               target_device_idx=target_device_idx)
+        prop.inputs['atmo_layer_list'].set(layers)
+        prop.inputs['common_layer_list'].set([])
+
+        loop = LoopControl()
+        loop.add(prop, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+
+        outputs = prop.outputs['out_src_ef']
+        assert len(outputs) == len(layers)
+        for ef in outputs:
+            assert ef.A.shape == (pixel_pupil, pixel_pupil)
+        out_phases = sorted(float(xp.mean(ef.phaseInNm)) for ef in outputs)
+        np.testing.assert_allclose(out_phases, phases, rtol=1e-5)
