@@ -38,6 +38,7 @@ class PolyCromPyramid(PolyChromWFS):
                  xShiftPhInPixel: float = 0.0,    # same as SH
                  yShiftPhInPixel: float = 0.0,    # same as SH
                  xy_tilts_in_arcsec: list = None,
+                 n_devices: int = 1,     # Devices over which the pyramid instances are spread
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -49,11 +50,12 @@ class PolyCromPyramid(PolyChromWFS):
                         ccd_side=self._ccd_side,
                         flux_factor=flux_factor,
                         xy_tilts_in_arcsec=xy_tilts_in_arcsec,
+                        n_devices=n_devices,
                         target_device_idx=target_device_idx,
                         precision=precision)
 
         # Create pyramid instances
-        for wavelength in self.wavelengths_in_nm:
+        for i, wavelength in enumerate(self.wavelengths_in_nm):
             pyr = ModulatedPyramid(
                 simul_params=simul_params,
                 wavelengthInNm=wavelength,
@@ -79,7 +81,9 @@ class PolyCromPyramid(PolyChromWFS):
                 rotAnglePhInDeg=rotAnglePhInDeg,
                 xShiftPhInPixel=xShiftPhInPixel,    # same as SH
                 yShiftPhInPixel=yShiftPhInPixel,    # same as SH
-                target_device_idx=target_device_idx,
+                target_device_idx=self._wfs_device_idx(i),
                 precision=precision
             )
             self._wfs_instances.append(pyr)
+        # Building the instances made their devices current: back to the one of this object
+        self._use_device(self)
