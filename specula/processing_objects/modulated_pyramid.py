@@ -210,7 +210,6 @@ class ModulatedPyramid(BaseProcessingObj):
         self.pup_shift_interp = None
         self._do_pup_shift = False
         self._pup_pyr_interpolated = None
-        self._amplitude_is_binary = None
         self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
         # Store modulation type

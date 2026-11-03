@@ -28,7 +28,6 @@ class PowerLoss(BaseProcessingObj):
                              'propagation.')
 
         self.first = True
-        self.total_power_ref = 0
         self.pixel_pupil = simul_params.pixel_pupil
         self.pixel_pitch = simul_params.pixel_pitch
         self.pad_size = int(self.pixel_pupil * prop.padding_factor)

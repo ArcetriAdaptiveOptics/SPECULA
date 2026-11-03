@@ -3,8 +3,7 @@ import logging
 import numpy as np
 
 from specula import fuse
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.data_objects.pixels import Pixels
+from specula.base_processing_obj import OutputDesc
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.lib.make_mask import make_mask
@@ -88,8 +87,6 @@ class ShSlopec(Slopec):
         self.thr_pedestal = False
         self.mult_factor = 0.0
         self.quadcell_mode = False
-        self.two_steps_cog = False
-        self.cog_2ndstep_size = 0
 
         self.exp_weight = exp_weight
         self.window_int_pixel = window_int_pixel
@@ -99,7 +96,6 @@ class ShSlopec(Slopec):
         # Weights for the slope computation, see set_xy_weights()
         self._weights = None
 
-        self.accumulated_slopes = Slopes(self.nslopes(), target_device_idx=self.target_device_idx)
         self.set_xy_weights()
         self.outputs['out_subapdata'] = self.subapdata
 
@@ -148,9 +144,6 @@ class ShSlopec(Slopec):
             self.yweights = self.to_xp(out['y'], dtype=self.dtype)
             self.xcweights = self.to_xp(out['xc'], dtype=self.dtype)
             self.ycweights = self.to_xp(out['yc'], dtype=self.dtype)
-            self.xweights_flat = self.xweights.reshape(self.subapdata.np_sub * self.subapdata.np_sub, 1)
-            self.yweights_flat = self.yweights.reshape(self.subapdata.np_sub * self.subapdata.np_sub, 1)
-            self.mask_weighted_flat = self.mask_weighted.reshape(self.subapdata.np_sub * self.subapdata.np_sub, 1)
             # Denominator, x and y weights as rows of a single (3, np_sub*np_sub) array.
             # Updated in place, since its address is frozen in the CUDA graph.
             weights = self.xp.vstack([self.mask_weighted.ravel(), self.xweights.ravel(), self.yweights.ravel()])

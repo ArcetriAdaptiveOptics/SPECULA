@@ -230,23 +230,6 @@ class ElectricField(BaseDataObj):
         ef *= self.field[0, slicey, slicex]
         return ef
 
-    def product(self, ef2, subrect=None):
-        """
-        Multiply the electric field by another electric field.
-
-        Parameters
-        ----------
-        ef2 : ElectricField
-            The other electric field.
-        subrect : tuple, optional
-            The subrectangle to multiply (top-left coordinate into ef2. Default: None, which means all of ef2).
-        """
-#        subrect = self.checkOther(ef2, subrect=subrect)    # TODO check subrect from atmo_propagation, even in PASSATA it does not seem right
-        x2 = subrect[0] + self.size[0]
-        y2 = subrect[1] + self.size[1]
-        self.field[0] *= ef2.field[0, subrect[0] : x2, subrect[1] : y2]
-        self.field[1] += ef2.field[1, subrect[0] : x2, subrect[1] : y2]
-
     def area(self):
         """
         Calculate the area of the electric field.
@@ -308,22 +291,6 @@ class ElectricField(BaseDataObj):
         sub_ef.field[1, :] = self.field[1, xfrom:xto, yfrom:yto]
         sub_ef.S0 = self.S0
         return sub_ef
-
-    def compare(self, ef2):
-        """
-        Compare this ElectricField object with another ElectricField object.
-
-        Parameters
-        ----------
-        ef2 : ElectricField
-            The ElectricField object to compare with.
-
-        Returns
-        -------
-        bool
-            True if the fields are different, False if they are equal.
-        """
-        return not (self.xp.array_equal(self.field, ef2.field))
 
     def get_fits_header(self):
         hdr = fits.Header()

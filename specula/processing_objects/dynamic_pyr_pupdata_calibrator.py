@@ -1,6 +1,5 @@
 
 
-from specula.base_value import BaseValue
 from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.connections import InputValue
 from specula.processing_objects.pyr_pupdata_calibrator import PyrPupdataCalibrator

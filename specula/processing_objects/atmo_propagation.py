@@ -1,11 +1,10 @@
-from specula.base_value import BaseValue
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import local_mean_rebin
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.interp2d import Interp2D
 from specula.lib.geometric_propagation import GeometricPropagation, footprint
 from specula.data_objects.electric_field import ElectricField
-from specula.connections import InputList, InputValue
+from specula.connections import InputList
 from specula.data_objects.layer import Layer
 from specula.lib.air_refraction import MatharAirRefraction
 from specula import cpuArray, xp_fft
@@ -354,9 +353,6 @@ class AtmoPropagation(BaseProcessingObj):
         # output plane, light lost in earlier steps is also missing from all later planes
         steps = [i for i, p in enumerate(self.propagators) if p is not None]
         self._last_propagation_step = steps[-1] if steps else None
-
-        # pre-allocate arrays for propagation
-        self.ef_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
 
         # set wavelengthInNm field for all output EFs
         for source_name in self.source_dict.keys():

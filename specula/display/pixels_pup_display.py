@@ -1,12 +1,10 @@
 import numpy as np
 
-import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.patches import Circle
 
 from specula import cpuArray
 
-from specula.base_value import BaseValue
 from specula.display.base_display import BaseDisplay
 from specula.connections import InputValue
 from specula.data_objects.pixels import Pixels

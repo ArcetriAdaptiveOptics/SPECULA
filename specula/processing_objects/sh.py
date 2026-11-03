@@ -175,7 +175,6 @@ class SH(BaseProcessingObj):
         self.subap_wanted_fov = subap_wanted_fov
         self.subap_on_diameter = subap_on_diameter
         self._lenslet = Lenslet(self.subap_on_diameter, target_device_idx=target_device_idx)
-        self._subap_wanted_fov_rad = self.subap_wanted_fov / RAD2ASEC
         self._sensor_pxscale_arcsec = sensor_pxscale
         self._subap_npx = subap_npx
         self._fov_ovs_coeff = fov_ovs_coeff

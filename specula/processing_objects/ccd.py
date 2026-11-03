@@ -234,7 +234,6 @@ class CCD(BaseProcessingObj):
         self._one_over_notUniformQeMatrix = None
         self._notUniformQe = False
         self._normNotUniformQe = False
-        self._gaussian_noise = None
 
     @classmethod
     def input_names(cls):
