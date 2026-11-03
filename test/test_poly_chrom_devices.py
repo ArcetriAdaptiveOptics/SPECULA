@@ -94,6 +94,35 @@ class TestPolyChromDevices(unittest.TestCase):
             self.assertEqual(params['n_devices'], 3)
             self.assertEqual(cls.devices_used({'class': cls.__name__}), 1)
 
+    def test_split_options(self):
+        for cls in (PolyChromSH, PolyCromPyramid):
+            params = {'class': cls.__name__, 'wavelengthInNm': [500, 600, 700],
+                      'flux_factor': [1, 1, 1], 'inputs': {'in_ef': 'prop.out_ef'}}
+            options = cls.split_options(params, 4)
+            # Not more devices than wavelengths
+            self.assertEqual(sorted(options), [2, 3])
+            for k, split in options.items():
+                self.assertEqual(split['n_devices'], k)
+                self.assertEqual(split['class'], cls.__name__)
+                self.assertEqual(cls.devices_used(split), k)
+                self.assertEqual(split['inputs'], params['inputs'])
+            self.assertNotIn('n_devices', params)     # not modified
+            self.assertEqual(cls.split_options(params, 1), {})
+            # An explicit n_devices is kept
+            self.assertEqual(cls.split_options(dict(params, n_devices=1), 4), {})
+
+    def test_repeated_work_fraction(self):
+        def part(n, k):
+            # Time of each part, as a fraction of the whole object, as in the allocator
+            f = PolyChromSH.repeated_work_fraction({'wavelengthInNm': list(range(n)), 'n_devices': k})
+            return f + (1 - f) / k
+        # The busiest device computes ceil(n/k) of the n wavelengths
+        self.assertAlmostEqual(part(3, 2), 2 / 3)
+        self.assertAlmostEqual(part(4, 2), 1 / 2)
+        self.assertAlmostEqual(part(3, 3), 1 / 3)
+        self.assertAlmostEqual(part(5, 3), 2 / 5)
+        self.assertEqual(PolyChromSH.repeated_work_fraction({'wavelengthInNm': [1, 2]}), 0.0)
+
     def test_invalid_n_devices(self):
         with self.assertRaises(ValueError):
             self._sh(-1, n_devices=0)

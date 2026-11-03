@@ -66,6 +66,32 @@ class PolyChromWFS(BaseProcessingObj):
     def single_device_params(cls, params):
         return {**params, 'n_devices': 1}
 
+    @classmethod
+    def split_options(cls, params, max_devices):
+        '''
+        The wavelengths spread over k devices (n_devices=k), for k from 2 to
+        max_devices, but not more than the number of wavelengths. An explicit
+        n_devices is kept as written.
+        '''
+        wavelengths = params.get('wavelengthInNm')
+        if cls is PolyChromWFS or 'n_devices' in params or not isinstance(wavelengths, list):
+            return {}
+        return {k: {**params, 'n_devices': k}
+                for k in range(2, min(max_devices, len(wavelengths)) + 1)}
+
+    @classmethod
+    def repeated_work_fraction(cls, params):
+        # The devices get whole wavelengths: with n wavelengths on k devices, the
+        # busiest one computes ceil(n/k) of them instead of n/k. As in the allocator
+        # model, the time of each part is g * (f + (1 - f) / k): this f gives
+        # g * ceil(n/k) / n.
+        k = int(params.get('n_devices', 1))
+        wavelengths = params.get('wavelengthInNm')
+        if k < 2 or not isinstance(wavelengths, list) or not wavelengths:
+            return 0.0
+        n = len(wavelengths)
+        return (-(-n // k) / n - 1 / k) / (1 - 1 / k)
+
     def _wfs_device_idx(self, i):
         '''Device of the WFS of wavelength i (see the class docstring)'''
         if self.target_device_idx < 0 or self.n_devices == 1:
