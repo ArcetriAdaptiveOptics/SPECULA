@@ -134,10 +134,6 @@ class GerchbergSaxton(Lift):
         """Weighted least-squares projection of an (unwrapped) pupil phase on the modal basis [rad]."""
         return self._fit_matrix @ phase[self._valid_idx]
 
-    @staticmethod
-    def _wrap(x, xp):
-        return (x + xp.pi) % (2 * xp.pi) - xp.pi
-
     # ------------------------------------------------------------------
     # Geometry helpers (adjoint of the Lift forward model)
     # ------------------------------------------------------------------
@@ -242,7 +238,8 @@ class GerchbergSaxton(Lift):
 
             # 4. Back to the pupil plane, keep phase, impose known amplitude
             E = self.ift_ft2(F)
-            delta = self._wrap(xp.angle(E) - phase_base - estimate, xp).astype(self.dtype)
+            delta = self._wrap_coefficients(xp.angle(E) - phase_base - estimate,
+                                            2 * np.pi).astype(self.dtype)
             delta *= (self.mask > 0.5)
             estimate = estimate + delta
 
