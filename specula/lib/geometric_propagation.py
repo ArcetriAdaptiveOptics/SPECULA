@@ -73,6 +73,9 @@ _kernel_source = Interp2D.bilinear_interp_device + f'''
                     xcoord = coords[offset_x[k] + y * n + x];
                     ycoord = coords[offset_y[k] + y * n + x];
                 }
+                // Clamped as in Interp2D's kernels, so that the results are the same
+                xcoord = clamp_coord(xcoord, dx);
+                ycoord = clamp_coord(ycoord, dy);
                 amplitude *= bilinear_interp((TYPE *)layer_amplitude, dx, dy, xcoord, ycoord);
                 phase += bilinear_interp((TYPE *)layer_phase, dx, dy, xcoord, ycoord);
             }
@@ -86,7 +89,9 @@ _kernel_source = Interp2D.bilinear_interp_device + f'''
 
 @cache
 def _kernel(type_name):  # pragma: gpu
-    return iteras.cp.RawKernel(_kernel_source.replace('TYPE', type_name),
+    # MODE: the outside rule of Interp2D's device functions, 'edge' as Interp2D's default
+    mode = Interp2D.OUTSIDE_MODES['edge']
+    return iteras.cp.RawKernel(_kernel_source.replace('TYPE', type_name).replace('MODE', str(mode)),
                                name=f'geometric_propagation_{type_name}')
 
 

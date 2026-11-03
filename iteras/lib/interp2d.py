@@ -17,6 +17,14 @@ class Interp2D():
     # with the rule MODE = 0 (edge value), 1 (zero) or 2 (linear extrapolation
     # 2 a[0] - a[1] along each axis, separable at the corners).
     bilinear_interp_device = r'''
+        // Products and sums with explicit rounding: the compiler cannot fuse them
+        // into FMAs, so bilinear_interp() gives the same bits in every kernel that
+        // includes it (e.g. the geometric propagation of AtmoPropagation)
+        __device__ __forceinline__ float mul_rn(float a, float b) { return __fmul_rn(a, b); }
+        __device__ __forceinline__ double mul_rn(double a, double b) { return __dmul_rn(a, b); }
+        __device__ __forceinline__ float add_rn(float a, float b) { return __fadd_rn(a, b); }
+        __device__ __forceinline__ double add_rn(double a, double b) { return __dadd_rn(a, b); }
+
         __device__ TYPE fetch(TYPE *g_in, int in_dx, int in_dy, int x, int y) {
             bool out_x = (x < 0) || (x >= in_dx);
             bool out_y = (y < 0) || (y >= in_dy);
@@ -59,10 +67,13 @@ class Interp2D():
                 c = fetch(g_in, in_dx, in_dy, xin, yin + 1);
                 d = fetch(g_in, in_dx, in_dy, xin + 1, yin + 1);
             }
-            return a * (1 - xdist) * (1 - ydist) +
-                   b * xdist * (1 - ydist) +
-                   c * ydist * (1 - xdist) +
-                   d * xdist * ydist;
+            TYPE wx = 1 - xdist;
+            TYPE wy = 1 - ydist;
+            // a * wx * wy + b * xdist * wy + c * ydist * wx + d * xdist * ydist
+            return add_rn(add_rn(add_rn(mul_rn(mul_rn(a, wx), wy),
+                                        mul_rn(mul_rn(b, xdist), wy)),
+                                 mul_rn(mul_rn(c, ydist), wx)),
+                          mul_rn(mul_rn(d, xdist), ydist));
         }
 
         __device__ TYPE clamp_coord(TYPE c, int n) {
