@@ -189,7 +189,8 @@ class TestPAPLCoronagraph(unittest.TestCase):
         )
 
         self.assertEqual(coro.pupil_mask.shape, (self.pixel_pupil, self.pixel_pupil))
-        self.assertIsNotNone(coro.pupil_mask)
+        expected = make_mask(self.pixel_pupil, diaratio=0.95, obsratio=0.1, xp=np)
+        np.testing.assert_array_equal(cpuArray(coro.pupil_mask), expected)
 
     @cpu_and_gpu
     def test_invalid_pupil_stop_ratios(self, target_device_idx, xp):

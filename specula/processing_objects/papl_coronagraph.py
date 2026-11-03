@@ -72,7 +72,7 @@ class PAPLCoronagraph(APPCoronagraph):
                                 obsratio=fp_obsratio, xp=self.xp)
         return fp_mask
 
-    def make_pupil_stop(self):
+    def make_pupil_plane_mask(self):
         pp_mask = make_mask(self.fft_sampling, diaratio=self._outPupilStop,
                             obsratio=self._inPupilStop, xp=self.xp)
         return pp_mask
