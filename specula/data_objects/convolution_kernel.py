@@ -153,19 +153,14 @@ class ConvolutionKernel(BaseDataObj):
         self.zprofile = None
         self.zfocus = zfocus
         self.theta = self.to_xp(theta)
-        self.last_zfocus = 0.0
-        self.last_theta = self.xp.array([0.0, 0.0], dtype=self.dtype)
         self.return_fft = return_fft
         self.launcher_size = launcher_size
-        self.last_seeing = -1.0
         self.airmass = airmass
         self.oversampling = oversampling
         self.data_dir = data_dir
         if len(launcher_pos) != 3:
             raise ValueError("Launcher position must be a three-elements vector [m]")
         self.launcher_pos = self.to_xp(launcher_pos)
-        self.last_zlayer = -1
-        self.last_zprofile = -1
         self.positive_shift_tt = positive_shift_tt
         # Real space kernels: only allocated when the kernels are computed, restored
         # from a file or set with set_value(), and freed again by prepare_for_sh()
@@ -251,13 +246,6 @@ class ConvolutionKernel(BaseDataObj):
 
         # Process the kernels - apply FFT if needed
         self.process_kernels(return_fft=self.return_fft)
-
-        # Save current parameters to avoid unnecessary recalculation
-        self.last_zfocus = self.zfocus
-        self.last_theta = self.to_xp(self.theta)
-        self.last_seeing = self.seeing
-        self.last_zlayer = self.zlayer
-        self.last_zprofile = self.zprofile
 
     def generate_hash(self, items):
         """

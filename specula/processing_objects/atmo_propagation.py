@@ -349,9 +349,6 @@ class AtmoPropagation(BaseProcessingObj):
         steps = [i for i, p in enumerate(self.propagators) if p is not None]
         self._last_propagation_step = steps[-1] if steps else None
 
-        # pre-allocate arrays for propagation
-        self.ef_padded = self.xp.zeros([self.ef_size_padded, self.ef_size_padded], dtype=self.complex_dtype)
-
         # set wavelengthInNm field for all output EFs
         for source_name in self.source_dict.keys():
             self.outputs['out_'+source_name+'_ef'].wavelength_in_nm = self.wavelengthInNm

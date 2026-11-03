@@ -93,7 +93,6 @@ class SprintPyr(BaseSprintEstimator):
         self.internal_dm = None
         self.internal_pixels = None
         self.internal_slopec = None
-        self.internal_ef = None
         self.push_amp = push_amp
         self.pupilstop = pupil_mask
 

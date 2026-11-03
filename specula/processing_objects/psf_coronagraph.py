@@ -96,8 +96,6 @@ class PsfCoronagraph(PSF):
         self.outputs['out_int_coronagraph_psf_profile'] = self.int_coronagraph_psf_profile
         self.outputs['out_std_coronagraph_psf_profile'] = self.std_coronagraph_psf_profile
 
-        # Reference complex amplitude for perfect coronagraph
-        self.ref_complex_amplitude = None
         self._sum_coronagraph_psf_squared = None # For std dev calculation
 
     @classmethod
