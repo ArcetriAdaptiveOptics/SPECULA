@@ -11,6 +11,10 @@ from specula.base_data_obj import BaseDataObj
 from specula.lib.rebin import rebin2d
 from iteras.lib import storage
 
+# Revision of the lgs_map_sh() sampling, part of the kernel cache key: kernels
+# cached with an older sampling are not reused. 2: pixel-centre grids.
+LGS_MAP_SH_REVISION = 2
+
 
 def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
                overs=2, theta=[0.0, 0.0], rprof_type=0,
@@ -48,10 +52,13 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     # Oversampling and lenslet grid setup
     ossp = ssp * overs
 
-    xsh, ysh = xp.meshgrid(xp.linspace(-diam / 2, diam / 2, nsh, dtype=dtype),
-                           xp.linspace(-diam / 2, diam / 2, nsh, dtype=dtype))
-    xfov, yfov = xp.meshgrid(xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp, dtype=dtype),
-                             xp.linspace(-ssp * ps / 2, ssp * ps / 2, ossp, dtype=dtype))
+    # Pixel-centre grids: subaperture i is centred at (i - (nsh - 1) / 2) * diam / nsh,
+    # and the fine samples kept by rebin2d(sample=True) below (index j * overs) fall
+    # on the centres (j - (ssp - 1) / 2) * ps of the focal-plane pixels
+    sh_axis = (xp.arange(nsh, dtype=dtype) - (nsh - 1) / 2) * (diam / nsh)
+    fov_axis = (xp.arange(ossp, dtype=dtype) / overs - (ssp - 1) / 2) * ps
+    xsh, ysh = xp.meshgrid(sh_axis, sh_axis)
+    xfov, yfov = xp.meshgrid(fov_axis, fov_axis)
     # Gaussian parameters for the sodium layer
     sigma = (fwhmb * ASEC2RAD * zb) / (2 * xp.sqrt(2 * xp.log(2)))
     one_over_sigma2 = 1.0 / sigma**2
@@ -204,7 +211,7 @@ class ConvolutionKernel(BaseDataObj):
         items = [self.dimx, self.pupil_size_m, self.launcher_pos,
                  zfocus, lay_heights, self.zprofile,
                  self.spot_size, self.pxscale, self.dimension,
-                 self.oversampling, lgs_tt, self.dtype]
+                 self.oversampling, lgs_tt, self.dtype, LGS_MAP_SH_REVISION]
         return 'ConvolutionKernel' + self.generate_hash(items)
 
     def calculate_focus(self):

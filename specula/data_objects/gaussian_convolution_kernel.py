@@ -1,4 +1,4 @@
-from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh
+from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh, LGS_MAP_SH_REVISION
 
 from iteras.lib import storage
 
@@ -49,6 +49,7 @@ class GaussianConvolutionKernel(ConvolutionKernel):
         items = [
             self.dimx, self.pupil_size_m, 90e3, self.spot_size, self.dtype,
             self.pxscale, self.dimension, 3, self.lgs_tt, [0, 0, 0], [90e3], [1.0],
+            LGS_MAP_SH_REVISION,
         ]
         return 'ConvolutionKernel' + self.generate_hash(items)
 
