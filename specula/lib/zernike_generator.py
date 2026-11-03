@@ -252,9 +252,6 @@ class ZernikeGenerator():
             ret[index] = self.getZernike(index)
         return ret
 
-    def getModesDict(self, indexVector):
-        return self.getZernikeDict(indexVector)
-
     def getZernike(self, index, cache=True):
         '''
         Return the Zernike polynomial of Noll index *index*.
@@ -373,18 +370,6 @@ class ZernikeGenerator():
 
         return G_mat
 
-    def getDerivativeXDict(self, indexVector):
-        ret = {}
-        for index in indexVector:
-            ret[index] = self.getDerivativeX(index)
-        return ret
-
-    def getDerivativeYDict(self, indexVector):
-        ret = {}
-        for index in indexVector:
-            ret[index] = self.getDerivativeY(index)
-        return ret
-
     def getDerivativeX(self, index):
         if index not in self._dictDxCache:
             self._dictDxCache[index] = self._computeDerivativeX(index)
@@ -442,19 +427,6 @@ class ZernikeGenerator():
                 2:'tip',
                 3:'tilt',
                 4:'focus'}
-
-    @classmethod
-    @cache
-    def name_to_index_dict(cls):
-        '''
-        Zernike name to zernike index mapping
-
-        Returns
-        -------
-        names: dict
-            dictionary of Zernike indexes: str -> int
-        '''
-        return {v: k for k, v in cls.index_to_name_dict().items()}
 
 
 def _isOdd(num):
