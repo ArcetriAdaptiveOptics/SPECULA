@@ -138,3 +138,28 @@ class TestDistributedExtSourcePyramid(unittest.TestCase):
                 continue
             self.assertIn(name, base)
             self.assertEqual(p.default, base[name].default, name)
+
+    def test_split_options(self):
+        params = {'class': 'ExtSourcePyramid', 'simul_params_ref': 'main', 'wavelengthInNm': 750,
+                  'fov': 2.0, 'pup_diam': 30, 'output_resolution': 80, 'max_batch_size': 100,
+                  'inputs': {'in_ef': 'prop.out_ef', 'ext_source_coeff': 'src.coeff'}}
+        options = ExtSourcePyramid.split_options(params, 4)
+        self.assertEqual(sorted(options), [2, 3, 4])
+        for k, split in options.items():
+            self.assertEqual(split['class'], 'DistributedExtSourcePyramid')
+            self.assertEqual(split['n_slices'], k)
+            self.assertEqual(DistributedExtSourcePyramid.devices_used(split), k)
+            self.assertEqual(split['inputs'], params['inputs'])
+        # Smaller batches, so that each slice computes a k-th of the padded points
+        self.assertEqual([options[k]['max_batch_size'] for k in (2, 3, 4)], [50, 34, 25])
+        self.assertEqual(params['class'], 'ExtSourcePyramid')     # not modified
+        self.assertEqual(params['max_batch_size'], 100)
+        # Default batch size
+        no_batch = {k: v for k, v in params.items() if k != 'max_batch_size'}
+        self.assertEqual(ExtSourcePyramid.split_options(no_batch, 2)[2]['max_batch_size'], 64)
+        self.assertEqual(ExtSourcePyramid.split_options(params, 1), {})
+        # Not split: parameters that DistributedExtSourcePyramid does not accept, a slice
+        # of points already given, and DistributedExtSourcePyramid itself
+        self.assertEqual(ExtSourcePyramid.split_options(dict(params, unknown=1), 4), {})
+        self.assertEqual(ExtSourcePyramid.split_options(dict(params, n_point_slices=2), 4), {})
+        self.assertEqual(DistributedExtSourcePyramid.split_options(dict(params, n_slices=2), 4), {})

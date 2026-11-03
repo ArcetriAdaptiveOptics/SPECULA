@@ -1,3 +1,5 @@
+import inspect
+
 from specula import fuse
 
 from specula.base_processing_obj import InputDesc
@@ -229,6 +231,36 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         # Add dedicated input for extended source coefficients
         self.inputs['ext_source_coeff'] = InputValue(type=BaseValue)
+
+    @classmethod
+    def split_options(cls, params, max_devices):
+        '''
+        The source points split over k devices (DistributedExtSourcePyramid), for
+        k from 2 to max_devices, if DistributedExtSourcePyramid accepts all the
+        parameters. Each slice gets ceil(max_batch_size / k) points per batch:
+        the batches are always full (zero-padded), so with the same batch size
+        a slice would compute as many points as the whole object when the source
+        has fewer points than max_batch_size. Derived classes, the distributed
+        one included, are not split: an explicit split keeps its number of slices.
+        '''
+        if cls is not ExtSourcePyramid:
+            return {}
+        from specula.processing_objects.distributed_ext_source_pyramid import DistributedExtSourcePyramid
+        accepted = inspect.signature(DistributedExtSourcePyramid.__init__).parameters
+        for key in params:
+            if key in ('class', 'inputs', 'outputs', 'gui_pos'):
+                continue
+            # As Simul: "simul_params_ref" sets the parameter simul_params
+            name = next((key.removesuffix(suffix) for suffix in ('_ref', '_data', '_object')
+                         if key.endswith(suffix) and key.removesuffix(suffix) in accepted), key)
+            if name not in accepted:
+                return {}
+        batch = params.get('max_batch_size', accepted['max_batch_size'].default)
+        if not isinstance(batch, int):
+            return {}
+        return {k: {**params, 'class': 'DistributedExtSourcePyramid', 'n_slices': k,
+                    'max_batch_size': -(-batch // k)}
+                for k in range(2, max_devices + 1)}
 
     @classmethod
     def input_names(cls):
