@@ -223,10 +223,10 @@ class PolyChromWFS(BaseProcessingObj):
         # Reset output intensity
         self._out_i.i[:] = 0.0
 
-        # Trigger each SH, on its device
+        # Trigger each SH, on its device: trigger() launches its own CUDA graph
         for wfs in self._wfs_instances:
             self._use_device(wfs)
-            wfs.trigger_code()
+            wfs.trigger()
         self._use_device(self)
 
     def post_trigger(self):
