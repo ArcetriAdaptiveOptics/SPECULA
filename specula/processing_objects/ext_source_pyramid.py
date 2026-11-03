@@ -53,6 +53,11 @@ class ExtSourcePyramid(ModulatedPyramid):
         maintain constant computational load required for CUDA graph compatibility.
         Set to False for debugging or when source point count varies significantly
         between frames and you want to use flux thresholding.
+    n_point_slices, point_slice_idx : int [1], optional
+        Process only the slice point_slice_idx of n_point_slices equal slices of the
+        source points (default: 1 and 0, all of them). The outputs are then partial:
+        used by DistributedExtSourcePyramid, which sums the slices computed on
+        several devices. The flux filtering and normalization still use all points.
     target_device_idx : int [1], optional
         GPU device index (default: None, uses default device)
     precision : int [1], optional
@@ -143,6 +148,8 @@ class ExtSourcePyramid(ModulatedPyramid):
                  max_batch_size: int = 128,
                  max_flux_ratio_thr: float = 1e-3,
                  cuda_stream_enable: bool = True,
+                 n_point_slices: int = 1,
+                 point_slice_idx: int = 0,
                  target_device_idx: int = None,
                  precision: int = None
                 ):
@@ -181,6 +188,11 @@ class ExtSourcePyramid(ModulatedPyramid):
         if not 0 < max_flux_ratio_thr < 1:
             raise ValueError(f"max_flux_ratio_thr must be in (0, 1),"
                              f" got {max_flux_ratio_thr}")
+        if not 0 <= point_slice_idx < n_point_slices:
+            raise ValueError(f"point_slice_idx must be in [0, n_point_slices={n_point_slices}),"
+                             f" got {point_slice_idx}")
+        self.n_point_slices = n_point_slices
+        self.point_slice_idx = point_slice_idx
 
         self.ffv = None
         self.ext_ttf = None
@@ -365,12 +377,20 @@ class ExtSourcePyramid(ModulatedPyramid):
             n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
                             // self.max_batch_size
 
+        # Only the points of this slice (all of them with one slice)
+        if self.n_point_slices > 1:
+            start = self.point_slice_idx * self.mod_steps // self.n_point_slices
+            stop = (self.point_slice_idx + 1) * self.mod_steps // self.n_point_slices
+            self.valid_idx = self.valid_idx[(self.valid_idx >= start) & (self.valid_idx < stop)]
+            n_chunks_needed = (len(self.valid_idx) + self.max_batch_size - 1) \
+                            // self.max_batch_size
+
         self.factor = 1.0 / (self.xp.sum(self.flux_factor_vector) + 1e-20)
 
         n_valid = int(self.valid_idx.shape[0])
         n_padded = n_chunks_needed * self.max_batch_size
         recapture_stream = False
-        if self._n_chunks != n_chunks_needed:
+        if self._fpsf_buffer is None or self._n_chunks != n_chunks_needed:
             self._n_chunks = n_chunks_needed
             self._fpsf_buffer = self.xp.zeros((self._n_chunks, *self.fpsf.shape),
                                             dtype=self.dtype)
