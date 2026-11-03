@@ -752,21 +752,17 @@ class AtmoPropagation(BaseProcessingObj):
         The interpolators then release their coordinates, which take as much
         memory as the fields of all the sources on all the layers.
         '''
-        if not self.fused_kernel or self.target_device_idx < 0 or not self.mergeLayersContrib:
-            return
-        self._setup_fused_kernel()  # pragma: gpu
-
-    def _setup_fused_kernel(self):  # pragma: gpu
-        layer_list = self.propagation_layers()
-        footprints = [[footprint(self.interpolators[source][layer], layer, self.pixel_pupil)
-                       for layer in layer_list]
-                      for source in self.source_dict.values()]
-        outputs = [self.outputs['out_' + name + '_ef'] for name in self.source_dict]
-        self.geometric_propagation = GeometricPropagation(layer_list, outputs, footprints, self.dtype)
-        for interpolators in self.interpolators.values():
-            for interpolator in interpolators.values():
-                if interpolator is not None:
-                    interpolator.xx = interpolator.yy = None
+        if self.fused_kernel and self.target_device_idx >= 0 and self.mergeLayersContrib:  # pragma: gpu
+            layer_list = self.propagation_layers()
+            footprints = [[footprint(self.interpolators[source][layer], layer, self.pixel_pupil)
+                           for layer in layer_list]
+                          for source in self.source_dict.values()]
+            outputs = [self.outputs['out_' + name + '_ef'] for name in self.source_dict]
+            self.geometric_propagation = GeometricPropagation(layer_list, outputs, footprints, self.dtype)
+            for interpolators in self.interpolators.values():
+                for interpolator in interpolators.values():
+                    if interpolator is not None:
+                        interpolator.xx = interpolator.yy = None
 
     def check_output_names(self):
         # AtmoPropagation outputs are created dynamically from stored data files;
