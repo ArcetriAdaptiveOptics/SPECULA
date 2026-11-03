@@ -317,7 +317,10 @@ class TestSprintPyr(unittest.TestCase):
     @cpu_and_gpu
     def test_sprint_estimation_small(self, target_device_idx, xp):
         """Test SPRINT estimation with small mis-registration"""
-        self._run_sprint_test(1.0, 0.5, 1.0, 0.02, target_device_idx, xp)
+        # Non-integer shifts: with integer shifts and a small rotation most samples
+        # fall on the input pixel centres, where the bilinear IM has a kink in the
+        # shift and the fit may fail to converge
+        self._run_sprint_test(1.3, 0.7, 1.0, 0.02, target_device_idx, xp)
 
     @cpu_and_gpu
     def test_sprint_estimation_medium(self, target_device_idx, xp):

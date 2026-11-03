@@ -27,6 +27,7 @@ class PolyChromSH(PolyChromWFS):
                  laser_launch_tel: LaserLaunchTelescope = None,
                  subap_rows_slice = None,
                  xy_tilts_in_arcsec: list = None,   # Optional differential tilts [dx, dy] for each SH
+                 n_devices: int = 1,                # Devices over which the SH instances are spread
                  target_device_idx: int = None,
                  precision: int = None,
                 ):
@@ -39,11 +40,12 @@ class PolyChromSH(PolyChromWFS):
                         ccd_side=self._ccd_side,
                         flux_factor=flux_factor,
                         xy_tilts_in_arcsec=xy_tilts_in_arcsec,
+                        n_devices=n_devices,
                         target_device_idx=target_device_idx,
                         precision=precision)
 
         # Create SH instances
-        for wavelength in self.wavelengths_in_nm:
+        for i, wavelength in enumerate(self.wavelengths_in_nm):
             sh = SH(
                 wavelengthInNm=wavelength,
                 subap_wanted_fov=subap_wanted_fov,
@@ -58,8 +60,10 @@ class PolyChromSH(PolyChromWFS):
                 set_fov_res_to_turbpxsc=set_fov_res_to_turbpxsc,
                 laser_launch_tel=laser_launch_tel,
                 subap_rows_slice=subap_rows_slice,
-                target_device_idx=target_device_idx,
+                target_device_idx=self._wfs_device_idx(i),
                 precision=precision,
             )
             self._wfs_instances.append(sh)
+        # Building the instances made their devices current: back to the one of this object
+        self._use_device(self)
 

@@ -642,8 +642,12 @@ class TestShSlopecMorfeo(unittest.TestCase):
         # ~2), and its Richardson extrapolation matches it to 0.25% on the slopes. The
         # old sampling biased the slope gain by ~7%, as PASSATA does (analysis by
         # @salma2vec in #839).
-        self.assertLess(slopes_rms_ratio, 0.09,
-                    f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 9% of reference RMS")
+        # With the pixel-centre grid of Interp2D (#838) the difference grows to 0.109:
+        # PASSATA interpolates the field with the grid j * (N - 1) / N that SPECULA used
+        # before, which magnifies it by N/(N-1) about pixel 0, i.e. a mis-registration
+        # growing to ~1 px (1/7 of a subaperture) across this 120-pixel pupil.
+        self.assertLess(slopes_rms_ratio, 0.12,
+                    f"Slopes RMS difference ({slopes_rms_ratio:.4f}) exceeds 12% of reference RMS")
 
         # Basic sanity checks
         self.assertEqual(intensity_cube.shape[0], n_frames)
