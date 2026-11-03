@@ -3,6 +3,7 @@ specula.init(0)  # Default target device
 
 import os
 import unittest
+import unittest.mock
 
 from specula import np
 from specula import cpuArray
@@ -1172,3 +1173,97 @@ class TestAtmoPropagation(unittest.TestCase):
             assert ef.A.shape == (pixel_pupil, pixel_pupil)
         out_phases = sorted(float(xp.mean(ef.phaseInNm)) for ef in outputs)
         np.testing.assert_allclose(out_phases, phases, rtol=1e-5)
+
+
+@unittest.skipIf(specula.cp is None, 'needs a GPU')
+class TestGeometricPropagationKernel(unittest.TestCase):
+    '''
+    The single kernel of the geometric propagation on GPU (see
+    specula.lib.geometric_propagation) gives the same fields as the
+    interpolation layer by layer, for all the kinds of footprint
+    '''
+
+    def propagate(self, fused, precision):
+        rng = np.random.default_rng(1)
+        cp = specula.cp
+        pixel_pupil, pixel_pitch = 64, 0.1
+        simul_params = SimulParams(pixel_pupil, pixel_pitch)
+
+        def layer(dim, height, **kwargs):
+            lay = Layer(dimx=dim, dimy=dim, pixel_pitch=pixel_pitch, height=height,
+                        target_device_idx=0, precision=precision, **kwargs)
+            lay.A = cp.asarray(rng.uniform(0.5, 1, (dim, dim)))
+            lay.phaseInNm = cp.asarray(rng.normal(0, 100, (dim, dim)))
+            lay.generation_time = 0
+            return lay
+        common = [layer(64, 0.0),                                # on the pupil grid: copy
+                  layer(80, 0.0, shiftXYinPixel=(3.5, -2.0)),    # separable coordinates
+                  layer(80, 0.0, rotInDeg=10.0)]                 # rotated: one coordinate per pixel
+        atmo = [layer(160, h) for h in (1000.0, 5000.0, 12000.0)]
+        sources = {'on_axis': Source(polar_coordinates=[0.0, 0.0], magnitude=8, wavelengthInNm=750),
+                   'ngs': Source(polar_coordinates=[30.0, 60.0], magnitude=8, wavelengthInNm=750),
+                   'lgs': Source(polar_coordinates=[20.0, 200.0], height=90000.0, magnitude=8,
+                                 wavelengthInNm=589)}
+        with unittest.mock.patch.object(AtmoPropagation, 'fused_kernel', fused):
+            prop = AtmoPropagation(simul_params, source_dict=sources,
+                                   target_device_idx=0, precision=precision)
+            prop.inputs['atmo_layer_list'].set(atmo)
+            prop.inputs['common_layer_list'].set(common)
+            loop = LoopControl()
+            loop.add(prop, idx=0)
+            loop.run(run_time=1, dt=1, t0=0)
+        self.assertEqual(prop.geometric_propagation is not None, fused)
+        if fused:
+            # copy, separable and per-pixel coordinates
+            self.assertEqual(set(cpuArray(prop.geometric_propagation.mode).tolist()), {0, 1, 2})
+        return {name: (cpuArray(prop.outputs[f'out_{name}_ef'].A), cpuArray(prop.outputs[f'out_{name}_ef'].phaseInNm))
+                for name in sources}
+
+    def test_same_fields_as_layer_by_layer(self):
+        for precision in (0, 1):
+            fused = self.propagate(True, precision)
+            reference = self.propagate(False, precision)
+            for name, (amplitude, phase) in reference.items():
+                np.testing.assert_array_equal(fused[name][0], amplitude, err_msg=f'{name} amplitude')
+                np.testing.assert_array_equal(fused[name][1], phase, err_msg=f'{name} phase')
+                self.assertGreater(np.abs(phase).max(), 0)
+
+
+class TestGeometricPropagationFootprints(unittest.TestCase):
+    '''
+    The footprints of the single kernel (specula.lib.geometric_propagation) are
+    the coordinates of the interpolators: tested on CPU, where the interpolators
+    keep their coordinates
+    '''
+
+    def test_footprints_are_the_interpolator_coordinates(self):
+        from specula.lib.geometric_propagation import footprint, Copy, Separable, Grid
+        n, pixel_pitch = 32, 0.1
+        simul_params = SimulParams(n, pixel_pitch)
+
+        def layer(dim, height, **kwargs):
+            return Layer(dimx=dim, dimy=dim, pixel_pitch=pixel_pitch, height=height,
+                         target_device_idx=-1, **kwargs)
+        on_grid = layer(n, 0.0)
+        shifted = layer(40, 0.0, shiftXYinPixel=(3.5, -2.0))
+        rotated = layer(40, 0.0, rotInDeg=10.0)
+        high = layer(80, 5000.0)
+        source = Source(polar_coordinates=[20.0, 60.0], magnitude=8, wavelengthInNm=750)
+        prop = AtmoPropagation(simul_params, source_dict={'ngs': source}, target_device_idx=-1)
+        prop.inputs['atmo_layer_list'].set([high])
+        prop.inputs['common_layer_list'].set([on_grid, shifted, rotated])
+        prop.setup()
+        self.assertIsNone(prop.geometric_propagation)      # CPU: layer by layer
+
+        interp = prop.interpolators[source]
+        self.assertEqual(footprint(interp[on_grid], on_grid, n), Copy(row=0, col=0))
+        for lay in (shifted, high):
+            fp = footprint(interp[lay], lay, n)
+            self.assertIsInstance(fp, Separable)
+            np.testing.assert_array_equal(np.tile(fp.x, (n, 1)).ravel(), interp[lay].xx)
+            np.testing.assert_array_equal(np.repeat(fp.y, n), interp[lay].yy)
+        fp = footprint(interp[rotated], rotated, n)
+        self.assertIsInstance(fp, Grid)
+        self.assertIs(fp.x, interp[rotated].xx)
+        # the central part of a larger layer on the pupil grid
+        self.assertEqual(footprint(None, high, n), Copy(row=24, col=24))
