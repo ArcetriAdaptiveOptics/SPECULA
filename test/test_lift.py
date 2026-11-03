@@ -526,14 +526,12 @@ class TestLift(unittest.TestCase):
         average over the valid (in-pupil) pixels only (normalised convolution).
 
         Errors on the focus estimate (CPU and GPU identical) for unknown =
-        +0.35, 0, -0.35 rad: +5.1, +3.9, +3.0 nm with the fix, against +9.9,
-        +6.9, +5.4 nm without it. Most of the residual comes from the default
-        grid of Interp2D, which magnifies the resampled modes by N/(N-1)
-        (#838): with that grid fixed the errors are +1.1, +0.7, +0.6 nm, and
-        the tolerance can be lowered to 2 nm. The tolerance of 7.5 nm rejects
-        the old behaviour on the +0.35 rad case.
+        +0.35, 0, -0.35 rad: +1.1, +0.7, +0.6 nm. Without the normalised
+        convolution they are +8.5, +5.9, +4.8 nm; with it but with the old
+        default grid of Interp2D, which magnified the resampled modes by
+        N/(N-1) (#838), +5.1, +3.9, +3.0 nm.
         """
-        tol_nm = 7.5
+        tol_nm = 2.0
         npixels = 64
         pixel_pitch = 0.5       # m  ->  D = 32 m
         wavelengthInNm = 750.0
@@ -623,9 +621,12 @@ class TestLift(unittest.TestCase):
             precision=0,
         )
     
-        # Create an integer mask (e.g., a simple cross/circle shape)
+        # Create an integer mask (e.g., a simple cross/circle shape).
+        # LIFT resamples it 16 -> 4 pixels here (fft_res = 4), sampling the input
+        # at coordinates 1.5, 5.5, 9.5, 13.5: the column must cover one of them,
+        # otherwise the resampled mask is empty and the test checks nothing.
         mask2d_int = np.zeros((npixels,npixels), dtype=np.int32)
-        mask2d_int[4:12, 7:9] = 1
+        mask2d_int[4:12, 5:7] = 1
     
         # Create the exact same mask, but as a float
         mask2d_float = mask2d_int.astype(np.float64)

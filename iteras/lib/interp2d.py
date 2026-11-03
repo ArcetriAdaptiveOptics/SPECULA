@@ -51,7 +51,8 @@ class Interp2D():
     interp2_kernel_onthefly = bilinear_interp_device + r'''
         extern "C" __global__
         void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
-                                        TYPE scale_x, TYPE scale_y, TYPE shift_x, TYPE shift_y,
+                                        TYPE scale_x, TYPE scale_y, TYPE offset_x, TYPE offset_y,
+                                        TYPE shift_x, TYPE shift_y,
                                         TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y, 
                                         TYPE magnification) {
             int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -59,8 +60,8 @@ class Interp2D():
 
             if ((y < out_dy) && (x < out_dx)) {
                 // Compute coordinates on-the-fly
-                TYPE xcoord = x * scale_x;
-                TYPE ycoord = y * scale_y;
+                TYPE xcoord = x * scale_x + offset_x;
+                TYPE ycoord = y * scale_y + offset_y;
                 
                 // Center coordinates for rotation and magnification
                 TYPE xx_centered = xcoord - center_x;
@@ -133,7 +134,11 @@ class Interp2D():
         Notes
         -----
         If `xx` and `yy` are not provided, they are generated to map the output grid
-        to the input grid, with optional rotation and shift applied.
+        to the input grid, with optional rotation and shift applied. Pixel j is
+        centred at coordinate j, so output pixel j maps to input coordinate
+        (j + 0.5) * N_in / N_out - 0.5 and the centre (N_out - 1) / 2 maps to
+        (N_in - 1) / 2, which is also the centre of rotation and magnification.
+        Coordinates outside [0, N_in - 1] take the edge value.
         '''
         self.xp = xp
         self.dtype = dtype
@@ -164,18 +169,23 @@ class Interp2D():
 
         if use_onthefly:
             self.use_precomputed = False
-            self.scale_x = self.dtype((input_shape[1] - 1) / output_shape[1])
-            self.scale_y = self.dtype((input_shape[0] - 1) / output_shape[0])
+            scale_x = input_shape[1] / output_shape[1]
+            scale_y = input_shape[0] / output_shape[0]
+            self.scale_x = self.dtype(scale_x)
+            self.scale_y = self.dtype(scale_y)
+            self.offset_x = self.dtype(0.5 * scale_x - 0.5)
+            self.offset_y = self.dtype(0.5 * scale_y - 0.5)
             self.xx = None
             self.yy = None
         else:
             self.use_precomputed = True
             if xx is None or yy is None:
                 yy, xx = map(self.dtype, np.mgrid[0:output_shape[0], 0:output_shape[1]])
-                # This -1 appears to be correct by comparing with IDL code
+                # Pixel-centre mapping: pixel j is centred at j, so output pixel j
+                # maps to input coordinate (j + 0.5) * N_in / N_out - 0.5.
                 # It is not used in propagation, where xx and yy are set from the caller code
-                yy *= (input_shape[0]-1) / output_shape[0]
-                xx *= (input_shape[1]-1) / output_shape[1]
+                yy = (yy + 0.5) * (input_shape[0] / output_shape[0]) - 0.5
+                xx = (xx + 0.5) * (input_shape[1] / output_shape[1]) - 0.5
             else:
                 if yy.shape != output_shape or xx.shape != output_shape:
                     raise ValueError(f'yy and xx must have shape {output_shape}')
@@ -215,6 +225,8 @@ class Interp2D():
 
             self.scale_x = None
             self.scale_y = None
+            self.offset_x = None
+            self.offset_y = None
 
         self.shift_x = self.dtype(colShiftInPixels)
         self.shift_y = self.dtype(rowShiftInPixels)
@@ -283,6 +295,7 @@ class Interp2D():
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
                         self.scale_x, self.scale_y,
+                        self.offset_x, self.offset_y,
                         self.shift_x, self.shift_y,
                         self.cos_angle, self.sin_angle,
                         self.center_x, self.center_y,
@@ -293,6 +306,7 @@ class Interp2D():
                         self.output_shape[1], self.output_shape[0],
                         self.input_shape[1], self.input_shape[0],
                         self.scale_x, self.scale_y,
+                        self.offset_x, self.offset_y,
                         self.shift_x, self.shift_y,
                         self.cos_angle, self.sin_angle,
                         self.center_x, self.center_y,
