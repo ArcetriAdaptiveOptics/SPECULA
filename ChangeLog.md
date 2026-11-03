@@ -24,6 +24,7 @@
 
 ### Other
 
+- `Lift`: the modes resampled to the LIFT grid are averages over the valid pupil pixels only (normalised convolution). Before, the zeros outside the pupil were mixed into the edge pixels and reduced the phase there, so that the focus of an exact PSF was overestimated by a few percent of the total focus (reference included): with a reference of pi/2 rad at 750 nm, an unknown focus of 41.8 nm was estimated as 51.7 nm, now 46.9 nm. LIFT estimates change.
 - `EFInterpolator.update_parameters()` failed on an interpolator created with parameters that need no interpolation (same size, no shift, rotation or magnification); it now builds the interpolator with the new parameters.
 - `PeriodicRandomGenerator` draws at the multiples of its interval: it drew at the previous draw plus the interval, so with an interval that is not a whole number of steps it drifted against other periodic objects by up to one step per period.
 - Allocator: the estimate of an object split over k devices includes the work that every part repeats, declared by its class with the new class method `repeated_work_fraction(params)` (each part takes g * (f + (1 - f) / k)); `DistributedSH` declares from 0.22 for sensors of up to 8 subaperture rows to 0.05 from 68 rows (each slice interpolates the whole input field). With the host time per MPI message measured with MORFEO on Leonardo (150 µs), the estimates of the measured MORFEO plans there went from 5-28% optimistic to within +3% and -12%.
