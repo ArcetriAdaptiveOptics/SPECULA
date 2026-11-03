@@ -53,6 +53,7 @@ class SprintPyr(BaseSprintEstimator):
                  apply_absolute_slopes=False,
                  integration_gain=0.5,
                  forgetting_factor=1.0,
+                 param_tolerance=0.01,
                  target_device_idx=None,
                  precision=None):
         """
@@ -81,6 +82,7 @@ class SprintPyr(BaseSprintEstimator):
             apply_absolute_slopes=apply_absolute_slopes,
             integration_gain=integration_gain,
             forgetting_factor=forgetting_factor,
+            param_tolerance=param_tolerance,
             target_device_idx=target_device_idx,
             precision=precision
         )
