@@ -1,9 +1,8 @@
 '''
-Text report of an allocation, and evaluation of placements given by hand.
+Text report of an allocation.
 '''
-from collections import defaultdict
 
-from .cost import Proc, split_devices
+from .cost import split_devices
 from .machine import GiB
 
 MiB = 1024 ** 2
@@ -77,46 +76,3 @@ def object_table(graph, machine, est, placement, allocation=None, split=None):
                      f'{c.host / 1e6:8.3f} {c.g / 1e6:8.3f} {c.mem / MiB:9.1f}')
     return '\n'.join(lines)
 
-
-def placement_from_params(graph, machine, ranks_per_node=1, default_device=0):
-    '''
-    Placement written in the parameter file (target_rank, target_device_idx),
-    as used by Estimator. Ranks are assumed to be numbered node by node, with
-    *ranks_per_node* ranks per node (as with slurm's block distribution);
-    objects without target_rank are on rank 0, objects without
-    target_device_idx on *default_device*, and objects of CPU-only classes on
-    the CPU (as the allocator would place them).
-    '''
-    placement = {}
-    procs = {}
-    for name in graph.procs:
-        pars = graph.params[name]
-        rank = pars.get('target_rank', 0) or 0
-        dev = pars.get('target_device_idx', default_device)
-        if dev is None:
-            dev = default_device
-        node = rank // ranks_per_node
-        if node >= len(machine.nodes):
-            raise ValueError(f'{name}: rank {rank} is on node {node}, which does not exist')
-        n = machine.nodes[node]
-        if not graph.device_settable[name]:
-            dev = default_device
-        if dev < 0 or graph.cls(name).runs_on_cpu_only():
-            slot = n.cpu_slot
-        else:
-            if dev >= len(n.gpu_slots):
-                raise ValueError(f'{name}: GPU {dev} does not exist on node {node}')
-            slot = n.gpu_slots[dev]
-        p = procs.setdefault(rank, Proc(rank, node))
-        placement[name] = (p, slot)
-    return placement
-
-
-def describe_placement(graph, machine, placement):
-    '''Short text: objects per (rank, device)'''
-    groups = defaultdict(list)
-    for name in graph.procs:
-        if name in placement:
-            p, s = placement[name]
-            groups[(p.rank, machine.slots[s].label())].append(name)
-    return '\n'.join(f'  rank {r} {lbl}: {", ".join(names)}' for (r, lbl), names in sorted(groups.items()))

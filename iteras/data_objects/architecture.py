@@ -6,10 +6,8 @@ the allocator (see :mod:`iteras.allocator`), which places the objects on
 these resources before building them.
 '''
 
-OBJECTIVES = ('speed',)
 MODES = ('apply', 'plan')
 MEMORY_SOURCES = ('declared', 'probe', 'slurm')
-SCHEDULES = ('fixed',)
 PROCESS_POLICIES = ('auto', 'per_gpu', 'single')
 
 # Default link speeds, used when the architecture does not give them
@@ -62,8 +60,6 @@ class Architecture:
     context_overhead_gb : float, optional
         GPU memory used by each process on each GPU it uses, outside the
         arrays (CUDA context, libraries). Default 0.6.
-    objective : str, optional
-        'speed' (default): minimize the time per step.
     mode : str, optional
         'apply' (default): allocate, then run the simulation. 'plan': only
         write the allocation and its report.
@@ -104,8 +100,6 @@ class Architecture:
         the objects placed in the parameter files were written (with slurm's
         block distribution, rank r is on node r // pin_ranks_per_node). Default:
         as in each process layout considered (one per GPU, or one per node).
-    schedule : str, optional
-        Execution order: only 'fixed' (the trigger order) for now.
     search_time : float, optional
         Maximum time in seconds spent improving the allocation (default 60).
     split_objects : bool, optional
@@ -124,7 +118,6 @@ class Architecture:
                  memory_source: str='declared',
                  memory_margin: float=0.1,
                  context_overhead_gb: float=0.6,
-                 objective: str='speed',
                  mode: str='apply',
                  override_placement: bool=False,
                  allocation_file: str='allocation.yml',
@@ -138,14 +131,11 @@ class Architecture:
                  pin_ranks_per_node: int=None,
                  node_tolerance: float=0.05,
                  device_tolerance: float=0.05,
-                 schedule: str='fixed',
                  search_time: float=60.0,
                  split_objects: bool=True,
                  ):
-        self._check('objective', objective, OBJECTIVES)
         self._check('mode', mode, MODES)
         self._check('memory_source', memory_source, MEMORY_SOURCES)
-        self._check('schedule', schedule, SCHEDULES)
         self._check('processes', processes, PROCESS_POLICIES)
         if not 0 <= memory_margin < 1:
             raise ValueError(f'memory_margin must be in [0, 1), got {memory_margin}')
@@ -162,7 +152,6 @@ class Architecture:
         self.memory_source = memory_source
         self.memory_margin = memory_margin
         self.context_overhead_gb = context_overhead_gb
-        self.objective = objective
         self.mode = mode
         self.override_placement = override_placement
         self.allocation_file = allocation_file
@@ -179,7 +168,6 @@ class Architecture:
         self.pin_ranks_per_node = pin_ranks_per_node
         self.node_tolerance = node_tolerance
         self.device_tolerance = device_tolerance
-        self.schedule = schedule
         self.search_time = search_time
         self.split_objects = split_objects
 
@@ -212,6 +200,6 @@ class Architecture:
     def as_dict(self):
         '''Parameters that change the result of the allocation (for the allocation file check)'''
         return {k: getattr(self, k) for k in ('nodes', 'inter_node', 'memory_source', 'memory_margin',
-                                              'context_overhead_gb', 'objective', 'override_placement',
+                                              'context_overhead_gb', 'override_placement',
                                               'processes', 'pin_ranks_per_node', 'node_tolerance',
-                                              'device_tolerance', 'schedule', 'split_objects')}
+                                              'device_tolerance', 'split_objects')}

@@ -33,7 +33,6 @@ from iteras.allocator.cost import Estimator, Proc, MPI_BUFFER_BYTES
 from iteras.allocator import profiler as profiler_module
 from iteras.allocator.profiler import Cost, Profile, split_chunk
 from iteras.allocator.solver import Solver, Layout, Infeasible, build_groups
-from iteras.allocator.report import placement_from_params
 
 MiB = 1024 ** 2
 ms = 1e6
@@ -217,8 +216,6 @@ class TestArchitecture(unittest.TestCase):
         self.assertEqual(a.mode, 'apply')
 
     def test_invalid_values(self):
-        with self.assertRaises(ValueError):
-            Architecture(objective='cheap')
         with self.assertRaises(ValueError):
             Architecture(memory_margin=1.5)
         with self.assertRaises(ValueError):
@@ -1036,15 +1033,6 @@ class TestAllocationFile(AllocatorTestCase):
         with self.assertRaises(StaleAllocation):
             check_meta(meta, dict(meta, architecture={'a': 2}), 'x')
 
-    def test_placement_from_params(self):
-        params = json.loads(json.dumps(self.params))
-        params['work2'].update({'target_rank': 1, 'target_device_idx': 1})
-        m = machine(ngpu=2)
-        place = placement_from_params(self.graph(params), m, ranks_per_node=2)
-        self.assertEqual(place['work2'][0].rank, 1)
-        self.assertEqual(place['work2'][1], m.nodes[0].gpu_slots[1])
-        self.assertEqual(place['gen'][0].rank, 0)
-
 
 class TestSimulPlacement(AllocatorTestCase):
 
@@ -1611,30 +1599,13 @@ class TestProfilerHelpers(AllocatorTestCase):
 class TestReportSolverMachine(AllocatorTestCase):
     '''Branches of the report, solver, graph and machine'''
 
-    def test_placement_from_params(self):
-        g = self.graph()
-        m = machine(ngpu=1)
-        with mock.patch.dict(g.params['work1'], {'target_device_idx': None}):
-            placement = placement_from_params(g, m, default_device=0)
-        self.assertEqual(placement['work1'][1], m.nodes[0].gpu_slots[0])
-        with mock.patch.dict(g.device_settable, {'work2': False}), \
-                mock.patch.dict(g.params['work2'], {'target_device_idx': -1}):
-            placement = placement_from_params(g, m, default_device=0)
-        self.assertEqual(placement['work2'][1], m.nodes[0].gpu_slots[0])   # default device
-        for pin, error in (({'target_rank': 3}, 'node 3'), ({'target_device_idx': 4}, 'GPU 4')):
-            with mock.patch.dict(g.params['work1'], pin):
-                with self.assertRaisesRegex(ValueError, error):
-                    placement_from_params(g, m)
-
-    def test_describe_placement_and_object_table(self):
-        from iteras.allocator.report import describe_placement, object_table
+    def test_object_table(self):
+        from iteras.allocator.report import object_table
         g = self.graph()
         m = machine(ngpu=1)
         costs = {(n, s.kind): cost() for n in g.procs for s in m.slots}
         est = Estimator(g, m, costs, {'table': 1 * MiB}, {})
         placement = {n: (Proc(0, 0), m.nodes[0].gpu_slots[0]) for n in ('gen', 'work1')}
-        text = describe_placement(g, m, placement)
-        self.assertIn('rank 0 node0:gpu0: gen, work1', text)
         table = object_table(g, m, est, placement)
         self.assertIn('work1', table)
         self.assertNotIn('last', table)         # not in the placement

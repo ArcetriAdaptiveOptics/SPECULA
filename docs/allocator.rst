@@ -200,7 +200,7 @@ anywhere.
 Limitations
 -----------
 
-* The trigger order is not changed (``schedule: 'fixed'``).
+* The trigger order is not changed.
 * GPUs of a model that was not profiled use the times of the profiled one,
   divided by ``relative_speed``.
 * Transfers between processes go through the host, as in the framework.
