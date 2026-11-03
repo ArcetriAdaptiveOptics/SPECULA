@@ -21,8 +21,14 @@ from specula.processing_objects.wave_generator import WaveGenerator
 from test.specula_testlib import cpu_and_gpu
 
 
-def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1, precision = 0):
-    """Build a Lift instance with [n_pistons piston(s) + Zernike modes] IFunc."""
+def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1, precision = 0,
+               ref_zern_amp=None, cropped_size=4):
+    """Build a Lift instance with [n_pistons piston(s) + Zernike modes] IFunc.
+
+    ref_zern_amp defaults to zeros (no phase diversity).
+    """
+    if ref_zern_amp is None:
+        ref_zern_amp = np.zeros(n_zern, dtype=np.float32)
     # Generate Zernike modes: tip, tilt, defocus, ...  (no piston from compute_zern_ifunc)
     zern_ifunc = IFunc(
         type_str='zernike', nmodes=n_zern, npixels=16,
@@ -46,9 +52,9 @@ def build_lift(n_pistons=0, n_zern=3, fft_res=2, target_device_idx=-1, precision
         wavelengthInNm=750.0,
         pix_scale=0.01,
         npix_side=16,
-        cropped_size=4,
+        cropped_size=cropped_size,
         ifunc=ifunc,
-        ref_zern_amp=np.zeros(n_zern, dtype=np.float32),
+        ref_zern_amp=ref_zern_amp,
         fft_res=fft_res,
         target_device_idx=target_device_idx,
         precision=precision,
@@ -474,13 +480,23 @@ class TestLift(unittest.TestCase):
         and precision=1 Lift instances and check the recovered coefficients
         agree within single-precision tolerance.
 
-        Observed on this configuration (gridSize=8, 3-mode Zernike basis,
-        0.3 rad defocus -> ~35.8 nm): abs diff ~1.2e-5 nm on tip/tilt
-        (near-zero values) and ~8e-6 nm on the defocus estimate, i.e. well
-        within the tolerances used below.
+        The configuration is well-posed on purpose: a reference defocus of
+        pi/2 rad (phase diversity) fixes the sign of the focus estimate, and
+        cropped_size=8 on the 8 px LIFT grid uses the whole PSF. Without
+        diversity the focus sign is ambiguous, and with a too small ROI
+        (cropped_size=4) even LIFT's own PSF is not recovered exactly
+        (35.52 instead of 35.81 nm), so float32 and float64 runs could
+        converge to different solutions (one near +-lambda/2).
+
+        Observed (gridSize=8, 3-mode Zernike basis, 0.3 rad defocus ->
+        35.81 nm): precision 0 and 1 agree within ~2e-5 nm, and the recovered
+        focus is 35.79 nm.
         """
-        lift0 = build_lift(target_device_idx=target_device_idx, precision=0)
-        lift1 = build_lift(target_device_idx=target_device_idx, precision=1)
+        ref_zern_amp = np.array([0.0, 0.0, 0.5 * np.pi], dtype=np.float32)
+        kwargs = dict(target_device_idx=target_device_idx,
+                      ref_zern_amp=ref_zern_amp, cropped_size=8)
+        lift0 = build_lift(precision=0, **kwargs)
+        lift1 = build_lift(precision=1, **kwargs)
 
         known_coeffs = np.zeros(lift0.nmodes, dtype=np.float64)
         known_coeffs[2] = 0.3  # defocus, rad
@@ -493,6 +509,84 @@ class TestLift(unittest.TestCase):
         coeffs0 = cpuArray(coeffs0)
         coeffs1 = cpuArray(coeffs1)
         np.testing.assert_allclose(coeffs1, coeffs0, rtol=1e-4, atol=1e-3)
+
+        true_focus_nm = 0.3 * 750.0 / (2.0 * np.pi)
+        np.testing.assert_allclose(coeffs0[2], true_focus_nm, atol=0.1)
+
+    @cpu_and_gpu
+    def test_focus_from_exact_psf_is_unbiased(self, target_device_idx, xp):
+        """
+        Feed LIFT a PSF computed independently with numpy (no SPECULA
+        interpolation) and check the focus estimate is unbiased.
+
+        The modes are zero outside the pupil. When they are resampled to
+        LIFT's coarser grid with a bilinear interpolation, the edge pixels mix
+        the phase with those zeros, so the phase is reduced exactly where
+        focus is largest and LIFT overestimates the focus. The resampling must
+        average over the valid (in-pupil) pixels only (normalised convolution).
+
+        Errors on the focus estimate (CPU and GPU identical) for unknown =
+        +0.35, 0, -0.35 rad: +1.1, +0.7, +0.6 nm. Without the normalised
+        convolution they are +8.5, +5.9, +4.8 nm; with it but with the old
+        default grid of Interp2D, which magnified the resampled modes by
+        N/(N-1) (#838), +5.1, +3.9, +3.0 nm.
+        """
+        tol_nm = 2.0
+        npixels = 64
+        pixel_pitch = 0.5       # m  ->  D = 32 m
+        wavelengthInNm = 750.0
+        n_zern = 3              # tip, tilt, focus
+        ref_zern_amp = np.array([0.0, 0.0, 0.5 * np.pi], dtype=np.float64)
+        pix_scale = (wavelengthInNm * 1e-9 / pixel_pitch) * 206264.806247 / npixels
+
+        simul_params = SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch)
+        ifunc_obj = IFunc(
+            type_str='zernike', nmodes=n_zern, npixels=npixels,
+            precision=0, target_device_idx=target_device_idx,
+        )
+
+        mask = cpuArray(ifunc_obj.mask_inf_func).astype(np.float64)
+        modes2d = np.zeros((n_zern, npixels, npixels), dtype=np.float64)
+        influence = cpuArray(ifunc_obj.influence_function).astype(np.float64)
+        for k in range(n_zern):
+            modes2d[k][mask != 0] = influence[k]
+
+        lift = Lift(
+            simul_params=simul_params,
+            nPistons=0,
+            nZern=n_zern,
+            wavelengthInNm=wavelengthInNm,
+            pix_scale=pix_scale,
+            npix_side=npixels,
+            cropped_size=16,
+            ifunc=ifunc_obj,
+            ref_zern_amp=ref_zern_amp.astype(np.float32),
+            n_iter=30,
+            fft_res=1,
+            target_device_idx=target_device_idx,
+            precision=0,
+        )
+
+        for unknown_rad in (0.35, 0.0, -0.35):
+            unknown_nm = unknown_rad * wavelengthInNm / (2.0 * np.pi)
+            c = ref_zern_amp.copy()
+            c[2] += unknown_rad
+            phase = np.tensordot(c, modes2d, axes=1)  # rad
+
+            # 2x zero-padded FFT -> lambda/(2D) sampling
+            field = np.zeros((2 * npixels, 2 * npixels), dtype=np.complex128)
+            field[:npixels, :npixels] = mask * np.exp(1j * phase)
+            intensity = np.abs(np.fft.fftshift(np.fft.fft2(field))) ** 2
+            # Sum 2x2 samples -> pixels of lambda/D, as LIFT's own model does
+            psf = intensity.reshape(npixels, 2, npixels, 2).sum(axis=(1, 3))
+
+            _, coeffs_out, _ = lift.phaseEstimation(psf)
+            focus_nm = float(cpuArray(coeffs_out)[2])
+
+            self.assertLess(
+                abs(focus_nm - unknown_nm), tol_nm,
+                msg=f"unknown {unknown_rad} rad: focus estimate {focus_nm:.2f} nm, "
+                    f"expected {unknown_nm:.2f} nm")
 
     @cpu_and_gpu
     def test_set_modalbase_mask_dtype_invariance(self, target_device_idx, xp):
@@ -527,9 +621,12 @@ class TestLift(unittest.TestCase):
             precision=0,
         )
     
-        # Create an integer mask (e.g., a simple cross/circle shape)
+        # Create an integer mask (e.g., a simple cross/circle shape).
+        # LIFT resamples it 16 -> 4 pixels here (fft_res = 4), sampling the input
+        # at coordinates 1.5, 5.5, 9.5, 13.5: the column must cover one of them,
+        # otherwise the resampled mask is empty and the test checks nothing.
         mask2d_int = np.zeros((npixels,npixels), dtype=np.int32)
-        mask2d_int[4:12, 7:9] = 1
+        mask2d_int[4:12, 5:7] = 1
     
         # Create the exact same mask, but as a float
         mask2d_float = mask2d_int.astype(np.float64)
