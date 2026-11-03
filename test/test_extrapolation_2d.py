@@ -213,6 +213,41 @@ class TestExtrapolation2D(unittest.TestCase):
         valid_pixels = xp.sum(edge_pixels >= 0)
         self.assertGreater(valid_pixels, 0)
 
+    def test_linear_phase_is_extrapolated_exactly(self):
+        """
+        A linear ramp must be extrapolated exactly on every edge pixel.
+
+        Regression test: a direction with a single valid neighbour (constant
+        extrapolation, coefficient 1 on P1) used to be averaged with a
+        direction having two valid neighbours (linear, 2*P1 - P2), biasing the
+        result by half a step. Now the linear extrapolation is averaged over
+        the directions with both reference points, and the constant fallback
+        is used only if there is none.
+
+        Scan: 6 grid sizes x 18 radii x 3 centre offsets (26168 edge pixels).
+        Fixed code: 0 wrong pixels, max error 2.8e-14. Old code: 44 wrong
+        pixels, max error 0.35 (half of the 0.7 y-step); first failing case
+        N=16, radius 3.04, offset 0.5.
+        """
+        n_checked = 0
+        for n in (16, 24, 32, 48, 64, 80):
+            y, x = np.mgrid[:n, :n].astype(np.float64)
+            ramp = 0.3 * x + 0.7 * y
+            for frac in np.linspace(0.15, 0.49, 18):
+                for offset in (0.0, 0.25, 0.5):
+                    c = (n - 1) / 2 + offset
+                    mask = np.hypot(x - c, y - c) <= frac * n
+                    edge, ref, coeff, valid = _calculate_extrapolation_indices_coeffs(mask)
+                    out = _apply_extrapolation(ramp * mask, edge, ref, coeff, valid, xp=np)
+                    sel = edge >= 0
+                    got = out.ravel()[edge[sel]]
+                    want = ramp.ravel()[edge[sel]]
+                    np.testing.assert_allclose(
+                        got, want, atol=1e-9, rtol=0,
+                        err_msg=f"N={n}, radius={frac * n:.2f}, offset={offset}")
+                    n_checked += int(sel.sum())
+        self.assertGreater(n_checked, 0)
+
     def test_extrapolation_does_not_fail_with_many_edge_pixels(self):
         """
         Test that extrapolation does not fail when the mask has many edge pixels
