@@ -172,11 +172,15 @@ def capturing():
 def xp_fft(xp):
     '''
     FFT functions for the array module *xp*: scipy.fft for numpy (faster than
-    numpy.fft, especially in single precision), xp.fft otherwise.
+    numpy.fft, especially in single precision), cupyx.scipy.fft for cupy,
+    xp.fft otherwise. The scipy and cupyx versions accept overwrite_x.
     '''
     if xp is np:
         import scipy.fft
         return scipy.fft
+    if cp is not None and xp is cp:  # pragma: gpu
+        import cupyx.scipy.fft
+        return cupyx.scipy.fft
     return xp.fft
 
 

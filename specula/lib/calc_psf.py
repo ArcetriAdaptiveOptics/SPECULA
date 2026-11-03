@@ -13,17 +13,6 @@ def psf_abs2(v, xp):
 PsfGeometry = namedtuple('PsfGeometry', 'pixel_size_mas nd')
 
 
-def fft2_inplace(x, xp=np):
-    """
-    2D FFT that may overwrite its input to save memory.
-    Always use the returned array, which may or may not be x.
-    """
-    if xp is np:
-        return xp_fft(xp).fft2(x, overwrite_x=True)
-    from cupyx.scipy.fft import fft2
-    return fft2(x, overwrite_x=True)
-
-
 def calc_psf_from_ef(u_ef, xp=np, out=None, normalize=False, nocenter=False, return_total=False):
     """
     Calculates a PSF from an (already zero-padded, if needed) complex electric field.
@@ -50,7 +39,7 @@ def calc_psf_from_ef(u_ef, xp=np, out=None, normalize=False, nocenter=False, ret
         2D PSF  (same dimensions as u_ef) and PSF total intensity as a scalar number
     """
     # Compute FFT (forward)
-    u_fp = fft2_inplace(u_ef, xp=xp)
+    u_fp = xp_fft(xp).fft2(u_ef, overwrite_x=True)
     if out is None:
         out = xp.empty(u_fp.shape, dtype=u_fp.real.dtype)
 
