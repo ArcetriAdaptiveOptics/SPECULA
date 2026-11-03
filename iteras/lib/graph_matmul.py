@@ -22,6 +22,10 @@ simply return `a @ b`.
 """
 import numpy as np
 
+# CuPy 12 requires an explicit C++ standard for template kernels (name_expressions);
+# CuPy >= 13 uses this one by default
+_CXX_STD = ('-std=c++17',)
+
 _LEFT_MUL_SRC = r'''
 // Y[b, r, m] = sum_n A[r, n] X[b, n, m], i.e. Y[b] = A @ X[b] for each b.
 // X can be a strided view (sxb, sxn, sxm: strides in elements).
@@ -96,7 +100,7 @@ def _left_mul_gpu(a, x, out, xp):  # pragma: gpu
     key = (out.dtype.str, xp.cuda.Device().id)
     if key not in _left_mul_kernels:
         ctype = 'float' if out.dtype == np.float32 else 'double'
-        mod = xp.RawModule(code=_LEFT_MUL_SRC, name_expressions=[f'left_mul<{ctype}>'])
+        mod = xp.RawModule(code=_LEFT_MUL_SRC, options=_CXX_STD, name_expressions=[f'left_mul<{ctype}>'])
         _left_mul_kernels[key] = mod.get_function(f'left_mul<{ctype}>')
     item = x.itemsize
     nb, n, m = x.shape
@@ -154,7 +158,7 @@ def _vecmat_gpu(v, m, xp):  # pragma: gpu
     key = (m.dtype.str, xp.cuda.Device().id)
     if key not in _vecmat_kernels:
         ctype = 'float' if m.dtype == np.float32 else 'double'
-        mod = xp.RawModule(code=_VECMAT_SRC, name_expressions=[f'vecmat_part<{ctype}>'])
+        mod = xp.RawModule(code=_VECMAT_SRC, options=_CXX_STD, name_expressions=[f'vecmat_part<{ctype}>'])
         _vecmat_kernels[key] = mod.get_function(f'vecmat_part<{ctype}>')
     v2 = xp.ascontiguousarray(v if v.ndim == 2 else v[None])
     nk, n = v2.shape
@@ -215,7 +219,7 @@ def _matvec_gpu(a, v, xp):  # pragma: gpu
     key = (a.dtype.str, xp.cuda.Device().id)
     if key not in _matvec_kernels:
         ctype = 'float' if a.dtype == np.float32 else 'double'
-        mod = xp.RawModule(code=_MATVEC_SRC, name_expressions=[f'matvec_rows<{ctype}>'])
+        mod = xp.RawModule(code=_MATVEC_SRC, options=_CXX_STD, name_expressions=[f'matvec_rows<{ctype}>'])
         _matvec_kernels[key] = mod.get_function(f'matvec_rows<{ctype}>')
     v2 = xp.ascontiguousarray(v if v.ndim == 2 else v[None])
     nk, n = v2.shape
