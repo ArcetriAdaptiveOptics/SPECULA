@@ -118,9 +118,95 @@ class TestGerchbergSaxton(unittest.TestCase):
         gen = Lift(**kwargs)
         known = ref + np.array([0.0, 0.0, 0.3])
         psf = cpuArray(gen.focalPlaneImageLIFT(gen.phaseFromCoeffs(known) - gen.phase_ref, set_flux=1e6))
-        gs = GerchbergSaxton(n_iter=300, **kwargs)
-        _, coeffs, _ = gs.phaseEstimation(psf)
-        np.testing.assert_allclose(cpuArray(coeffs)[2], 0.3 * 750 / (2 * np.pi), atol=3.0)
+        # Same forward model as the estimator: this checks the inversion only
+        # (observed error ~0.01 nm); see test_focus_from_exact_psf_is_unbiased
+        # for an independent PSF.
+        for modal in (False, True):
+            gs = GerchbergSaxton(n_iter=300, modal_projection=modal, **kwargs)
+            _, coeffs, _ = gs.phaseEstimation(psf)
+            np.testing.assert_allclose(cpuArray(coeffs)[2], 0.3 * 750 / (2 * np.pi), atol=0.5,
+                                       err_msg=f'modal_projection={modal}')
+
+    @cpu_and_gpu
+    def test_focus_from_exact_psf_is_unbiased(self, target_device_idx, xp):
+        """
+        Same check as test_lift.py::test_focus_from_exact_psf_is_unbiased: the
+        PSF is computed independently with numpy (64-pixel pupil, zero padded
+        to 128, |FFT|^2, 2x2 binning), so it does not share GS's forward model.
+
+        GS uses the same forward model as LIFT and inherits its bias. Observed
+        focus errors for unknown = +0.35, 0, -0.35 rad (CPU):
+        zonal +4.1, +3.5, +4.0 nm; modal +5.0, +3.9, +3.0 nm
+        (LIFT: +5.1, +3.9, +3.0 nm). Most of the residual comes from the
+        default Interp2D grid (#877); once that is fixed the tolerance can be
+        lowered, as for LIFT.
+        """
+        tol_nm = 7.5
+        npixels = 64
+        pixel_pitch = 0.5
+        wavelengthInNm = 750.0
+        n_zern = 3
+        ref_zern_amp = np.array([0.0, 0.0, 0.5 * np.pi], dtype=np.float64)
+        pix_scale = (wavelengthInNm * 1e-9 / pixel_pitch) * 206264.806247 / npixels
+
+        ifunc_obj = IFunc(type_str='zernike', nmodes=n_zern, npixels=npixels,
+                          precision=0, target_device_idx=target_device_idx)
+        mask = cpuArray(ifunc_obj.mask_inf_func).astype(np.float64)
+        influence = cpuArray(ifunc_obj.influence_function).astype(np.float64)
+        modes2d = np.zeros((n_zern, npixels, npixels), dtype=np.float64)
+        for k in range(n_zern):
+            modes2d[k][mask != 0] = influence[k]
+
+        kwargs = dict(simul_params=SimulParams(pixel_pupil=npixels, pixel_pitch=pixel_pitch),
+                      nPistons=0, nZern=n_zern, wavelengthInNm=wavelengthInNm,
+                      pix_scale=pix_scale, npix_side=npixels, cropped_size=16,
+                      ifunc=ifunc_obj, ref_zern_amp=ref_zern_amp.astype(np.float32),
+                      fft_res=1, target_device_idx=target_device_idx, precision=0)
+
+        for unknown_rad in (0.35, 0.0, -0.35):
+            unknown_nm = unknown_rad * wavelengthInNm / (2.0 * np.pi)
+            c = ref_zern_amp.copy()
+            c[2] += unknown_rad
+            phase = np.tensordot(c, modes2d, axes=1)
+            field = np.zeros((2 * npixels, 2 * npixels), dtype=np.complex128)
+            field[:npixels, :npixels] = mask * np.exp(1j * phase)
+            intensity = np.abs(np.fft.fftshift(np.fft.fft2(field))) ** 2
+            psf = intensity.reshape(npixels, 2, npixels, 2).sum(axis=(1, 3))
+
+            for modal in (False, True):
+                gs = GerchbergSaxton(n_iter=300, modal_projection=modal, **kwargs)
+                _, coeffs_out, _ = gs.phaseEstimation(psf)
+                focus_nm = float(cpuArray(coeffs_out)[2])
+                self.assertLess(
+                    abs(focus_nm - unknown_nm), tol_nm,
+                    msg=f"modal_projection={modal}, unknown {unknown_rad} rad: "
+                        f"focus estimate {focus_nm:.2f} nm, expected {unknown_nm:.2f} nm")
+
+    @cpu_and_gpu
+    def test_fractional_edge_pixels_are_updated(self, target_device_idx, xp):
+        """
+        Pixels with 0 < mask <= 0.5 enter the forward model with their
+        fractional amplitude, so the zonal GS update must change their phase
+        too (the modal fit keeps using mask > 0.5).
+        """
+        gs = build_gs(target_device_idx=target_device_idx, n_iter=1)
+        known = gs.xp.asarray([0.0, 0.0, 0.3])
+        psf = cpuArray(gs.focalPlaneImageLIFT(gs.phaseFromCoeffs(known), set_flux=1e6))
+        # Add a ring of low-amplitude pixels just outside the pupil
+        m = cpuArray(gs.mask)
+        inside = m > 0
+        ring = np.zeros_like(inside)
+        ring[1:, :] |= inside[:-1, :]
+        ring[:-1, :] |= inside[1:, :]
+        ring[:, 1:] |= inside[:, :-1]
+        ring[:, :-1] |= inside[:, 1:]
+        ring &= ~inside
+        self.assertGreater(int(ring.sum()), 0)
+        m = m.copy()
+        m[ring] = 0.3
+        gs.mask = gs.xp.asarray(m, dtype=gs.dtype)
+        estimate, _, _ = gs.phaseEstimation(psf)
+        self.assertGreater(float(np.abs(cpuArray(estimate)[ring]).max()), 0.0)
 
     @cpu_and_gpu
     def test_recovers_petal_pistons_like_lift(self, target_device_idx, xp):
@@ -135,7 +221,9 @@ class TestGerchbergSaxton(unittest.TestCase):
             psf = cpuArray(gen.focalPlaneImageLIFT(gen.phaseFromCoeffs(c) - gen.phase_ref, set_flux=1e6))
             true_nm = pist * 750 / (2 * np.pi)
             true_nm -= true_nm.mean()
-            for modal, tol in ((True, 2.0), (False, 15.0)):
+            # Same forward model as the estimator (inversion check). Observed max
+            # errors: modal 0.44 / 0.39 nm, zonal 1.7 / 0.6 nm (fft_res 2 / 3).
+            for modal, tol in ((True, 1.0), (False, 4.0)):
                 gs = GerchbergSaxton(n_iter=300, modal_projection=modal, **kwargs)
                 _, coeffs, _ = gs.phaseEstimation(psf)
                 est = cpuArray(coeffs)[:6]
