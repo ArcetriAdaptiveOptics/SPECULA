@@ -77,9 +77,8 @@ pupil/DM should not be mistaken for the real thing:
   support structure. The mask does not reproduce the individual hexagonal
   M1 segments and their gaps within each petal: irrelevant to
   petal-piston control, but visibly different from the real pupil.
-* The spider width (see the Design choices table below) matches the real
-  ELT spider thickness *on average*, but is uniform across all six arms
-  here; on the real telescope at least one arm is thicker than the others.
+* The spider (see the Design choices table below) is uniform across all
+  six arms; on the real telescope one arm is thicker than the others.
 * The generated M4-like influence functions sit on a plain circular
   actuator grid with edge slaving. The real M4 geometry instead repeats
   per petal, with dedicated rows of actuators running along each petal
@@ -108,8 +107,8 @@ Design choices
      - 6
      - one per independent primary-mirror support structure
    * - Spider
-     - 3 pixels wide
-     - matches the real ELT spider thickness at this sampling, see note below
+     - 5 pixels wide
+     - slightly thicker on average than the real ELT spiders, see note below
    * - Actuator-to-actuator coupling
      - none (``do_mech_coupling=False``)
      - see note below: M4 is not a stacked-actuator DM
@@ -129,10 +128,14 @@ Design choices
 
 .. note::
 
-   **Why a 3-pixel spider.** The real ELT spiders are roughly 310 mm
-   thick; at this sampling (39 m / 400 px ≈ 0.0975 m/pixel) that is close
-   to 3 pixels. This is a uniform average, though; see the caveats above
-   for how the real spider differs.
+   **Why a 5-pixel spider.** At this sampling (39 m / 400 px ≈ 0.0975
+   m/pixel) 5 pixels are about 490 mm. On the real ELT one spider arm is
+   about 500 mm thick, for the telescope crane, and the others about
+   310 mm. Here all six arms are about 490 mm, i.e. slightly thicker on
+   average than the real ones. This is a deliberate choice: thicker
+   spiders make petal jumps couple more strongly into the WFS signal, a
+   more challenging case in which to show the effectiveness of the
+   approach of this tutorial.
 
 .. _elt_modal_bandwidth_note:
 
@@ -200,7 +203,7 @@ that call also gives us the petal influence functions we need:
     petal_ifunc, pupil_mask, _ = compute_petal_ifunc(
         pixel_pupil, n_petals, xp=specula.xp, dtype=dtype,
         angle_offset=angle_offset, obsratio=obsratio, diaratio=1.0,
-        mask=None, spider=True, spider_width=3,
+        mask=None, spider=True, spider_width=5,
         add_tilts=False, special_last_petal=False)
 
     print(f'Petal influence functions: {petal_ifunc.shape} '
@@ -348,7 +351,7 @@ clean, two-level step function -- but note which sector it isolates:
 
 ::
 
-    Theta modes: (6, 111398) (6 ramps x 111398 valid pixels)
+    Theta modes: (6, 111792) (6 ramps x 111792 valid pixels)
     theta[0] - theta[1] takes 2 distinct values: [-5.236   1.0472]
     Confirmed: theta[0] - theta[1] exactly reproduces petal_ifunc[3].
 
