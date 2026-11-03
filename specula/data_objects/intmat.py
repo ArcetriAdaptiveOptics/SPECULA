@@ -241,6 +241,16 @@ class Intmat(Matrix):
         return rec
 
     def pseudo_invert(self, matrix, n_modes_to_drop=0, w_vec=None, interactive=False):
-        # TODO handle n_modes_to_drop, and w_vec
-        return self.xp.linalg.pinv(matrix)
+        """
+        Pseudo-inverse of *matrix*, dropping the *n_modes_to_drop* smallest singular values.
+        """
+        if w_vec is not None or interactive:
+            raise NotImplementedError('pseudo_invert: w_vec and interactive are not implemented')
+        if n_modes_to_drop == 0:
+            return self.xp.linalg.pinv(matrix)
+        u, s, vt = self.xp.linalg.svd(matrix, full_matrices=False)
+        if not 0 < n_modes_to_drop < len(s):
+            raise ValueError(f'pseudo_invert: n_modes_to_drop must be between 0 and {len(s) - 1}')
+        n = len(s) - n_modes_to_drop
+        return (vt[:n].T / s[:n]) @ u[:, :n].T
 
