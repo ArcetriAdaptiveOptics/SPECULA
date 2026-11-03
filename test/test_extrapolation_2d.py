@@ -581,3 +581,33 @@ class TestExtrapolation2D(unittest.TestCase):
         edge_pixels = interp.edge_pixels
         interp.interpolate()
         self.assertIs(interp.edge_pixels, edge_pixels)
+
+    @cpu_and_gpu
+    def test_shifted_pupil_touching_the_edge_has_no_tongue(self, target_device_idx, xp):
+        """
+        A circular pupil touching the array edge (N = 160), shifted by 10 pixels.
+        Old behaviour: the amplitude of the edge column was copied over the
+        10 columns coming from outside the array (a "tongue" of about 18 x 10
+        pixels). Now the amplitude is 0 there.
+
+        Note: EFInterpolator passes xShiftPhInPixel to the rowShift and
+        yShiftPhInPixel to the colShift of Interp2D, so the shift along the
+        columns is set with yShiftPhInPixel (and xShiftPhInPixel acts on rows).
+        """
+        n, shift = 160, 10
+        y, x = np.mgrid[0:n, 0:n].astype(np.float64)
+        c = (n - 1) / 2
+        pupil = (np.hypot(x - c, y - c) <= n / 2)
+
+        for kw, sl in ((dict(yShiftPhInPixel=shift), (slice(None), slice(-shift, None))),
+                       (dict(xShiftPhInPixel=shift), (slice(-shift, None), slice(None)))):
+            ef_in = ElectricField(n, n, 0.01, target_device_idx=target_device_idx)
+            ef_in.A[:] = xp.asarray(pupil, dtype=ef_in.A.dtype)
+            ef_in.phaseInNm[:] = 0.0
+
+            interp = EFInterpolator(ef_in, (n, n), target_device_idx=target_device_idx, **kw)
+            interp.interpolate()
+            amp = cpuArray(interp.interpolated_ef().A)
+
+            self.assertGreater(amp.sum(), 0)
+            np.testing.assert_array_equal(amp[sl], 0, err_msg=str(kw))
