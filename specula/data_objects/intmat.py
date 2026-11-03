@@ -171,12 +171,12 @@ class Intmat(Matrix):
                       subapdata_tag=subapdata_tag, norm_factor=norm_factor,
                       target_device_idx=target_device_idx)
 
-    def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
+    def generate_rec(self, nmodes=None, cut_modes=0):
         if nmodes is not None:
             intmat = self.modes[:nmodes]
         else:
             intmat = self.intmat
-        recmat = self.pseudo_invert(self.to_xp(intmat), n_modes_to_drop=cut_modes, w_vec=w_vec, interactive=interactive)
+        recmat = self.pseudo_invert(self.to_xp(intmat), n_modes_to_drop=cut_modes)
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         rec.im_tag = self.norm_factor  # TODO wrong
         return rec
@@ -240,12 +240,10 @@ class Intmat(Matrix):
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         return rec
 
-    def pseudo_invert(self, matrix, n_modes_to_drop=0, w_vec=None, interactive=False):
+    def pseudo_invert(self, matrix, n_modes_to_drop=0):
         """
         Pseudo-inverse of *matrix*, dropping the *n_modes_to_drop* smallest singular values.
         """
-        if w_vec is not None or interactive:
-            raise NotImplementedError('pseudo_invert: w_vec and interactive are not implemented')
         if n_modes_to_drop == 0:
             return self.xp.linalg.pinv(matrix)
         u, s, vt = self.xp.linalg.svd(matrix, full_matrices=False)

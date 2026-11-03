@@ -187,8 +187,6 @@ class TestIntmat(unittest.TestCase):
         assert xp.allclose(rec.recmat, expected)
         with self.assertRaises(ValueError):
             intmat.generate_rec(cut_modes=5)
-        with self.assertRaises(NotImplementedError):
-            intmat.generate_rec(w_vec=xp.ones(5))
 
     @cpu_and_gpu
     def test_generate_rec_and_mmse(self, target_device_idx, xp):
