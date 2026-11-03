@@ -3,8 +3,7 @@ import logging
 import numpy as np
 
 from specula import fuse
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.data_objects.pixels import Pixels
+from specula.base_processing_obj import OutputDesc
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.lib.make_mask import make_mask

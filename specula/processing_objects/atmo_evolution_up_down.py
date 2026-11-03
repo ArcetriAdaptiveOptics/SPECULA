@@ -1,8 +1,5 @@
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
+from specula.base_processing_obj import OutputDesc
 from specula.processing_objects.atmo_evolution import AtmoEvolution
-from specula.base_processing_obj import InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
 

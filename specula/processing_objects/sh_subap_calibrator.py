@@ -1,6 +1,6 @@
 import os
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.data_objects.intensity import Intensity
 from specula.data_objects.lenslet import Lenslet
 from specula.connections import InputValue

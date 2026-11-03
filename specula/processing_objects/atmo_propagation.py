@@ -1,10 +1,9 @@
-from specula.base_value import BaseValue
 from specula.lib.make_xy import make_xy
 from specula.lib.utils import local_mean_rebin
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.lib.interp2d import Interp2D
 from specula.data_objects.electric_field import ElectricField
-from specula.connections import InputList, InputValue
+from specula.connections import InputList
 from specula.data_objects.layer import Layer
 from specula.lib.air_refraction import MatharAirRefraction
 from specula import cpuArray, xp_fft

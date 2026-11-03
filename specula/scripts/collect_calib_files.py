@@ -297,7 +297,7 @@ def main():
         label = ','.join(os.path.relpath(f, run_dir) for f in yml_files)
         try:
             params = merged_params(yml_files, args.overrides)
-        except (ValueError, KeyError) as e:
+        except (ValueError, KeyError):
             if discovered:
                 continue   # an override file that doesn't belong to this base
             raise

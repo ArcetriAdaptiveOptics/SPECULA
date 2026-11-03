@@ -1,6 +1,5 @@
 
 import numpy as np
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from specula.base_replay_analyser import BaseReplayAnalyser

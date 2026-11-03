@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, InputDesc
 from specula.connections import InputValue
 from specula.base_value import BaseValue
 from specula.data_objects.slopes import Slopes
