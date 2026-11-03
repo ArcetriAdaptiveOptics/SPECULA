@@ -240,7 +240,7 @@ class GerchbergSaxton(Lift):
             E = self.ift_ft2(F)
             delta = self._wrap_coefficients(xp.angle(E) - phase_base - estimate,
                                             2 * np.pi).astype(self.dtype)
-            delta *= (self.mask > 0.5)
+            delta *= (self.mask > 0)
             estimate = estimate + delta
 
             new_coeffs = self.fitModes(estimate)
