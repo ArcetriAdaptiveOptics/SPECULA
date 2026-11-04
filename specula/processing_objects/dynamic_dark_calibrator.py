@@ -1,6 +1,5 @@
 import os
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
-from specula.base_value import BaseValue
 from specula.data_objects.pixels import Pixels
 from specula.connections import InputValue
 from specula.lib import utils

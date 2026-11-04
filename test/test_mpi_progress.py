@@ -204,6 +204,43 @@ class TestMpiProgress(unittest.TestCase):
         a += 1
         iteras.np.testing.assert_array_equal(b, [0, 1, 2])
 
+    def test_gpu_direct_setting(self):
+        with mock.patch.dict(os.environ, {'ITERAS_MPI_GPU_DIRECT': '1'}):
+            self.assertTrue(mpi_progress.gpu_direct())
+        with mock.patch.dict(os.environ, {'ITERAS_MPI_GPU_DIRECT': 'yes'}):
+            with self.assertRaises(ValueError):
+                mpi_progress.gpu_direct()
+        with mock.patch.dict(os.environ):
+            os.environ.pop('ITERAS_MPI_GPU_DIRECT', None)
+            self.assertFalse(mpi_progress.gpu_direct())
+
+    def test_send_copy(self):
+        '''Host arrays are sent from a host copy, also with GPU-direct MPI'''
+        from iteras.base_processing_obj import BaseProcessingObj
+        a = iteras.np.arange(3.0)
+        with mock.patch.dict(os.environ, {'ITERAS_MPI_GPU_DIRECT': '1'}):
+            b = BaseProcessingObj._send_copy(a)
+        a += 1
+        self.assertIsInstance(b, iteras.np.ndarray)
+        iteras.np.testing.assert_array_equal(b, [0, 1, 2])
+
+    @unittest.skipIf(iteras.cp is None, 'needs a GPU')
+    def test_send_copy_of_a_gpu_array(self):
+        '''With GPU-direct MPI, a copy in GPU memory; otherwise, and with buffered sends, on the host'''
+        from iteras.base_processing_obj import BaseProcessingObj
+        cp = iteras.cp
+        a = cp.arange(3.0)
+        cases = [({'ITERAS_MPI_GPU_DIRECT': '1'}, cp.ndarray),
+                 ({'ITERAS_MPI_GPU_DIRECT': '0'}, iteras.np.ndarray),
+                 ({'ITERAS_MPI_GPU_DIRECT': '1', 'ITERAS_MPI_SEND_MODE': 'buffered'}, iteras.np.ndarray)]
+        for env, kind in cases:
+            with self.subTest(env=env), mock.patch.dict(os.environ, env):
+                b = BaseProcessingObj._send_copy(a)
+                a += 1
+                self.assertIsInstance(b, kind)
+                self.assertFalse(cp.shares_memory(cp.asarray(b), a) if kind is cp.ndarray else False)
+                iteras.np.testing.assert_array_equal(cp.asnumpy(cp.asarray(b)), cp.asnumpy(a - 1))
+
 
 STALL_SCRIPT = '''
 import sys, time

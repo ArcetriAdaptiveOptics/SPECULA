@@ -39,6 +39,10 @@ sio = SocketIO(app, cors_allowed_origins="*", async_mode=async_mode)
 
 server = None
 
+# First item the server process puts on the request queue: (SERVER_READY, port).
+# DisplayServer.setup() waits for it (see DisplayServer.wait_until_ready).
+SERVER_READY = "__display_server_ready__"
+
 def encode(fig):
     buf = io.BytesIO()
     fig.savefig(buf, format='png')
@@ -175,6 +179,8 @@ class FlaskServer:
         self.client_subscriptions = {}
         self._frontend_client = None
         self._frontend_retry_at = 0.0
+        self._frontend_thread = None
+        self._status_reports = queue.Queue(maxsize=50)   # for the frontend thread
 
         self.response_handlers = {}
         self.response_handlers['terminator'] = self.terminator_response_handler
@@ -197,6 +203,11 @@ class FlaskServer:
                 self.actual_port = port
         else:
             self.actual_port = self.port
+
+        # Tell the simulation the server has started (it waits for this in
+        # DisplayServer.setup()), and the port to whoever reads the output.
+        print(f"[ITERAS_PORT:{self.actual_port}]", flush=True)
+        self.request_queue.put((SERVER_READY, self.actual_port))
 
         sio.run(app, host=self.host, allow_unsafe_werkzeug=True, port=self.actual_port)
 
@@ -227,6 +238,27 @@ class FlaskServer:
         self.logger.info("[SERVER] Simulation process ended: stopping the display server")
         self.shutdown()
 
+    def report_status(self, name, data):
+        """Hand a status report to the frontend thread, without waiting.
+
+        Reaching an absent frontend can take seconds (a refused connection to
+        localhost takes about 4 s on Windows), and the responses to the
+        monitors must not wait for it.  Reports are dropped while the
+        frontend thread is behind.
+        """
+        if self._frontend_thread is None:
+            self._frontend_thread = threading.Thread(target=self._frontend_loop, daemon=True)
+            self._frontend_thread.start()
+        try:
+            self._status_reports.put_nowait((name, data))
+        except queue.Full:
+            pass
+
+    def _frontend_loop(self):
+        while True:
+            name, data = self._status_reports.get()
+            self.forward_status(name, data)
+
     def forward_status(self, name, data):
         """Send a simulation status report to the iteras frontend, if one runs."""
         if not self.frontend_connected:
@@ -250,7 +282,7 @@ class FlaskServer:
     def handle_responses(self):
         """Read the status queue: the only consumer of it.
 
-        Status reports (name, status) go to the frontend; responses
+        Status reports (name, status) go to the frontend thread; responses
         (type, client_id, name, data) to the handler of their type.  An
         unexpected error is logged and the server keeps serving.
         """
@@ -271,7 +303,7 @@ class FlaskServer:
                         # Explicit end of the simulation
                         self.shutdown()
                         return
-                    self.forward_status(name, data)
+                    self.report_status(name, data)
 
                 elif isinstance(item, tuple) and len(item) == 4:
                     response_type, client_id, name, data = item

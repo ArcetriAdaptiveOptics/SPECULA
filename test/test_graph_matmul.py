@@ -36,11 +36,13 @@ class TestLeftMul(unittest.TestCase):
         if xp is np:
             self.skipTest('CUDA graphs are GPU only')
         rng = np.random.default_rng(6)
-        a = xp.asarray(rng.standard_normal((5, 40)))
-        x = xp.asarray(rng.standard_normal((4, 40, 30)))
-        out = xp.zeros((4, 5, 30))
         stream = xp.cuda.Stream(non_blocking=True)
+        # All the work on the same stream: a non-blocking stream is not ordered
+        # with the default one, where the arrays would otherwise be initialized
         with stream:
+            a = xp.asarray(rng.standard_normal((5, 40)))
+            x = xp.asarray(rng.standard_normal((4, 40, 30)))
+            out = xp.zeros((4, 5, 30))
             left_mul(a, x, out, xp)    # compiles the kernel outside the capture
             stream.begin_capture()
             left_mul(a, x, out, xp)
@@ -123,7 +125,9 @@ class TestMatmul(unittest.TestCase):
             self.skipTest('CUDA graphs are GPU only')
         stream = xp.cuda.Stream(non_blocking=True)
         for name, (a_shape, b_shape, transposed) in self.CASES.items():
-            with self.subTest(name):
+            # All the work on the same stream: a non-blocking stream is not ordered
+            # with the default one, so the graph could read a before it is doubled
+            with self.subTest(name), stream:
                 a, b = self.operands(xp, np.float32, a_shape, b_shape, transposed)
                 matmul(a, b, xp)    # compiles the kernels outside the capture
                 with stream:

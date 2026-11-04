@@ -30,7 +30,7 @@ from iteras.data_objects.architecture import Architecture
 from .model import SimGraph, _hash
 from .machine import Machine, GiB
 from .profiler import Profile, profile_run, OutOfDeviceMemory, split_chunk
-from .cost import Estimator, Proc
+from .cost import Estimator, Proc, split_devices
 from .solver import Solver, Layout, Infeasible, Solution, build_groups
 
 META_PREFIX = '# meta: '
@@ -281,7 +281,8 @@ class Allocator:
             layout = Layout(machine, policy)
             pins = self._pins(graph, machine, layout)
             solver = Solver(graph, machine, est, groups, pins, search_time=self.arch.search_time,
-                            log=self.logger.info, default_device=self._default_device())
+                            log=self.logger.info, default_device=self._default_device(),
+                            split_objects=self.arch.split_objects)
             try:
                 sol = solver.solve(layout)
             except Infeasible as e:
@@ -594,6 +595,13 @@ def compact_processes(machine, layout, placement):
     return {p.rank: i for i, p in enumerate(procs)}, node_map
 
 
+def split_overrides(graph, name, split_params):
+    '''Parameters of object *name* that change when it is split: its class and the split settings'''
+    pars = graph.params[name]
+    return {k: v for k, v in split_params.items()
+            if k not in ('inputs', 'outputs') and (k not in pars or pars[k] != v)}
+
+
 def make_allocation(graph, machine, solution):
     layout = solution.layout
     placement = solution.placement()
@@ -605,6 +613,8 @@ def make_allocation(graph, machine, solution):
             continue
         p, s = placement[name]
         objects[name] = {'target_device_idx': machine.slots[s].idx} if graph.device_settable[name] else {}
+        if name in solution.split_params:
+            objects[name].update(split_overrides(graph, name, solution.split_params[name]))
         if multi:
             objects[name]['target_rank'] = rank_map[p.rank]
     data = {}
@@ -633,8 +643,11 @@ def make_allocation(graph, machine, solution):
                        'target_device_idx': per_rank if len(ranks) > 1 else per_rank[ranks[0]]}
         else:
             data[d] = {'target_device_idx': per_rank[0]}
+    # Devices of each process, including all those of the objects split over several GPUs
+    spread = {**graph.spread, **solution.split}
     procs = [{'rank': rank_map[p.rank], 'node': node_map[p.node],
-              'devices': sorted({machine.slots[s].idx for q, s in placement.values() if q == p})}
+              'devices': sorted({machine.slots[d].idx for name, (q, s) in placement.items() if q == p
+                                 for d in split_devices(machine, s, spread.get(name, 1))})}
              for p in layout.procs if p.rank in rank_map]
     procs.sort(key=lambda p: p['rank'])
     ev = solution.evaluation
@@ -705,7 +718,12 @@ def check_meta(saved, current, path):
         problems.append(f'changed objects {changed}')
     if saved['pins'] != current['pins']:
         problems.append('different target_rank/target_device_idx in the parameter files')
-    if saved['architecture'] != current['architecture']:
+    saved_arch = saved['architecture']
+    if 'split_objects' not in saved_arch and 'split_objects' in current['architecture']:
+        # Written before the option existed: computed without splitting objects,
+        # it is still a valid placement
+        saved_arch = {**saved_arch, 'split_objects': current['architecture']['split_objects']}
+    if saved_arch != current['architecture']:
         problems.append('different architecture')
     if saved['precision'] != current['precision']:
         problems.append('different precision')

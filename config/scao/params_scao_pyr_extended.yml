@@ -1,4 +1,11 @@
 ---
+# SCAO pyramid as params_scao_pyr.yml, with an extended source (ExtSourcePyramid).
+# The pupils are calibrated with the point source (calib_pyr_pupdata.yml sets a
+# modulation, which ExtSourcePyramid does not have), the reconstructor with the
+# extended source:
+#   specula params_scao_pyr.yml calib_pyr_pupdata.yml
+#   specula params_scao_pyr_extended.yml calib_pyr_rec.yml
+#   specula params_scao_pyr_extended.yml
 
 main:
   class:             'SimulParams'
@@ -81,13 +88,12 @@ extended_source:
 
 
 pyramid:
-  class:             'ModulatedPyramid'
+  class:             'ExtSourcePyramid'      # The extended source replaces the modulation
   simul_params_ref:  'main'
   pup_diam:          30.                     # Pupil diameter in subaps.
   pup_dist:          36.                     # Separation between pupil centers in subaps.
   fov:               2.0                     # Requested field-of-view [arcsec]
-  mod_amp:           3.0                     # Modulation radius (in lambda/D units)
-  output_resolution: 80                      # Output sampling [usually corresponding to CCD pixels]
+  output_resolution: 80                     # Output sampling [usually corresponding to CCD pixels]
   wavelengthInNm:    750                     # [nm] Pyramid wavelength
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'

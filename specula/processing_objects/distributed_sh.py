@@ -1,4 +1,5 @@
 import copy
+import math
 
 from specula.base_processing_obj import BaseProcessingObj
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
@@ -22,7 +23,7 @@ class DistributedSH(SH):
                  subap_npx: int,
                  n_slices: int,
                  squaremask: bool = True,
-                 fov_ovs_coeff: float = 0,
+                 fov_ovs_coeff: float = 2.0,     # as SH
                  xShiftPhInPixel: float = 0,
                  yShiftPhInPixel: float = 0,
                  rotAnglePhInDeg: float = 0,
@@ -71,6 +72,20 @@ class DistributedSH(SH):
         return {**params, 'n_slices': 1}
 
     @classmethod
+    def repeated_work_fraction(cls, params):
+        # Each slice interpolates the whole input field before computing its rows,
+        # a larger fraction of the work for sensors with few rows. Measured on
+        # Leonardo (A100), 2 and 4 slices, 480x480 input field: f = 0.22 for the
+        # MORFEO NGS and reference sensors (2 and 8 rows), 0.05 for the LGS ones
+        # (68 rows, with the laser launch telescope). Interpolated in log(rows).
+        rows = params.get('subap_on_diameter', 0)
+        if not isinstance(rows, int) or rows <= 8:
+            return 0.22
+        if rows >= 68:
+            return 0.05
+        return 0.22 + (0.05 - 0.22) * math.log(rows / 8) / math.log(68 / 8)
+
+    @classmethod
     def input_names(cls):
         return super().input_names()
 
@@ -108,11 +123,12 @@ class DistributedSH(SH):
         '''
         Skip the SH method for this object, since we do not perform
         any calculation, but call the BaseProcessingObj one for housekeeping.
-        Then call all sub-SHs
+        The sub-SHs prepare in their own check_ready() (see check_ready()),
+        after getting their inputs: preparing them here, before, would use the
+        inputs of the previous step, and SH initializes the extrapolation of the
+        input field from the pupil at its first prepare_trigger() only.
         '''
         BaseProcessingObj.prepare_trigger(self, t)
-        for sh in self.sub_sh:
-            sh.prepare_trigger(t)
    
     def trigger(self):
         '''

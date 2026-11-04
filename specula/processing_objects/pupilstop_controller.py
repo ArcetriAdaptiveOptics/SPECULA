@@ -50,7 +50,6 @@ class PupilstopController(BaseProcessingObj):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
 
         in_shift_xy = cpuArray(pupilstop.shiftXYinPixel).astype(float)
-        self._pupilstop = pupilstop
 
         # Keep an internal source layer on this object's device and never mutate input pupilstop.
         self._in_layer = Layer(

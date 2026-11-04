@@ -126,6 +126,32 @@ stays there, even with ``override_placement``: for example, with the
 (one rank per node, so ``pin_ranks_per_node: 1``), the allocator places the
 other objects around them.
 
+The allocator can also decide to split an object itself (``split_objects:
+true``, the default). Classes that allow it say how (``split_options()`` in
+:doc:`extension_api`): a SPECULA ``SH`` can become a ``DistributedSH`` over 2 or
+4 GPUs of a node, when that number divides its subaperture rows. The search
+tries each number of GPUs for each such object, and keeps a split only when the
+estimated time per step is lower; the costs are those measured for the
+unsplit object, so no further profiling is needed. Each part is estimated with
+its share of the work plus the work it repeats, as declared by the class
+(``repeated_work_fraction()`` in :doc:`extension_api`).
+
+On Leonardo, the host time of each MPI message measured with MORFEO is about
+150 µs (``mpi_message_us`` in the ``links``, 30 µs by default), which
+``config/leonardo/arch_MORFEO_leonardo.yml`` declares: with it and the work
+repeated by the slices, the estimates of the measured MORFEO plans are within
++3% to -12% of the measured times (they were 5% to 28% optimistic). A split object needs a
+process that drives all its GPUs: with one process per GPU (``processes:
+'per_gpu'``) nothing is split, and an object split in the parameter files must
+be placed by hand. The allocation file then also sets the class and settings
+of the split objects, for example::
+
+    sh_lgs1_override: {class: 'DistributedSH', n_slices: 4, target_device_idx: 0, target_rank: 1}
+
+and the report lists them. Objects placed in the parameter files, and those
+already split there (an explicit ``DistributedSH``), are kept as written. With
+``split_objects: false`` the allocator never splits objects.
+
 With the accelerator
 --------------------
 

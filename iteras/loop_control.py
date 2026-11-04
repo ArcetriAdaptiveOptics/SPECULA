@@ -65,12 +65,15 @@ class LoopControl(BaseTimeObj):
 
     def niters(self):
         """
-        Calculate the number of iterations based on the run time and time step.
+        Calculate the number of iterations based on the run time and time step:
+        as many as the loop runs (while t < t0 + run_time), that is, rounded up
+        when the run time is not a multiple of the time step. The last one does
+        not send the delayed outputs, which no process would receive.
 
         Returns:
             int: The number of iterations.
         """
-        return int(self.run_time / self.dt) if self.dt != 0 else 0
+        return -(-self.run_time // self.dt) if self.dt != 0 else 0
 
     def run(self, run_time, dt, t0=0, speed_report=False, preroll_objs=None):
         """

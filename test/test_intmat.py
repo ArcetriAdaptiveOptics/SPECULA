@@ -179,6 +179,16 @@ class TestIntmat(unittest.TestCase):
         assert xp.allclose(rec.recmat, xp.linalg.pinv(mat))
 
     @cpu_and_gpu
+    def test_generate_rec_cut_modes(self, target_device_idx, xp):
+        mat = xp.diag(xp.array([5.0, 4.0, 3.0, 2.0, 1.0]))
+        intmat = Intmat(mat, target_device_idx=target_device_idx)
+        rec = intmat.generate_rec(cut_modes=2)
+        expected = xp.diag(xp.array([1 / 5.0, 1 / 4.0, 1 / 3.0, 0.0, 0.0]))
+        assert xp.allclose(rec.recmat, expected)
+        with self.assertRaises(ValueError):
+            intmat.generate_rec(cut_modes=5)
+
+    @cpu_and_gpu
     def test_generate_rec_and_mmse(self, target_device_idx, xp):
         mat = xp.eye(5)
         intmat = Intmat(mat, target_device_idx=target_device_idx)

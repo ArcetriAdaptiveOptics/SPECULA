@@ -64,59 +64,37 @@ def _calculate_extrapolation_indices_coeffs(mask, threshold=1e-3):
 
     # Iterate over each edge pixel
     for i, (y, x) in enumerate(zip(*edge_pixels)):
-        valid_directions = 0
-
-        # Examine the 4 directions
-        for dir_idx, (dy, dx) in enumerate(directions):
-            # Coordinates of reference points at distance 1 and 2
+        # Linear indices of the reference points at distance 1 and 2 in each
+        # direction, -1 where they are outside the image or the mask
+        refs = []
+        for dy, dx in directions:
             y1, x1 = y + dy, x + dx
             y2, x2 = y + 2*dy, x + 2*dx
-
-            # Check if the points are valid (inside the image and inside the mask)
             valid_ref1 = (0 <= y1 < mask.shape[0] and
                           0 <= x1 < mask.shape[1] and
                           binary_mask[y1, x1])
-
-            valid_ref2 = (0 <= y2 < mask.shape[0] and
+            valid_ref2 = (valid_ref1 and
+                          0 <= y2 < mask.shape[0] and
                           0 <= x2 < mask.shape[1] and
                           binary_mask[y2, x2])
+            refs.append((y1 * mask.shape[1] + x1 if valid_ref1 else -1,
+                         y2 * mask.shape[1] + x2 if valid_ref2 else -1))
 
-            if valid_ref1:
-                # Index of the first reference point (linear index)
-                ref_idx1 = y1 * mask.shape[1] + x1
-                reference_indices_fixed[i, 2*dir_idx] = ref_idx1
-
-                if valid_ref2:
-                    # Index of the second reference point (linear index)
-                    ref_idx2 = y2 * mask.shape[1] + x2
-                    reference_indices_fixed[i, 2*dir_idx + 1] = ref_idx2
-
-                    # Coefficients for linear extrapolation: 2*P₁ - P₂
-                    coefficients_fixed[i, 2*dir_idx] = 2.0
-                    coefficients_fixed[i, 2*dir_idx + 1] = -1.0
-                    valid_directions += 1
-                else:
-                    # If the second point is invalid, check if it's the only valid pixel
-                    if valid_directions == 0:
-                        coefficients_fixed[i, 2*dir_idx] = 1.0
-                        valid_directions += 1
-                    else:
-                        # Set coefficients to 0
-                        coefficients_fixed[i, 2*dir_idx] = 0.0
-                        coefficients_fixed[i, 2*dir_idx + 1] = 0.0
-            else:
-                # Set coefficients to 0 if the first reference is invalid
-                coefficients_fixed[i, 2*dir_idx] = 0.0
-                coefficients_fixed[i, 2*dir_idx + 1] = 0.0
-
-        # Normalize coefficients based on the number of valid directions
-        if valid_directions > 1:
-            factor = 1.0 / valid_directions
-            for dir_idx in range(4):
-                if coefficients_fixed[i, 2*dir_idx] != 0:
-                    coefficients_fixed[i, 2*dir_idx] *= factor
-                    if coefficients_fixed[i, 2*dir_idx + 1] != 0:
-                        coefficients_fixed[i, 2*dir_idx + 1] *= factor
+        # Linear extrapolation 2*P1 - P2, averaged over the directions with both
+        # reference points; the value of the first valid neighbour only if there
+        # is none. Averaging the two kinds would bias the result (by half a step
+        # for a linear phase), so they are never mixed.
+        coefficients_fixed[i, :] = 0.0
+        linear = [d for d, (_, ref2) in enumerate(refs) if ref2 >= 0]
+        if linear:
+            for d in linear:
+                reference_indices_fixed[i, 2*d:2*d + 2] = refs[d]
+                coefficients_fixed[i, 2*d] = 2.0 / len(linear)
+                coefficients_fixed[i, 2*d + 1] = -1.0 / len(linear)
+        else:
+            d = next(d for d, (ref1, _) in enumerate(refs) if ref1 >= 0)
+            reference_indices_fixed[i, 2*d] = refs[d][0]
+            coefficients_fixed[i, 2*d] = 1.0
 
     # Calculate valid indices here
     valid_edge_mask = (edge_pixels_fixed >= 0) & ~np.isnan(coefficients_fixed[:, 0])

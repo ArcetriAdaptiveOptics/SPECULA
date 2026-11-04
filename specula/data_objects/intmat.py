@@ -171,12 +171,12 @@ class Intmat(Matrix):
                       subapdata_tag=subapdata_tag, norm_factor=norm_factor,
                       target_device_idx=target_device_idx)
 
-    def generate_rec(self, nmodes=None, cut_modes=0, w_vec=None, interactive=False):
+    def generate_rec(self, nmodes=None, cut_modes=0):
         if nmodes is not None:
             intmat = self.modes[:nmodes]
         else:
             intmat = self.intmat
-        recmat = self.pseudo_invert(self.to_xp(intmat), n_modes_to_drop=cut_modes, w_vec=w_vec, interactive=interactive)
+        recmat = self.pseudo_invert(self.to_xp(intmat), n_modes_to_drop=cut_modes)
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         rec.im_tag = self.norm_factor  # TODO wrong
         return rec
@@ -240,7 +240,15 @@ class Intmat(Matrix):
         rec = Recmat(recmat, target_device_idx=self.target_device_idx)
         return rec
 
-    def pseudo_invert(self, matrix, n_modes_to_drop=0, w_vec=None, interactive=False):
-        # TODO handle n_modes_to_drop, and w_vec
-        return self.xp.linalg.pinv(matrix)
+    def pseudo_invert(self, matrix, n_modes_to_drop=0):
+        """
+        Pseudo-inverse of *matrix*, dropping the *n_modes_to_drop* smallest singular values.
+        """
+        if n_modes_to_drop == 0:
+            return self.xp.linalg.pinv(matrix)
+        u, s, vt = self.xp.linalg.svd(matrix, full_matrices=False)
+        if not 0 < n_modes_to_drop < len(s):
+            raise ValueError(f'pseudo_invert: n_modes_to_drop must be between 0 and {len(s) - 1}')
+        n = len(s) - n_modes_to_drop
+        return (vt[:n].T / s[:n]) @ u[:, :n].T
 

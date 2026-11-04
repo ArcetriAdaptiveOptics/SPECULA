@@ -1,11 +1,10 @@
 import numpy as np
 
 from specula import cpuArray
-from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
+from specula.base_processing_obj import BaseProcessingObj, OutputDesc
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.layer import Layer
 from specula.data_objects.spatio_temp_array import SpatioTempArray
-from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 from specula.lib.extrapolation_2d import EFInterpolator
 

@@ -29,6 +29,7 @@ Getting Started
    Displays <simul_displays>
    Diagrams <simul_diagrams>
    Calibration manager <calibration_manager>
+   Nonlinear modal reconstructor <nonlinear_modalrec>
 
 Tutorials
 ---------

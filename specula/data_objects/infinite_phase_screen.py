@@ -4,7 +4,7 @@ from seeing.integrator import evaluateFormula, cpulib
 from symao.turbolence import createTurbolenceFormulary, ft_phase_screen0
 
 from specula.base_data_obj import BaseDataObj
-from specula import ASEC2RAD, RAD2ASEC, cpuArray, np
+from specula import cpuArray, np
 
 turbolenceFormulas = createTurbolenceFormulary()
 
@@ -19,22 +19,6 @@ class _ABMatrices:
 # and turbulence parameters, not on the random seed. Entries are dropped
 # as soon as no phase screen references them anymore.
 _AB_cache = weakref.WeakValueDictionary()
-
-
-def seeing_to_r0(seeing, wvl=500.e-9):
-    return 0.9759*wvl/(seeing* ASEC2RAD)
-
-def cn2_to_r0(cn2, wvl=500.e-9):
-    r0=(0.423*(2*np.pi/wvl)**2*cn2)**(-3./5.)
-    return r0
-
-def r0_to_seeing(r0, wvl=500.e-9):
-    return (0.9759*wvl/r0)*RAD2ASEC
-
-def cn2_to_seeing(cn2, wvl=500.e-9):
-    r0 = cn2_to_r0(cn2,wvl)
-    seeing = r0_to_seeing(r0,wvl)
-    return seeing
 
 
 class InfinitePhaseScreen(BaseDataObj):
@@ -74,7 +58,6 @@ class InfinitePhaseScreen(BaseDataObj):
         self.random_seed = int(random_seed)
         self.rng = self.xp.random.default_rng(self.random_seed)
 
-        #self.set_stencil_coords_basic()
         self.set_stencil_coords()
         self.setup()
 
@@ -96,13 +79,6 @@ class InfinitePhaseScreen(BaseDataObj):
         cov = self.to_xp(cov)
 
         return cov
-
-    def set_stencil_coords_basic(self):
-        self.stencil = self.xp.zeros((self.stencil_size, self.stencil_size))
-        self.stencil[:2,:] = 1
-        self.stencil_coords = self.to_xp(self.xp.where(self.stencil==1)).T
-        self.stencil_positions = self.stencil_coords * self.pixel_scale
-        self.n_stencils = self.stencil_coords.shape[0]
 
     def set_stencil_coords(self):
         self.stencil = np.zeros((self.stencil_size, self.stencil_size))

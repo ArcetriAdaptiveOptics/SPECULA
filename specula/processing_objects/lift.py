@@ -254,10 +254,19 @@ class Lift(BaseProcessingObj):
         valid_idx = np.nonzero(mask2d)
         f = np.zeros_like(mask2d.astype(cpu_dtype))
 
+        # Normalised convolution: each resampled mode value is divided by the
+        # resampled pupil indicator, so it is an average over the valid pixels
+        # only. Otherwise the zeros outside the pupil reduce the phase on the
+        # edge pixels, where e.g. focus is largest, and bias the estimates.
+        weight = resize_interp.interpolate((mask2d != 0).astype(cpu_dtype))
+        valid_weight = weight > 0
+        safe_weight = np.where(valid_weight, weight, 1)
+
         self.modes = []
         for i in range(self.nmodes):
             f[valid_idx] = modalbase[i, :]
             f2 = resize_interp.interpolate(f.astype(cpu_dtype, copy=False))
+            f2 = np.where(valid_weight, f2 / safe_weight, 0)
             self.modes.append(self.xp.array(f2, dtype=self.dtype))
         self.modesCube = self.xp.stack(self.modes)
 
