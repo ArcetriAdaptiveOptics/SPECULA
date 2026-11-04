@@ -66,7 +66,7 @@ def toccd(a, newshape, set_total=None, xp=None, out=None):
         raise ValueError('Output shape is %s, cannot continue' % str(newshape))
 
     cp = specula.cp
-    if cp is not None and xp is cp:
+    if cp is not None and xp is cp:  # pragma: gpu
         if a.dtype not in (cp.float32, cp.float64):
             raise TypeError(f'toccd(): unsupported dtype {a.dtype} on GPU.'
                             f' Valid dtypes are float32 and float64')
@@ -133,7 +133,7 @@ def _sparse_weights(n_in, n_out, dtype):
 
 
 @functools.lru_cache(maxsize=None)
-def _device_weights(in_shape, out_shape, dtype, device_id):
+def _device_weights(in_shape, out_shape, dtype, device_id):  # pragma: gpu
     '''Weights of overlap_weights() for both axes on the current GPU'''
     cp = specula.cp
     ix, wx = overlap_weights(in_shape[1], out_shape[1])
@@ -143,7 +143,7 @@ def _device_weights(in_shape, out_shape, dtype, device_id):
 
 
 @functools.cache
-def _toccd_kernel():
+def _toccd_kernel():  # pragma: gpu
     '''
     The toccd elementwise kernel, created at the first GPU call,
     so that this module can be imported before init()

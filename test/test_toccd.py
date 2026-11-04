@@ -187,7 +187,7 @@ class TestToccd(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             toccd(a, (14, 9), xp=xp, out=xp.empty((9, 14), dtype=xp.float32))
-        if xp is cp:
+        if xp is cp:  # pragma: gpu
             with self.assertRaises(TypeError):
                 toccd(a, (14, 9), xp=xp, out=xp.empty((14, 9), dtype=xp.float64))
 
