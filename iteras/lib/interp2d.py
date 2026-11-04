@@ -7,42 +7,91 @@ from scipy.interpolate import RegularGridInterpolator
 
 class Interp2D():
 
-    # CUDA sources of the kernels, created at the first GPU call (see _interp2_kernels())
+    # CUDA sources of the kernels, created at the first GPU call (see _interp2_kernel())
 
-    # Definition of bilinear interpolation device function used by both kernels
+    # Definition of bilinear interpolation device functions used by both kernels.
+    # TYPE (float, double) and MODE (the outside rule) are replaced in the source:
+    # one compiled kernel per type and rule, so that each kernel contains only the
+    # code of its rule. Outside the array, the input is extended by a virtual
+    # 1-pixel ring (see interpolate()): fetch() reads an element or a ring value
+    # with the rule MODE = 0 (edge value), 1 (zero) or 2 (linear extrapolation
+    # 2 a[0] - a[1] along each axis, separable at the corners).
     bilinear_interp_device = r'''
+        // Products and sums with explicit rounding: the compiler cannot fuse them
+        // into FMAs, so bilinear_interp() gives the same bits in every kernel that
+        // includes it (e.g. the geometric propagation of AtmoPropagation)
+        __device__ __forceinline__ float mul_rn(float a, float b) { return __fmul_rn(a, b); }
+        __device__ __forceinline__ double mul_rn(double a, double b) { return __dmul_rn(a, b); }
+        __device__ __forceinline__ float add_rn(float a, float b) { return __fadd_rn(a, b); }
+        __device__ __forceinline__ double add_rn(double a, double b) { return __dadd_rn(a, b); }
+
+        __device__ TYPE fetch(TYPE *g_in, int in_dx, int in_dy, int x, int y) {
+            bool out_x = (x < 0) || (x >= in_dx);
+            bool out_y = (y < 0) || (y >= in_dy);
+            if (MODE == 1 && (out_x || out_y)) return 0;
+            int x0 = min(max(x, 0), in_dx - 1);
+            int y0 = min(max(y, 0), in_dy - 1);
+            if (MODE != 2 || !(out_x || out_y)) return g_in[y0 * in_dx + x0];
+            // Linear: P = 2 a[edge] - a[next to the edge], along each axis out of the array
+            int x1 = out_x ? (x < 0 ? 1 : in_dx - 2) : x0;
+            int y1 = out_y ? (y < 0 ? 1 : in_dy - 2) : y0;
+            TYPE cx0 = out_x ? 2 : 1;
+            TYPE cx1 = out_x ? -1 : 0;
+            TYPE cy0 = out_y ? 2 : 1;
+            TYPE cy1 = out_y ? -1 : 0;
+            return cy0 * (cx0 * g_in[y0 * in_dx + x0] + cx1 * g_in[y0 * in_dx + x1]) +
+                   cy1 * (cx0 * g_in[y1 * in_dx + x0] + cx1 * g_in[y1 * in_dx + x1]);
+        }
+
+        // Coordinates already clamped to [0, N-1] (MODE 0) or [-1, N] (MODE 1, 2)
         __device__ TYPE bilinear_interp(TYPE *g_in, int in_dx, int in_dy, TYPE xcoord, TYPE ycoord) {
-            int xin = floor(xcoord);
-            int yin = floor(ycoord);
-            // Clamp neighbours at the last row/column: they get zero weight there,
-            // but reading past the edge would wrap to the next row or out of bounds.
-            int xin2 = min(xin + 1, in_dx - 1);
-            int yin2 = min(yin + 1, in_dy - 1);
+            // At the last row/column (coordinate N-1, or N on the ring) keep the
+            // first neighbour on it, with weight 1 (or 0 for the second one)
+            int xin = min((int)floor(xcoord), in_dx - 1);
+            int yin = min((int)floor(ycoord), in_dy - 1);
 
             TYPE xdist = xcoord - xin;
             TYPE ydist = ycoord - yin;
 
-            int idx_a = yin * in_dx + xin;
-            int idx_b = yin * in_dx + xin2;
-            int idx_c = yin2 * in_dx + xin;
-            int idx_d = yin2 * in_dx + xin2;
+            TYPE a, b, c, d;
+            if (xin >= 0 && yin >= 0 && xin + 1 < in_dx && yin + 1 < in_dy) {
+                // The 4 neighbours inside the array (almost all the pixels): direct reads
+                int idx = yin * in_dx + xin;
+                a = g_in[idx];
+                b = g_in[idx + 1];
+                c = g_in[idx + in_dx];
+                d = g_in[idx + in_dx + 1];
+            } else {
+                a = fetch(g_in, in_dx, in_dy, xin, yin);
+                b = fetch(g_in, in_dx, in_dy, xin + 1, yin);
+                c = fetch(g_in, in_dx, in_dy, xin, yin + 1);
+                d = fetch(g_in, in_dx, in_dy, xin + 1, yin + 1);
+            }
+            TYPE wx = 1 - xdist;
+            TYPE wy = 1 - ydist;
+            // a * wx * wy + b * xdist * wy + c * ydist * wx + d * xdist * ydist
+            return add_rn(add_rn(add_rn(mul_rn(mul_rn(a, wx), wy),
+                                        mul_rn(mul_rn(b, xdist), wy)),
+                                 mul_rn(mul_rn(c, ydist), wx)),
+                          mul_rn(mul_rn(d, xdist), ydist));
+        }
 
-            return g_in[idx_a] * (1 - xdist) * (1 - ydist) +
-                   g_in[idx_b] * xdist * (1 - ydist) +
-                   g_in[idx_c] * ydist * (1 - xdist) +
-                   g_in[idx_d] * xdist * ydist;
+        __device__ TYPE clamp_coord(TYPE c, int n) {
+            TYPE lo = (MODE == 0) ? 0 : -1;
+            TYPE hi = (MODE == 0) ? n - 1 : n;
+            return min(max(c, lo), hi);
         }
         '''
 
     interp2_kernel = bilinear_interp_device + r'''
         extern "C" __global__
-        void interp2_kernel_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
+        void interp2_kernel_TYPE_MODE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy, TYPE *xx, TYPE *yy) {
             int y = blockIdx.y * blockDim.y + threadIdx.y;
             int x = blockIdx.x * blockDim.x + threadIdx.x;
 
             if ((y < out_dy) && (x < out_dx)) {
-                TYPE xcoord = xx[y * out_dx + x];
-                TYPE ycoord = yy[y * out_dx + x];
+                TYPE xcoord = clamp_coord(xx[y * out_dx + x], in_dx);
+                TYPE ycoord = clamp_coord(yy[y * out_dx + x], in_dy);
                 g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
             }
         }
@@ -50,7 +99,7 @@ class Interp2D():
 
     interp2_kernel_onthefly = bilinear_interp_device + r'''
         extern "C" __global__
-        void interp2_kernel_onthefly_TYPE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
+        void interp2_kernel_onthefly_TYPE_MODE(TYPE *g_in, TYPE *g_out, int out_dx, int out_dy, int in_dx, int in_dy,
                                         TYPE scale_x, TYPE scale_y, TYPE offset_x, TYPE offset_y,
                                         TYPE shift_x, TYPE shift_y,
                                         TYPE cos_angle, TYPE sin_angle, TYPE center_x, TYPE center_y, 
@@ -89,12 +138,10 @@ class Interp2D():
                 xcoord += shift_x;
                 ycoord += shift_y;
                 
-                // Clamp to limits
-                if (xcoord < 0) xcoord = 0;
-                if (ycoord < 0) ycoord = 0;
-                if (xcoord > in_dx - 1) xcoord = in_dx - 1;
-                if (ycoord > in_dy - 1) ycoord = in_dy - 1;
-                
+                // Clamp to the array (mode 0) or to the virtual ring around it
+                xcoord = clamp_coord(xcoord, in_dx);
+                ycoord = clamp_coord(ycoord, in_dy);
+
                 // Call bilinear interpolation
                 g_out[y * out_dx + x] = bilinear_interp(g_in, in_dx, in_dy, xcoord, ycoord);
             }
@@ -138,7 +185,8 @@ class Interp2D():
         centred at coordinate j, so output pixel j maps to input coordinate
         (j + 0.5) * N_in / N_out - 0.5 and the centre (N_out - 1) / 2 maps to
         (N_in - 1) / 2, which is also the centre of rotation and magnification.
-        Coordinates outside [0, N_in - 1] take the edge value.
+        Coordinates outside [0, N_in - 1] take the edge value, or see the
+        outside argument of interpolate().
         '''
         self.xp = xp
         self.dtype = dtype
@@ -215,10 +263,10 @@ class Interp2D():
                 yy += rowShiftInPixels
                 xx += colShiftInPixels
 
-            yy[np.where(yy < 0)] = 0
-            xx[np.where(xx < 0)] = 0
-            yy[np.where(yy > input_shape[0] - 1)] = input_shape[0] - 1
-            xx[np.where(xx > input_shape[1] - 1)] = input_shape[1] - 1
+            # Clamped to the virtual 1-pixel ring around the input (see interpolate());
+            # with outside='edge' they are clamped again to [0, N-1]
+            yy = np.clip(yy, -1, input_shape[0])
+            xx = np.clip(xx, -1, input_shape[1])
 
             self.yy = to_xp(self.xp, yy, dtype=dtype).ravel()
             self.xx = to_xp(self.xp, xx, dtype=dtype).ravel()
@@ -237,7 +285,10 @@ class Interp2D():
         self.center_x = self.dtype(input_shape[1] / 2 - 0.5)
         self.center_y = self.dtype(input_shape[0] / 2 - 0.5)
 
-    def interpolate(self, value, out=None):
+    # Integer codes of the outside rules in the CUDA kernels
+    OUTSIDE_MODES = {'edge': 0, 'zero': 1, 'linear': 2}
+
+    def interpolate(self, value, out=None, outside='edge'):
         """
         Interpolates the input array to the output grid defined by the interpolator.
 
@@ -247,6 +298,20 @@ class Interp2D():
             The input array to be interpolated. Must have shape `input_shape`.
         out : array-like, optional
             Optional output array to store the result. If not provided, a new array is created.
+        outside : str, optional
+            Value for the coordinates outside the input array [0, N - 1]:
+
+            - 'edge' (default): the value of the nearest edge pixel, however far;
+            - 'zero': the array is extended by a ring of zeros, so the value goes
+              linearly from the edge pixel to 0 within one pixel and is 0 beyond.
+              Suited to an amplitude: outside the array there is no light;
+            - 'linear': the array is extended by a ring with the linear
+              extrapolation 2 a[0] - a[1] (along each axis), so a linear field
+              continues for one pixel beyond the edge, and is then held.
+              Suited to a phase.
+
+            With 'zero' and 'linear', the coordinates are clamped to [-1, N]
+            instead of [0, N - 1].
 
         Returns
         -------
@@ -266,6 +331,11 @@ class Interp2D():
         if value.shape != self.input_shape:
             raise ValueError(f'Array to be interpolated must have shape'
                              f' {self.input_shape} instead of {value.shape}')
+        if outside not in self.OUTSIDE_MODES:
+            raise ValueError(f"outside must be one of {list(self.OUTSIDE_MODES)}, got {outside!r}")
+        if outside == 'linear' and min(self.input_shape) < 2:
+            raise ValueError("outside='linear' needs at least 2 pixels along each axis")
+        mode = self.OUTSIDE_MODES[outside]
 
         # Skip interpolation if not needed
         if not self.do_interp:
@@ -280,7 +350,12 @@ class Interp2D():
 
         if self.xp == iteras.cp: # pragma: no cover
             cp = iteras.cp
-            kernels = _interp2_kernels()
+            if self.dtype == cp.float32:
+                type_name = 'float'
+            elif self.dtype == cp.float64:
+                type_name = 'double'
+            else:
+                raise ValueError(f'Unsupported dtype {self.dtype}')
             block = (16, 16)
             # Calculate grid size for non-square arrays correctly
             grid_x = (self.output_shape[1] + block[0] - 1) // block[0]
@@ -289,62 +364,61 @@ class Interp2D():
 
             if not self.use_precomputed:
                 # Use on-the-fly coordinate calculation kernel
-                if self.dtype == cp.float32:
-                    kernels['interp2_kernel_onthefly_float'](grid, block, (
-                        value, out,
-                        self.output_shape[1], self.output_shape[0],
-                        self.input_shape[1], self.input_shape[0],
-                        self.scale_x, self.scale_y,
-                        self.offset_x, self.offset_y,
-                        self.shift_x, self.shift_y,
-                        self.cos_angle, self.sin_angle,
-                        self.center_x, self.center_y,
-                        self.magnification))
-                elif self.dtype == cp.float64:
-                    kernels['interp2_kernel_onthefly_double'](grid, block, (
-                        value, out,
-                        self.output_shape[1], self.output_shape[0],
-                        self.input_shape[1], self.input_shape[0],
-                        self.scale_x, self.scale_y,
-                        self.offset_x, self.offset_y,
-                        self.shift_x, self.shift_y,
-                        self.cos_angle, self.sin_angle,
-                        self.center_x, self.center_y,
-                        self.magnification))
-                else:
-                    raise ValueError(f'Unsupported dtype {self.dtype}')
+                kernel = _interp2_kernel('interp2_kernel_onthefly', type_name, mode)
+                kernel(grid, block, (
+                    value, out,
+                    self.output_shape[1], self.output_shape[0],
+                    self.input_shape[1], self.input_shape[0],
+                    self.scale_x, self.scale_y,
+                    self.offset_x, self.offset_y,
+                    self.shift_x, self.shift_y,
+                    self.cos_angle, self.sin_angle,
+                    self.center_x, self.center_y,
+                    self.magnification))
             else:
-                if self.dtype == cp.float32:
-                    kernels['interp2_kernel_float'](grid, block,
-                        (value, out, self.output_shape[1], self.output_shape[0],
-                         self.input_shape[1], self.input_shape[0], self.xx, self.yy))
-                elif self.dtype == cp.float64:
-                    kernels['interp2_kernel_double'](grid, block,
-                        (value, out, self.output_shape[1], self.output_shape[0],
-                         self.input_shape[1], self.input_shape[0], self.xx, self.yy))
-                else:
-                    raise ValueError('Unsupported dtype {self.dtype}')
+                kernel = _interp2_kernel('interp2_kernel', type_name, mode)
+                kernel(grid, block,
+                    (value, out, self.output_shape[1], self.output_shape[0],
+                     self.input_shape[1], self.input_shape[0], self.xx, self.yy))
 
             return out
 
         else:
-            points = (self.xp.arange( self.input_shape[0], dtype=self.dtype),
-                      self.xp.arange( self.input_shape[1], dtype=self.dtype))
-            interp = RegularGridInterpolator(points,value, method='linear')
-            out[:] = interp((self.yy, self.xx)).reshape(self.output_shape)
+            if outside == 'edge':
+                ny, nx = self.input_shape
+                points = (np.arange(ny, dtype=self.dtype), np.arange(nx, dtype=self.dtype))
+                coords = (np.clip(self.yy, 0, ny - 1), np.clip(self.xx, 0, nx - 1))
+            else:
+                # The virtual ring of the GPU kernels, as an explicit 1-pixel padding
+                value = _pad_one_pixel(value, outside)
+                ny, nx = value.shape
+                points = (np.arange(-1, ny - 1, dtype=self.dtype),
+                          np.arange(-1, nx - 1, dtype=self.dtype))
+                coords = (self.yy, self.xx)
+            interp = RegularGridInterpolator(points, value, method='linear')
+            out[:] = interp(coords).reshape(self.output_shape)
             return out
 
 
+def _pad_one_pixel(value, outside):
+    '''
+    The input extended by a 1-pixel ring: zeros ('zero'), or the linear
+    extrapolation 2 a[0] - a[1] along each axis ('linear'; first along the rows,
+    then along the columns, so the corners are extrapolated along both axes).
+    '''
+    if outside == 'zero':
+        return np.pad(value, 1)
+    rows = np.concatenate([2 * value[:1] - value[1:2], value, 2 * value[-1:] - value[-2:-1]], axis=0)
+    return np.concatenate([2 * rows[:, :1] - rows[:, 1:2], rows,
+                           2 * rows[:, -1:] - rows[:, -2:-1]], axis=1)
+
+
 @cache
-def _interp2_kernels():  # pragma: no cover
+def _interp2_kernel(kernel_name, type_name, mode):  # pragma: no cover
     '''
-    The interpolation kernels for float and double, created at the first
-    GPU call, so that this module can be imported before init()
+    One interpolation kernel ('interp2_kernel' or 'interp2_kernel_onthefly') for
+    a type ('float', 'double') and an outside rule (0, 1, 2; see Interp2D.OUTSIDE_MODES),
+    compiled at its first GPU call, so that this module can be imported before init()
     '''
-    cp = iteras.cp
-    return {
-        'interp2_kernel_float': cp.RawKernel(Interp2D.interp2_kernel.replace('TYPE', 'float'), name='interp2_kernel_float'),
-        'interp2_kernel_double': cp.RawKernel(Interp2D.interp2_kernel.replace('TYPE', 'double'), name='interp2_kernel_double'),
-        'interp2_kernel_onthefly_float': cp.RawKernel(Interp2D.interp2_kernel_onthefly.replace('TYPE', 'float'), name='interp2_kernel_onthefly_float'),
-        'interp2_kernel_onthefly_double': cp.RawKernel(Interp2D.interp2_kernel_onthefly.replace('TYPE', 'double'), name='interp2_kernel_onthefly_double'),
-    }
+    source = getattr(Interp2D, kernel_name).replace('TYPE', type_name).replace('MODE', str(mode))
+    return iteras.cp.RawKernel(source, name=f'{kernel_name}_{type_name}_{mode}')

@@ -423,7 +423,9 @@ class EFInterpolator():
             self.initialize_extrapolation()
 
         # Amplitude: simple interpolation
-        self.interp.interpolate(self.in_ef.A, out=self.out_ef.A)
+        # Outside the array there is no light: zero, not the edge value, which a
+        # shift or a rotation would copy over the whole out-of-array band
+        self.interp.interpolate(self.in_ef.A, out=self.out_ef.A, outside='zero')
 
         # Apply binary threshold if input amplitude was binary
         if self.amplitude_is_binary:
@@ -466,7 +468,10 @@ class EFInterpolator():
             plt.colorbar()
             plt.show()
 
-        self.interp.interpolate(self.phase_extrapolated, out=self.out_ef.phaseInNm)
+        # The phase continues linearly for one pixel beyond the array, where the
+        # amplitude goes to zero (it matters only if the pupil touches the edge)
+        self.interp.interpolate(self.phase_extrapolated, out=self.out_ef.phaseInNm,
+                                outside='linear')
 
         # Copy other properties
         self.out_ef.S0 = self.in_ef.S0

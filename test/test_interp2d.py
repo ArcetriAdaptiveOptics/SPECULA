@@ -494,3 +494,164 @@ class TestInterp2D(unittest.TestCase):
         assert explicit.use_precomputed
         np.testing.assert_allclose(cpuArray(explicit.interpolate(img)),
                                    cpuArray(default.interpolate(img)), atol=1e-5)
+
+    # ------------------------------------------------------------------
+    # Rules for the coordinates outside the array (outside='edge'|'zero'|'linear')
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _ramp_along_x(n, xp):
+        # a[i, j] = j + 1 (rows identical)
+        return xp.asarray(np.tile(np.arange(n, dtype=np.float64) + 1, (n, 1)))
+
+    @cpu_and_gpu
+    def test_outside_zero_ramp(self, target_device_idx, xp):
+        '''
+        outside='zero': the input is extended by a ring of zeros, so beyond the
+        last pixel the value goes linearly from a[N-1] to 0 within one pixel
+        ((N - x_in) * a[N-1] for N-1 < x_in <= N) and is 0 beyond; on the low
+        side (1 + x_in) * a[0] for -1 <= x_in < 0, and 0 below -1.
+        Old behaviour (clamp to the edge): the edge value everywhere outside.
+        '''
+        n = 16
+        a = self._ramp_along_x(n, xp)
+        j = np.arange(n, dtype=np.float64)
+        for s in (0.5, 1.0, 3.0, -0.5, -1.0, -3.0):
+            interp = Interp2D((n, n), (n, n), colShiftInPixels=s, xp=xp, dtype=xp.float64)
+            out = cpuArray(interp.interpolate(a, outside='zero'))
+            x_in = j + s
+            expected = np.where(x_in <= n - 1, x_in + 1, 0.0)           # inside the ramp
+            expected = np.where((x_in > n - 1) & (x_in <= n), (n - x_in) * n, expected)
+            expected = np.where((x_in >= -1) & (x_in < 0), 1 + x_in, expected)
+            expected = np.where(x_in < -1, 0.0, expected)
+            np.testing.assert_allclose(out, np.tile(expected, (n, 1)), atol=1e-12,
+                                       err_msg=f'shift {s}')
+
+    @cpu_and_gpu
+    def test_outside_linear_ramp(self, target_device_idx, xp):
+        '''
+        outside='linear': a linear ramp continues exactly for one pixel beyond
+        the edge (value x_in + 1 up to x_in = N and down to x_in = -1), and is
+        held beyond (N + 1 on the high side, 0 on the low side).
+        Old behaviour (clamp to the edge): held at a[N-1] = N (or a[0] = 1).
+        '''
+        n = 16
+        a = self._ramp_along_x(n, xp)
+        j = np.arange(n, dtype=np.float64)
+        for s in (0.5, 1.0, 3.0, -0.5, -1.0, -3.0):
+            interp = Interp2D((n, n), (n, n), colShiftInPixels=s, xp=xp, dtype=xp.float64)
+            out = cpuArray(interp.interpolate(a, outside='linear'))
+            expected = np.clip(j + s, -1, n) + 1
+            np.testing.assert_allclose(out, np.tile(expected, (n, 1)), atol=1e-12,
+                                       err_msg=f'shift {s}')
+
+    @cpu_and_gpu
+    def test_outside_linear_corner(self, target_device_idx, xp):
+        '''
+        outside='linear' is separable (corner = 4 a00 - 2 a01 - 2 a10 + a11), so
+        it reproduces exactly a bilinear field c0 + c1 i + c2 j + c3 i j on the
+        ring, corners included. A shift of -0.5 (or +0.5) in both directions
+        samples the corner pixel at (-0.5, -0.5) (or (N-0.5, N-0.5)).
+        Old behaviour (clamp to the edge): the corner value was a[0, 0].
+        '''
+        n = 12
+        c0, c1, c2, c3 = 1.0, 2.0, 3.0, 0.5
+        i, j = np.mgrid[0:n, 0:n].astype(np.float64)
+        field = lambda y, x: c0 + c1 * y + c2 * x + c3 * y * x
+        a = xp.asarray(field(i, j))
+        for s in (-0.5, 0.5):
+            interp = Interp2D((n, n), (n, n), rowShiftInPixels=s, colShiftInPixels=s,
+                              xp=xp, dtype=xp.float64)
+            out = cpuArray(interp.interpolate(a, outside='linear'))
+            np.testing.assert_allclose(out, field(i + s, j + s), atol=1e-10,
+                                       err_msg=f'shift {s}')
+
+    @cpu_and_gpu
+    def test_outside_edge_unchanged(self, target_device_idx, xp):
+        '''
+        outside='edge' is the default and gives exactly the same result as the
+        call without the argument (shift, rotation, magnification, upsampling,
+        default grid and explicit xx/yy partly outside the array).
+        '''
+        rng = np.random.default_rng(11)
+        img = xp.asarray(rng.random((20, 20)).astype(np.float32))
+        cases = [
+            dict(output_shape=(20, 20), rowShiftInPixels=2.7, colShiftInPixels=-3.1),
+            dict(output_shape=(20, 20), rotInDeg=25),
+            dict(output_shape=(20, 20), magnification=0.7),
+            dict(output_shape=(50, 50), rotInDeg=10, colShiftInPixels=1.5),
+        ]
+        for kw in cases:
+            interp = Interp2D((20, 20), xp=xp, dtype=xp.float32, **kw)
+            np.testing.assert_array_equal(cpuArray(interp.interpolate(img)),
+                                          cpuArray(interp.interpolate(img, outside='edge')),
+                                          err_msg=str(kw))
+
+        yy, xx = np.mgrid[0:20, 0:20].astype(np.float32)
+        interp = Interp2D((20, 20), (20, 20), xx=xp.asarray(xx * 1.5 - 6),
+                          yy=xp.asarray(yy * 1.5 - 4), xp=xp, dtype=xp.float32)
+        np.testing.assert_array_equal(cpuArray(interp.interpolate(img)),
+                                      cpuArray(interp.interpolate(img, outside='edge')))
+
+    def test_outside_cpu_equals_gpu(self):
+        '''
+        CPU (scipy, padded input) and GPU (CUDA kernels, virtual ring) agree
+        within 1e-12 in double precision, for each rule and a few geometries.
+        '''
+        if cp is None:
+            self.skipTest('GPU not available')
+        rng = np.random.default_rng(5)
+        geometries = [
+            dict(in_n=40, out_n=40, colShiftInPixels=3.3, rowShiftInPixels=-2.6),
+            dict(in_n=40, out_n=40, rotInDeg=30),
+            dict(in_n=40, out_n=40, magnification=0.7),
+            dict(in_n=40, out_n=100),
+            dict(in_n=40, out_n=100, rotInDeg=30, magnification=0.7, colShiftInPixels=3.3),
+        ]
+        img = rng.random((40, 40))
+        for outside in ('edge', 'zero', 'linear'):
+            for g in geometries:
+                g = dict(g)
+                shape_in, shape_out = (g.pop('in_n'),) * 2, (g.pop('out_n'),) * 2
+                res = []
+                for xp in (np, cp):
+                    interp = Interp2D(shape_in, shape_out, xp=xp, dtype=xp.float64, **g)
+                    res.append(cpuArray(interp.interpolate(xp.asarray(img), outside=outside)))
+                np.testing.assert_allclose(res[1], res[0], atol=1e-12, rtol=0,
+                                           err_msg=f'{outside} {g} {shape_out}')
+
+    @cpu_and_gpu
+    def test_outside_invalid(self, target_device_idx, xp):
+        '''
+        An unknown rule raises ValueError, and so does outside='linear' with
+        an input of one row (the extrapolation needs two pixels).
+        '''
+        interp = Interp2D((8, 8), (8, 8), colShiftInPixels=1, xp=xp, dtype=xp.float32)
+        with self.assertRaises(ValueError):
+            interp.interpolate(xp.zeros((8, 8), dtype=xp.float32), outside='foo')
+
+        interp = Interp2D((1, 8), (1, 8), colShiftInPixels=1, xp=xp, dtype=xp.float32)
+        with self.assertRaises(ValueError):
+            interp.interpolate(xp.zeros((1, 8), dtype=xp.float32), outside='linear')
+
+    @cpu_and_gpu
+    def test_shifted_pupil_has_no_tongue(self, target_device_idx, xp):
+        '''
+        A circular pupil touching the array edge (N = 160), shifted by 10 pixels
+        along x. Old behaviour (outside='edge'): the edge column was copied over
+        the 10 columns coming from outside the array, a "tongue" of amplitude 1
+        (about 18 x 10 pixels). With outside='zero' those columns are exactly 0.
+        '''
+        n, shift = 160, 10
+        y, x = np.mgrid[0:n, 0:n].astype(np.float64)
+        c = (n - 1) / 2
+        pupil = xp.asarray((np.hypot(x - c, y - c) <= n / 2).astype(np.float64))
+
+        interp = Interp2D((n, n), (n, n), colShiftInPixels=shift, xp=xp, dtype=xp.float64)
+        edge = cpuArray(interp.interpolate(pupil, outside='edge'))
+        zero = cpuArray(interp.interpolate(pupil, outside='zero'))
+
+        assert (edge[:, -shift:] > 0.5).sum() > 100
+        assert np.all(zero[:, -shift:] == 0)
+        # Inside the array the two rules agree
+        np.testing.assert_allclose(zero[:, :-shift], edge[:, :-shift], atol=1e-12)
