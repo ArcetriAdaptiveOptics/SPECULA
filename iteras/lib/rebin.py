@@ -48,7 +48,7 @@ def rebin2d(a, shape, sample=False, xp=None):
         M, N = a.shape
         m, n = shape
 
-        if m<=M and n<=M:
+        if m<=M and n<=N:
             if (M//m != M/m) or (N//n != N/n):
                 raise ValueError('Resampling by non-integer factors is not supported')
             # Same as a.reshape((m,M//m,n,N//n)).mean(3).mean(1), but summing
@@ -66,7 +66,7 @@ def rebin2d(a, shape, sample=False, xp=None):
             if fy > 1:
                 out /= fy
             return out
-        elif m>=M and n>=M:
+        elif m>=M and n>=N:
             raise ValueError('Upsampling with sample=False is not supported')
         else:
             raise ValueError('Upsampling and downsampling in different axes it not supported')
