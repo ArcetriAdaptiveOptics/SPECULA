@@ -127,3 +127,89 @@ class TestToccd(unittest.TestCase):
             assert out.shape == (2, 2)
             assert xp.isclose(out.sum(), arr.sum(), rtol=1e-6)
 
+
+    @staticmethod
+    def _lcm_reference(a, newshape):
+        '''oaalib's toccd() in float64: upsample to the L.C.M. and average'''
+        from math import lcm
+        (iny, inx), (outy, outx) = a.shape, newshape
+        ly, lx = lcm(iny, outy), lcm(inx, outx)
+        up = np.repeat(np.repeat(a.astype(np.float64), ly // iny, axis=0), lx // inx, axis=1)
+        out = up.reshape(outy, ly // outy, outx, lx // outx).mean(axis=(1, 3))
+        return out * a.sum() / out.sum()
+
+    @cpu_and_gpu
+    def test_toccd_matches_lcm_reference(self, target_device_idx, xp):
+        """Non-square arrays, non-integer and prime size ratios, up and downsampling"""
+        rng = np.random.default_rng(1)
+        cases = [((80, 40), (20, 10)), ((40, 80), (10, 20)), ((60, 30), (40, 20)),
+                 ((30, 60), (20, 40)), ((101, 101), (7, 7)), ((40, 40), (14, 14)),
+                 ((7, 9), (20, 16))]
+        for dtype, rtol in [(np.float32, 1e-5), (np.float64, 1e-12)]:
+            for in_shape, out_shape in cases:
+                with self.subTest(dtype=dtype, in_shape=in_shape, out_shape=out_shape):
+                    a = rng.random(in_shape).astype(dtype)
+                    out = toccd(xp.asarray(a), out_shape, xp=xp)
+                    assert out.shape == out_shape
+                    assert out.dtype == dtype
+                    np.testing.assert_allclose(cpuArray(out), self._lcm_reference(a, out_shape),
+                                               rtol=rtol)
+
+    @cpu_and_gpu
+    def test_toccd_strided_input(self, target_device_idx, xp):
+        """A non-contiguous view gives the same result as its contiguous copy"""
+        a = xp.asarray(np.random.default_rng(2).random((100, 100)), dtype=xp.float32)
+        view = a[10:70, 10:70]
+        np.testing.assert_allclose(cpuArray(toccd(view, (20, 20), xp=xp)),
+                                   cpuArray(toccd(view.copy(), (20, 20), xp=xp)), rtol=1e-6)
+
+    @cpu_and_gpu
+    def test_toccd_out(self, target_device_idx, xp):
+        """The result is written in out (also a view), with the same values"""
+        a = xp.asarray(np.random.default_rng(3).random((60, 45)), dtype=xp.float32)
+        for set_total in [None, 0, 10.0]:
+            with self.subTest(set_total=set_total):
+                expected = cpuArray(toccd(a, (14, 9), set_total=set_total, xp=xp))
+                out = xp.empty((14, 9), dtype=xp.float32)
+                assert toccd(a, (14, 9), set_total=set_total, xp=xp, out=out) is out
+                np.testing.assert_allclose(cpuArray(out), expected, rtol=1e-6)
+
+                frame = xp.zeros((20, 15), dtype=xp.float32)
+                toccd(a, (14, 9), set_total=set_total, xp=xp, out=frame[3:17, 2:11])
+                np.testing.assert_allclose(cpuArray(frame[3:17, 2:11]), expected, rtol=1e-6)
+                frame[3:17, 2:11] = 0
+                assert not frame.any()
+
+        # Same shape: copied to out
+        out = xp.empty((60, 45), dtype=xp.float32)
+        toccd(a, (60, 45), xp=xp, out=out)
+        np.testing.assert_array_equal(cpuArray(out), cpuArray(a))
+
+        with self.assertRaises(ValueError):
+            toccd(a, (14, 9), xp=xp, out=xp.empty((9, 14), dtype=xp.float32))
+        if xp is cp:  # pragma: gpu
+            with self.assertRaises(TypeError):
+                toccd(a, (14, 9), xp=xp, out=xp.empty((14, 9), dtype=xp.float64))
+
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_toccd_out_no_allocation_in_cuda_graph(self):
+        '''
+        With out and set_total=0 (as in SH), toccd() allocates nothing when captured
+        in a CUDA graph, after a first call that builds the weights (the warm-up of
+        BaseProcessingObj.capture_stream()), and the graph gives the same result.
+        '''
+        a = cp.asarray(np.random.default_rng(4).random((150, 120)), dtype=cp.float32)
+        expected = cpuArray(toccd(a, (14, 11), set_total=0, xp=cp))
+        out = cp.zeros((14, 11), dtype=cp.float32)
+
+        pool = cp.cuda.MemoryPool()
+        stream = cp.cuda.Stream(non_blocking=True)
+        with stream, cp.cuda.using_allocator(pool.malloc):
+            stream.begin_capture()
+            toccd(a, (14, 11), set_total=0, xp=cp, out=out)
+            graph = stream.end_capture()
+            graph.launch(stream)
+            stream.synchronize()
+
+        self.assertEqual(pool.total_bytes(), 0)
+        np.testing.assert_allclose(cpuArray(out), expected, rtol=1e-6)

@@ -8,37 +8,24 @@
 #
 #########################################################
 
+import functools
 
-from functools import cache
+import numpy as np
+import scipy.sparse
 
 import specula
 from specula import cpuArray
-from specula.lib.rebin import rebin2d
 
 
-def gcd(a,b):
+def toccd(a, newshape, set_total=None, xp=None, out=None):
     '''
-    Returns the greatest common divisor of a and b.
-    '''
-    while b:
-        a, b = b, a % b
+    Clone of oaalib's toccd() function: rebin an array by area weighting,
+    similar to openvc's INTER_AREA interpolation.
 
-    return a
-
-
-def lcm(a,b):
-    '''
-    Returns the least common multiple of a and b.
-    '''
-    return (a*b) // gcd(a,b)
-
-
-def toccd(a, newshape, set_total=None, xp=None):
-    '''
-    Clone of oaalib's toccd() function, using least common multiple
-    to rebin an array similar to openvc's INTER_AREA interpolation.
-
-    If a GPU is available, calculation is delegated to toccd_gpu()
+    Each output pixel is the mean of the input over its area, with the input
+    pixels partially covered weighted by the covered fraction (see
+    overlap_weights()). The rebinning is separable: on CPU, it is computed with
+    two sparse matrix products, and on GPU with a single elementwise kernel.
 
     Parameters
     ----------
@@ -52,19 +39,25 @@ def toccd(a, newshape, set_total=None, xp=None):
         if not set, the same total count as the input array is used.
     xp : module
         numpy or cupy module
+    out : array, optional
+        output array (or view) with shape newshape. On GPU, it must have the same
+        dtype as a, and it is written directly by the kernel.
 
     Returns
     -------
     array
-        resized array
+        resized array (out, if given)
     '''
-    newshape = tuple(cpuArray(newshape))  # Works for lists, tuples and any cupy/numpy array
+    newshape = tuple(int(n) for n in cpuArray(newshape))  # Works for lists, tuples and any cupy/numpy array
+
+    if out is not None and out.shape != newshape:
+        raise ValueError(f'out has shape {out.shape} instead of {newshape}')
 
     if a.shape == newshape:
-        return a
-
-    if xp == specula.cp:
-        return toccd_gpu(a, newshape, set_total=set_total)
+        if out is None:
+            return a
+        out[:] = a
+        return out
 
     if len(a.shape) != 2:
         raise ValueError('Input array has shape %s, cannot continue' % str(a.shape))
@@ -72,138 +65,106 @@ def toccd(a, newshape, set_total=None, xp=None):
     if len(newshape) != 2:
         raise ValueError('Output shape is %s, cannot continue' % str(newshape))
 
-    mcmx = lcm(a.shape[0], newshape[0])
-    mcmy = lcm(a.shape[1], newshape[1])
-
-    temp = rebin2d(a, (mcmx, a.shape[1]), sample=True, xp=xp)
-    temp = rebin2d(temp, (newshape[0], a.shape[1]), xp=xp)
-    temp = rebin2d(temp, (newshape[0], mcmy), sample=True, xp=xp)
-    rebinned = rebin2d(temp, newshape, xp=xp)
-
-    eps = xp.finfo(rebinned.dtype).eps
-    rebinned_sum = xp.maximum(rebinned.sum(), eps)
-
-    if set_total is None:
-        set_total = a.sum()
-    elif set_total <= 0:
-        set_total = 1
-        rebinned_sum = 1
-
-    return rebinned / rebinned_sum * set_total
-
-
-def toccd_gpu(a, newshape, set_total=None):
-    '''
-    toccd GPU code adapted from IDL PASSATA (gpu_simul.cu)
-    - python code replicates the C function doCudaToCcdOptimized()
-    - CUDA kernels are unchanged, except for removal of unused arguments
-
-    Iterates directly on the resulting array (or an intermediate array in step 1)
-    '''
-    iny, inx = a.shape
-    outy, outx = newshape
-
-    mcmx = lcm(inx, outx)
-    mcmy = lcm(iny, outy)
-
-    dx_in = int(mcmx / inx)
-    dy_in = int(mcmy / iny)
-    dx_out = int(mcmx / outx)
-    dy_out = int(mcmy / outy)
-    f = 1.0 / (dx_out * dy_out)
-
-    block = (16, 16)
-    numBlocks2d = int(outx // block[1])
-    if outx % block[1]:
-        numBlocks2d += 1
-    grid = (numBlocks2d, numBlocks2d)
-
-    numBlocks2d_tmp = int(inx // block[0])
-    if inx % block[0]:
-        numBlocks2d_tmp += 1
-    grid_tmp = (numBlocks2d, numBlocks2d_tmp)  # Note second element is different
-
     cp = specula.cp
-    kernels = _rebin2D_kernels()
-    tmp = cp.empty_like(a, shape=(iny, outx))  # TODO this is a reallocation and could give problems with streams
-    out = cp.empty_like(a, shape=(outy, outx))
-
-    if a.dtype == cp.float32:
-        kernels[1, 'float'](grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
-        kernels[2, 'float'](grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float32(f)))
-    elif a.dtype == cp.float64:
-        kernels[1, 'double'](grid_tmp, block, (a, tmp, inx, iny, outx, outy, dx_out, dx_in))
-        kernels[2, 'double'](grid, block, (tmp, out, outx, outy, dy_in, dy_out, cp.float64(f)))
+    if cp is not None and xp is cp:  # pragma: gpu
+        if a.dtype not in (cp.float32, cp.float64):
+            raise TypeError(f'toccd(): unsupported dtype {a.dtype} on GPU.'
+                            f' Valid dtypes are float32 and float64')
+        if out is None:
+            out = cp.empty(newshape, dtype=a.dtype)
+        elif out.dtype != a.dtype:
+            raise TypeError(f'toccd(): out has dtype {out.dtype} instead of {a.dtype}')
+        ix, wx, iy, wy = _device_weights(a.shape, newshape, a.dtype, cp.cuda.Device().id)
+        _toccd_kernel()(a, ix, wx, iy, wy, a.shape[1], newshape[1], ix.shape[1], iy.shape[1], out)
     else:
-        raise TypeError(f'toccd_gpu(): unsupported dtype {a.dtype}. Valid dtypes are float32 and float64')
+        dtype = np.result_type(a.dtype, np.float32)
+        wy = _sparse_weights(a.shape[0], newshape[0], dtype)
+        wx = _sparse_weights(a.shape[1], newshape[1], dtype)
+        rebinned = (wx @ (wy @ a).T).T
+        if out is None:
+            out = np.ascontiguousarray(rebinned)
+        else:
+            out[:] = rebinned
 
+    eps = xp.finfo(out.dtype).eps
     if set_total is None:
-        out /= out.sum()
-        out *= a.sum()
+        out *= a.sum() / xp.maximum(out.sum(), eps)
     elif set_total > 0:
-        out /= out.sum()
-        out *= set_total
+        out *= set_total / xp.maximum(out.sum(), eps)
     return out
 
 
-# CUDA kernels, created at the first GPU call (see _rebin2D_kernels())
-kernel_step1 = r'''
-extern "C" __global__
-void rebin2D_step1_TYPE(TYPE *g_in, TYPE *g_tmp, int inx, int iny, int outx, int outy,
-                   int dx_out, int dx_in) {
-
-   int y = blockIdx.y * blockDim.y + threadIdx.y;
-   int x = blockIdx.x * blockDim.x + threadIdx.x;
-   int i, pos, prev_pos;
-   TYPE value;
-   TYPE res=0;
-
-   if ((y<iny) && (x<outx)) {
-       i = x*dx_out;
-       prev_pos = i / dx_in;
-       value = g_in[y*inx + prev_pos];
-
-       for ( ; i<(x+1)*dx_out; i++) {
-          pos = i / dx_in;
-          if (pos != prev_pos) {
-             value = g_in[y*inx + pos];
-             prev_pos = pos;
-          }
-          res += value;
-       }
-   g_tmp[y*outx+x] =res;
-   }
-}
-'''
-kernel_step2 = r'''
-extern "C" __global__
-void rebin2D_step2_TYPE(TYPE *g_tmp, TYPE* g_out, int outx, int outy,
-                   int dy_in, int dy_out, TYPE f) {
-
-   int y = blockIdx.y * blockDim.y + threadIdx.y;
-   int x = blockIdx.x * blockDim.x + threadIdx.x;
-   int j;
-
-   if ((y<outy) && (x<outx)) {
-       g_out[y*outx+x]=0;
-       for (j=y*dy_out; j<(y+1)*dy_out; j++)
-          g_out[y*outx+x] += g_tmp[(j/dy_in)*outx + x];
-       g_out[y*outx+x] *= f;
-    }
-}
-'''
-
-
-@cache
-def _rebin2D_kernels():
+@functools.lru_cache(maxsize=None)
+def overlap_weights(n_in, n_out):
     '''
-    The rebin2D kernels for float and double, created at the first GPU call,
+    Area weights to rebin an axis from n_in to n_out pixels.
+
+    Output pixel o covers the input interval [o * n_in / n_out, (o + 1) * n_in / n_out)
+    and its value is sum_k in[idx[o, k]] * w[o, k], where w is the covered
+    length of each input pixel divided by n_in. This is the mean of the L.C.M.
+    upsampled input used by oaalib's toccd(), without building it: the interval
+    boundaries are integers in units of 1 / n_out input pixels, so the weights are exact.
+
+    Returns
+    -------
+    idx : int ndarray (n_out, K)
+        input pixel indices (padded with weight zero)
+    w : float64 ndarray (n_out, K)
+        weights
+    '''
+    start = np.arange(n_out) * n_in
+    end = start + n_in
+    first = start // n_out
+    last = (end - 1) // n_out
+    k = int((last - first).max()) + 1
+    idx = first[:, None] + np.arange(k)[None, :]
+    covered = np.minimum(end[:, None], (idx + 1) * n_out) - np.maximum(start[:, None], idx * n_out)
+    w = np.maximum(covered, 0) / n_in
+    return np.minimum(idx, n_in - 1), w
+
+
+@functools.lru_cache(maxsize=None)
+def _sparse_weights(n_in, n_out, dtype):
+    '''Weights of overlap_weights() as a (n_out, n_in) sparse matrix'''
+    idx, w = overlap_weights(n_in, n_out)
+    rows = np.repeat(np.arange(n_out), idx.shape[1])
+    return scipy.sparse.csr_matrix((w.ravel().astype(dtype), (rows, idx.ravel())),
+                                   shape=(n_out, n_in))
+
+
+@functools.lru_cache(maxsize=None)
+def _device_weights(in_shape, out_shape, dtype, device_id):  # pragma: gpu
+    '''Weights of overlap_weights() for both axes on the current GPU'''
+    cp = specula.cp
+    ix, wx = overlap_weights(in_shape[1], out_shape[1])
+    iy, wy = overlap_weights(in_shape[0], out_shape[0])
+    return (cp.asarray(ix, dtype=cp.int32), cp.asarray(wx, dtype=dtype),
+            cp.asarray(iy, dtype=cp.int32), cp.asarray(wy, dtype=dtype))
+
+
+@functools.cache
+def _toccd_kernel():  # pragma: gpu
+    '''
+    The toccd elementwise kernel, created at the first GPU call,
     so that this module can be imported before init()
     '''
-    cp = specula.cp
-    return {
-        (1, 'float'): cp.RawKernel(kernel_step1.replace('TYPE', 'float'), name='rebin2D_step1_float'),
-        (2, 'float'): cp.RawKernel(kernel_step2.replace('TYPE', 'float'), name='rebin2D_step2_float'),
-        (1, 'double'): cp.RawKernel(kernel_step1.replace('TYPE', 'double'), name='rebin2D_step1_double'),
-        (2, 'double'): cp.RawKernel(kernel_step2.replace('TYPE', 'double'), name='rebin2D_step2_double'),
-    }
+    # out[y, x] = sum_j sum_k a[iy[y, j], ix[x, k]] * wy[y, j] * wx[x, k]
+    return specula.cp.ElementwiseKernel(
+        'raw T a, raw int32 ix, raw T wx, raw int32 iy, raw T wy,'
+        ' int32 inx, int32 outx, int32 kx, int32 ky',
+        'T out',
+        '''
+        int idx = i;  // 32-bit division is much faster than the 64-bit one
+        int y = idx / outx;
+        int x = idx - y * outx;
+        T res = 0;
+        for (int j = 0; j < ky; j++) {
+            int row = iy[y * ky + j] * inx;
+            T rowsum = 0;
+            for (int k = 0; k < kx; k++)
+                rowsum += a[row + ix[x * kx + k]] * wx[x * kx + k];
+            res += rowsum * wy[y * ky + j];
+        }
+        out = res;
+        ''',
+        'toccd_kernel')

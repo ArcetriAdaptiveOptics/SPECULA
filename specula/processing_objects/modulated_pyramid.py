@@ -750,17 +750,16 @@ class ModulatedPyramid(BaseProcessingObj):
             # Use the original pupil pyramid array directly
             self._pup_pyr_interpolated = self.pup_pyr_tot
 
-        ccd_internal = toccd(self._pup_pyr_interpolated, (self.toccd_side, self.toccd_side), xp=self.xp)
-
-        if self.final_ccd_side > self.toccd_side:
+        toccd_shape = (self.toccd_side, self.toccd_side)
+        if self.final_ccd_side >= self.toccd_side:
             delta = (self.final_ccd_side - self.toccd_side) // 2
-            self.out_i.i[delta:delta + ccd_internal.shape[0], delta:delta + ccd_internal.shape[1]] = ccd_internal
-        elif self.final_ccd_side < self.toccd_side:
+            toccd(self._pup_pyr_interpolated, toccd_shape, xp=self.xp,
+                  out=self.out_i.i[delta:delta + self.toccd_side, delta:delta + self.toccd_side])
+        else:
+            ccd_internal = toccd(self._pup_pyr_interpolated, toccd_shape, xp=self.xp)
             delta = (self.toccd_side - self.final_ccd_side) // 2
             self.out_i.i[:] = ccd_internal[delta:delta + self.final_ccd_side, delta:delta + self.final_ccd_side]
             self.flux_frac_inside_ccd.value[:] = self.xp.sum(self.out_i.i[:])/self.xp.sum(ccd_internal)
-        else:
-            self.out_i.i[:] = ccd_internal
 
     def post_trigger(self):
         super().post_trigger()
