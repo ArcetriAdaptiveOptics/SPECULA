@@ -174,10 +174,14 @@ class TestBaseValue(unittest.TestCase):
 
     def test_scipy_helpers_not_imported_at_creation(self):
         """Creating objects does not import the scipy helper modules"""
-        r = self._run_python('import sys; import iteras; iteras.init(-1); '
+        # Modules already loaded by "import cupy" are not counted (CuPy 12 loads scipy.linalg)
+        r = self._run_python('import sys\n'
+                             'try:\n    import cupy\nexcept Exception:\n    pass\n'
+                             'helpers = ("scipy.ndimage", "scipy.linalg", "scipy.fftpack")\n'
+                             'before = [m for m in helpers if m in sys.modules]\n'
+                             'import iteras; iteras.init(-1); '
                              'from iteras.base_value import BaseValue; BaseValue(); '
-                             'loaded = [m for m in ("scipy.ndimage", "scipy.linalg", "scipy.fftpack") '
-                             'if m in sys.modules]; '
+                             'loaded = [m for m in helpers if m in sys.modules and m not in before]; '
                              'assert not loaded, loaded')
         self.assertEqual(r.returncode, 0, r.stderr)
 

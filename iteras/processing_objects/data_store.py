@@ -286,7 +286,7 @@ class DataStore(BaseProcessingObj):
             # the blocking streams (like the objects' own streams, see build_stream()),
             # and their work queued after it (the next write of the producer) waits for it
             stream = cp.cuda.Stream.null
-            value.get(stream=stream, out=pinned, blocking=False)
+            utils.get_async(value, pinned, stream)
             event = stream.record()
         # Placeholder, to keep the order of the times in the storage
         self._storage[k][self.current_time] = None

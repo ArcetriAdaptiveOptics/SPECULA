@@ -185,7 +185,8 @@ class BaseProcessingObj(BaseTimeObj):
             buffer = item.get_value()
             # Formatting the array would copy it to the host: only when the message is printed
             if self.logger.isEnabledFor(MPI_SEND_DBG_LEVEL):
-                self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device {buffer.device}')
+                # NumPy < 2 arrays (with CuPy 12) have no .device
+                self.logger.mpi_send_debug(f'{dest_tag=}, SEND .device {getattr(buffer, "device", "cpu")}')
                 self.logger.mpi_send_debug(f'SEND with Buffe {dest_tag=}, {type(buffer)=}, {buffer=}')
                 self.logger.mpi_send_debug(f'SEND with Buffer type {dest_tag=} {buffer.dtype=}')
 
@@ -296,7 +297,8 @@ class BaseProcessingObj(BaseTimeObj):
         if iteras.cp is not None:  # pragma: gpu
             if self._graph_mempool is None:
                 self._graph_mempool = iteras.cp.cuda.MemoryPool()
-                # A deleted MemoryPool does not release its memory to the device,
+                # A deleted MemoryPool does not release its memory to the device
+                # (CuPy >= 13; CuPy 12 releases also the memory still in use),
                 # free it explicitly when this object is garbage collected
                 weakref.finalize(self, self._graph_mempool.free_all_blocks)
             else:
@@ -307,13 +309,17 @@ class BaseProcessingObj(BaseTimeObj):
         else:
             allocator = contextlib.nullcontext()
 
-        with self.stream, allocator:
+        with self.stream:
             # First execution is needed to build the FFT plan cache
             # See for example https://github.com/cupy/cupy/issues/7559
+            # It uses the default memory pool: the cuFFT plans are cached by CuPy and
+            # shared with other objects, so their work areas must not come from this
+            # graph's pool (with CuPy 12 a deleted pool frees them)
             self.trigger_code()
-            self.stream.begin_capture()
-            self.trigger_code()
-            self.cuda_graph = self.stream.end_capture()
+            with allocator:
+                self.stream.begin_capture()
+                self.trigger_code()
+                self.cuda_graph = self.stream.end_capture()
         self._cuda_graph_invalid = False
         self._captured_input_ptrs = self.graph_input_ptrs()
 

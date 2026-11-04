@@ -375,6 +375,41 @@ class TestBaseProcessingObj(unittest.TestCase):
         self.assertEqual(pool.total_bytes(), 0)
 
     @unittest.skipIf(cp is None, 'GPU not available')
+    def test_fft_plans_are_not_in_the_graph_mempool(self):
+        '''
+        The cuFFT plans created by the first execution of trigger_code() are
+        cached by cupy and shared with other objects: their work areas must not
+        come from the CUDA graph pool, which is freed with the object (with
+        CuPy 12 also the memory still in use, leaving a cached plan pointing
+        to freed memory). After the capture the pool holds no memory in use,
+        since the temporaries of trigger_code() are released when it returns.
+        With CuPy >= 13 the pool stays empty also without this precaution: the
+        test detects the problem only with CuPy 12.
+        '''
+        # An FFT size used nowhere else, so that the plan is created here
+        shape = (37, 41)
+
+        class FftObj(BaseProcessingObj):
+            def __init__(self):
+                super().__init__(target_device_idx=0)
+                self.inp = cp.asarray(np.random.default_rng(1).standard_normal(shape))
+                self.out = cp.zeros(shape)
+
+            def trigger_code(self):
+                self.out[:] = cp.abs(cp.fft.fft2(self.inp))
+
+        obj = FftObj()
+        obj.build_stream(allow_parallel=False)
+        obj.stream.synchronize()
+        with cp.cuda.Device(0):
+            self.assertEqual(obj._graph_mempool.used_bytes(), 0)
+
+        obj.out[:] = 0
+        obj.cuda_graph.launch(stream=obj.stream)
+        obj.stream.synchronize()
+        np.testing.assert_allclose(cpuArray(obj.out), np.abs(np.fft.fft2(cpuArray(obj.inp))))
+
+    @unittest.skipIf(cp is None, 'GPU not available')
     def test_trigger_code_runs_once_per_trigger_when_capturing(self):
         '''
         With a stateful trigger_code() (like an integrator), each trigger() must

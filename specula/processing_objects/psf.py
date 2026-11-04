@@ -7,6 +7,7 @@ from specula.lib.radial_profile import (
     get_encircled_energy_at_distance,
 )
 
+from iteras.lib.utils import get_async
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
@@ -216,7 +217,7 @@ class PSF(BaseProcessingObj):
             import cupyx
             self._sr_buffer = cupyx.empty_pinned((), dtype=self.sr.value.dtype)
         stream = self.xp.cuda.get_current_stream()
-        self.sr.value.get(stream=stream, out=self._sr_buffer, blocking=False)
+        get_async(self.sr.value, self._sr_buffer, stream)
         self._sr_log = (self._sr_buffer, stream.record())
 
     def _flush_sr_log(self):

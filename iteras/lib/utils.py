@@ -1,5 +1,6 @@
 import re
 import time
+import functools
 import types
 import typing
 import importlib
@@ -189,6 +190,29 @@ def get_type_hints(type):
 
 def make_tn():
     return time.strftime("%Y%m%d_%H%M%S")
+
+
+@functools.cache
+def _cupy_get_needs_blocking_false():
+    '''True if ndarray.get() has a *blocking* argument (CuPy >= 13), whose default
+    True makes the copy synchronous even when a stream is given'''
+    import cupy
+    return int(cupy.__version__.split('.')[0]) >= 13
+
+
+def get_async(value, out, stream):
+    '''
+    Start the copy of the GPU array *value* to the host array *out* (page-locked,
+    for the copy to be really asynchronous) on *stream*, without waiting for it.
+    The caller must wait for the copy (e.g. with an event recorded on *stream*)
+    before reading *out*.
+
+    CuPy 12 has no *blocking* argument: there, get() with a stream is already asynchronous.
+    '''
+    if _cupy_get_needs_blocking_false():
+        value.get(stream=stream, out=out, blocking=False)
+    else:
+        value.get(stream=stream, out=out)
 
 
 def flatten(x):
