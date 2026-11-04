@@ -214,9 +214,7 @@ class PolyChromWFS(BaseProcessingObj):
             # update generation time
             modified_ef.generation_time = in_ef.generation_time
 
-        # Prepare all SH instances
-        for wfs in self._wfs_instances:
-            wfs.prepare_trigger(t)
+        # The instances' prepare_trigger() is called by their own check_ready()
         self._use_device(self)
 
     def trigger_code(self):
