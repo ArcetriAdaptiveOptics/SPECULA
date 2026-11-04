@@ -9,6 +9,7 @@ from specula import np
 from specula import cpuArray
 from specula.data_objects.intmat import Intmat
 from specula.data_objects.recmat import Recmat
+from specula.lib.slopes_layout import SlopesLayout
 from test.specula_testlib import cpu_and_gpu
 
 class TestIntmat(unittest.TestCase):
@@ -35,6 +36,24 @@ class TestIntmat(unittest.TestCase):
         im.save(self.filename)
         im2 = Intmat.restore(self.filename)
 
+        np.testing.assert_array_equal(cpuArray(im.intmat), cpuArray(im2.intmat))
+        assert im2.slopes_layout is None
+
+    @cpu_and_gpu
+    def test_save_restore_slopes_layout(self, target_device_idx, xp):
+        '''The slopes layout is saved and restored with the Intmat'''
+        try:
+            os.unlink(self.filename)
+        except FileNotFoundError:
+            pass
+
+        layout = SlopesLayout((3, 4), [1, 5, 6], SlopesLayout.XY)
+        im = Intmat(xp.arange(12).reshape((6, 2)), slopes_layout=layout,
+                    target_device_idx=target_device_idx)
+        im.save(self.filename)
+        im2 = Intmat.restore(self.filename)
+
+        assert im2.slopes_layout == layout
         np.testing.assert_array_equal(cpuArray(im.intmat), cpuArray(im2.intmat))
 
     @cpu_and_gpu
