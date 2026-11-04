@@ -424,7 +424,7 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         from types import SimpleNamespace
         self.assertFalse(iteras.capturing())
         self.assertIs(iteras.xp_fft(np), scipy.fft)
-        if iteras.cp is not None:
+        if iteras.cp is not None:  # pragma: gpu
             import cupyx.scipy.fft
             self.assertIs(iteras.xp_fft(iteras.cp), cupyx.scipy.fft)
         other = SimpleNamespace(fft='its fft')
