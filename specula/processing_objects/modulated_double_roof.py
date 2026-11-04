@@ -82,12 +82,8 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self.pup_dist = pup_dist
 
         # After initialization, create the second roof's exponential
-        iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
-        roof1_exp = self.xp.exp(-2 * self.xp.pi * iu * self.roof1_tlt, dtype=self.complex_dtype)
-        roof2_exp = self.xp.exp(-2 * self.xp.pi * iu * self.roof2_tlt, dtype=self.complex_dtype)
-
-        self.shifted_masked_exp_roof1 = self.fft.fftshift(roof1_exp * self.fp_mask)
-        self.shifted_masked_exp_roof2 = self.fft.fftshift(roof2_exp * self.fp_mask)
+        # (the base class masked_exp is the first roof's one, see get_pyr_tlt())
+        self.masked_exp_roof2 = self.get_masked_exp(self.roof2_tlt)
 
         # Pre-allocate arrays to avoid memory allocation in trigger_code
         self.roof1_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
@@ -155,50 +151,42 @@ class ModulatedDoubleRoof(ModulatedPyramid):
 
 
     def trigger_code(self):
-        u_tlt_const = self.ef * self.tlt_f
-        tmp = u_tlt_const[self.xp.newaxis, :, :] * self.ttexp
-        self.u_tlt[:, 0:self.ttexp_shape[1], 0:self.ttexp_shape[2]] = tmp
-        self.pyr_image *= 0
-        self.fpsf *= 0
+        ey, ex = self.step_phasors()
+        psf_bfm = self.psf_bfm.value
+        psf_bfm[:] = 0
 
         # Clear pre-allocated arrays instead of creating new ones
         self.roof1_image *= 0
         self.roof2_image *= 0
 
+        # Focal plane and roof masks are centered, and the masks re-center
+        # the pupils (see ModulatedPyramid): no fftshift or roll is needed
         for i in range(0, self.mod_steps):
-            u_fp = self.fft.fft2(self.u_tlt[i], axes=(-2, -1))
+            u_fp = self.focal_plane_field(ey[i], ex[i])
 
             # Process first roof
-            u_fp_roof1 = pyr1_fused(u_fp, self.ffv[i], self.fpsf, self.shifted_masked_exp_roof1, xp=self.xp)
-            pyr_ef_roof1 = self.fft.ifft2(u_fp_roof1, axes=(-2, -1), norm='forward')
+            u_fp_roof1 = pyr1_fused(u_fp, self.ffv[i], psf_bfm, self.masked_exp, xp=self.xp)
+            pyr_ef_roof1 = self._scipy_ifft2(u_fp_roof1, overwrite_x=True, norm='forward')
             self.roof1_image += pyr1_abs2(pyr_ef_roof1, self.ifft_norm, self.ffv[i], xp=self.xp)
 
             # Process second roof. The focal plane PSF is the same for the two roofs,
-            # so it is accumulated in fpsf only by the first one.
-            u_fp_roof2 = u_fp * self.shifted_masked_exp_roof2
-            pyr_ef_roof2 = self.fft.ifft2(u_fp_roof2, axes=(-2, -1), norm='forward')
+            # so it is accumulated in psf_bfm only by the first one.
+            u_fp_roof2 = u_fp * self.masked_exp_roof2
+            pyr_ef_roof2 = self._scipy_ifft2(u_fp_roof2, overwrite_x=True, norm='forward')
             self.roof2_image += pyr1_abs2(pyr_ef_roof2, self.ifft_norm, self.ffv[i], xp=self.xp)
-
-        self.roof1_image[:] = self.xp.roll(self.roof1_image, self.roll_array, self.roll_axis)
-        self.roof2_image[:] = self.xp.roll(self.roof2_image, self.roll_array, self.roll_axis)
+            del u_fp, u_fp_roof1, pyr_ef_roof1, u_fp_roof2, pyr_ef_roof2
 
         # Combine the two roof images to create 4 sub-pupils
         self._combine_roof_images()
 
-        self.psf_bfm.value[:] = self.fft.fftshift(self.fpsf)
-        self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
-        self.pup_pyr_tot[:] = self.pyr_image
-        self.psf_tot.value *= self.factor
-        self.psf_bfm.value *= self.factor
-        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) / self.xp.sum(self.psf_bfm.value)
+        psf_bfm *= self.factor
+        self.xp.multiply(psf_bfm, self.fp_mask, out=self.psf_tot.value)
+        self.transmission.value[:] = self.xp.sum(self.psf_tot.value) / self.xp.sum(psf_bfm)
 
         self._pupils_to_ccd()
 
     def _combine_roof_images(self):
         """Combine two roof images into a 4-quadrant pyramid-like pattern"""
-        # Clear the output image
-        self.pyr_image *= 0
-
         # rotate by 90 degrees roof2_image
         roof2_rotated = self.xp.rot90(self.roof2_image)
 
@@ -224,4 +212,4 @@ class ModulatedDoubleRoof(ModulatedPyramid):
             plt.show()
 
         # Combine the shifted images
-        self.pyr_image[:] = self.roof1_image + roof2_rotated
+        self.pup_pyr_tot[:] = self.roof1_image + roof2_rotated

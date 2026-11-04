@@ -216,6 +216,10 @@ class ExtSourcePyramid(ModulatedPyramid):
             self.logger.info('CUDA stream enabled for extended source pyramid processing'
                   ' Ignoring flux thresholding to maintain constant processing load.')
 
+        # Focal plane PSF and pupil image accumulators, centered like the base class ones
+        self.fpsf = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
+        self.pyr_image = self.xp.zeros((self.fft_totsize, self.fft_totsize), dtype=self.dtype)
+
         # Pre-allocated buffers for CUDA graph compatibility (allocated in cache_ttexp)
         self._fpsf_buffer = None
         self._pyr_image_buffer = None
@@ -327,7 +331,7 @@ class ExtSourcePyramid(ModulatedPyramid):
             self.ext_ttf = self.xp.stack([ext_xtilt, ext_ytilt, ext_focus], axis=0)
 
             # Set ttexp_shape for trigger_code
-            self.ttexp_shape = (0, self.tilt_x.shape[0], self.tilt_x.shape[1])
+            self.ttexp_shape = (0, self.fft_sampling, self.fft_sampling)
 
             # Pre-compute face center TTF coordinates (once for all)
             if self._face_centers_ttf is None:
@@ -460,7 +464,7 @@ class ExtSourcePyramid(ModulatedPyramid):
 
     def trigger_code(self):
         iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
-        u_tlt_const = self.ef * self.tlt_f
+        u_tlt_const = self.ef * self.tlt_f_y[:, None] * self.tlt_f_x[None, :]
 
         # Extended source coefficients of the current frame, zero-padded to n_chunks * max_batch_size
         b = self.max_batch_size
@@ -493,7 +497,7 @@ class ExtSourcePyramid(ModulatedPyramid):
                 self.xp.sum(psf_batch * ffv_chunk[:, None, None], axis=0)
 
             # Apply pyramid mask - ALWAYS full batch size
-            u_fp_pyr_batch = u_fp_batch * self.shifted_masked_exp[None, :, :]
+            u_fp_pyr_batch = u_fp_batch * self.masked_exp[None, :, :]
 
             # Batch inverse FFT - ALWAYS same size (no need for separate padding)
             pyr_ef_batch = self.fft.ifft2(u_fp_pyr_batch, axes=(-2, -1), norm='forward')
@@ -510,9 +514,10 @@ class ExtSourcePyramid(ModulatedPyramid):
 
     def post_trigger(self):
         # Final output assignments (before parent post_trigger)
-        self.psf_bfm.value[:] = self.fft.fftshift(self.fpsf)
+        # The focal plane is already centered and the pupils re-centered (see base class)
+        self.psf_bfm.value[:] = self.fpsf
         self.psf_tot.value[:] = self.psf_bfm.value * self.fp_mask
-        self.pup_pyr_tot[:] = self.xp.roll(self.pyr_image, self.roll_array, self.roll_axis)
+        self.pup_pyr_tot[:] = self.pyr_image
         self.psf_tot.value *= self.factor
         self.psf_bfm.value *= self.factor
         trasmission_factor = 1 / (self.xp.sum(self.psf_bfm.value) + 1e-20)
