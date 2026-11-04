@@ -194,6 +194,8 @@ class ModulatedPyramid(BaseProcessingObj):
         self.fft_sampling = fft_sampling
         self.fft_padding = fft_padding
         self.fft_totsize = fft_totsize
+        # The (-1)^(x+y) focal plane centering requires an even FFT size
+        assert self.fft_totsize % 2 == 0, 'fft_totsize must be even'
         self.toccd_side = int(toccd_side)
         self.final_ccd_side = final_ccd_side
         self.pyr_tlt_coeff = pyr_tlt_coeff
