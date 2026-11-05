@@ -110,7 +110,6 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     if h_in_m is None:
         h_in_m = 90e3  # sodium average altitude
 
-    rad2arcsec = (3600.0 * 360.0) / (2 * np.pi)
     airmass = 1 / np.cos(zenith_angle_in_deg / 180.0 * np.pi)
     h_in_ma = h_in_m * airmass
     na_thickness_in_ma = na_thickness_in_m * airmass
@@ -124,17 +123,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                 f"{n_sub_aps}x{n_sub_aps}"
             )
 
-    y_idx = sub_aps_index // n_sub_aps
-    x_idx = sub_aps_index % n_sub_aps
-
-    # Coordinates of the sub-aperture centres with respect to the pupil
-    # centre (X in column 0 and Y in column 1): sub-aperture i covers
-    # [i, i + 1] sub-aperture pitches from the pupil edge
-    coord_sub_aps = np.zeros((len(sub_aps_index), 2), dtype=float)
-    coord_sub_aps[:, 0] = x_idx - (n_sub_aps - 1) / 2.0  # X AXIS
-    coord_sub_aps[:, 1] = y_idx - (n_sub_aps - 1) / 2.0  # Y AXIS
-
-    coord_sub_aps *= diameter_in_m / n_sub_aps
+    coord_sub_aps = sub_aperture_centres(sub_aps_index, n_sub_aps, diameter_in_m)
 
     # Coordinates with respect to launcher
     coord_sub_aps[:, 0] -= launcher_coord_in_m[0]
@@ -213,19 +202,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     else:
         eta = np.ones(len(sub_aps_index))
 
-        # Calculate beta1 and beta2 from geometry, handling zero coordinates
-        with np.errstate(divide='ignore', invalid='ignore'):
-            beta1_temp = (np.arctan2((h_in_ma - na_thickness_in_ma/2.0), coord_sub_aps[:, 0]) -
-                         np.arctan2((h_in_ma + na_thickness_in_ma/2.0), coord_sub_aps[:, 0])) \
-                             * rad2arcsec
-            beta2_temp = (np.arctan2((h_in_ma - na_thickness_in_ma/2.0), coord_sub_aps[:, 1]) -
-                         np.arctan2((h_in_ma + na_thickness_in_ma/2.0), coord_sub_aps[:, 1])) \
-                             * rad2arcsec
-
-        # Replace inf/nan with 0 (physically: when aligned with launcher,
-        # elongation in that direction is undefined/zero)
-        beta1 = np.nan_to_num(beta1_temp, nan=0.0, posinf=0.0, neginf=0.0)
-        beta2 = np.nan_to_num(beta2_temp, nan=0.0, posinf=0.0, neginf=0.0)
+        beta1, beta2 = geometric_elongation(coord_sub_aps, h_in_ma, na_thickness_in_ma)
 
     sigma2 = sh_spot_fwhm**2
 
@@ -393,3 +370,66 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
                 )
 
     return cov_mat_inv
+
+
+def sub_aperture_centres(sub_aps_index, n_sub_aps, diameter_in_m):
+    """
+    Coordinates [m] of the sub-aperture centres with respect to the pupil
+    centre, x (column index) in column 0 and y (row index) in column 1.
+
+    Sub-aperture i covers [i, i + 1] sub-aperture pitches from the pupil edge.
+
+    Parameters
+    ----------
+    sub_aps_index : array_like of int
+        Flattened (row-major) indices of the sub-apertures on the
+        n_sub_aps x n_sub_aps grid.
+    n_sub_aps : int
+        Number of sub-apertures across the diameter.
+    diameter_in_m : float [m]
+        Pupil diameter.
+
+    Returns
+    -------
+    ndarray, shape (len(sub_aps_index), 2) [m]
+    """
+    sub_aps_index = np.asarray(sub_aps_index, dtype=np.int64)
+    coord = np.zeros((len(sub_aps_index), 2), dtype=float)
+    coord[:, 0] = sub_aps_index % n_sub_aps - (n_sub_aps - 1) / 2.0   # X AXIS
+    coord[:, 1] = sub_aps_index // n_sub_aps - (n_sub_aps - 1) / 2.0  # Y AXIS
+    return coord * (diameter_in_m / n_sub_aps)
+
+
+def geometric_elongation(coord_from_launcher_in_m, h_in_ma, na_thickness_in_ma):
+    """
+    x and y components [arcsec] of the LGS spot elongation, from the angles
+    under which the bottom and top of the sodium layer are seen.
+
+    Parameters
+    ----------
+    coord_from_launcher_in_m : ndarray, shape (n, 2) [m]
+        Sub-aperture positions (x, y) relative to the launcher.
+    h_in_ma : float [m]
+        Sodium layer altitude along the line of sight.
+    na_thickness_in_ma : float [m]
+        Sodium layer thickness along the line of sight.
+
+    Returns
+    -------
+    tuple of ndarray [arcsec]
+        (beta1, beta2): elongation along x and along y. The vector
+        (beta1, beta2) is antiparallel to the sub-aperture - launcher vector
+        (only the line matters). Each component is computed from its own
+        coordinate: hypot(beta1, beta2) differs from the 2D elongation off
+        the axes, by ~1e-8 for r = 30 m at 90 km.
+    """
+    rad2arcsec = (3600.0 * 360.0) / (2 * np.pi)
+    h_low = h_in_ma - na_thickness_in_ma / 2.0
+    h_high = h_in_ma + na_thickness_in_ma / 2.0
+    with np.errstate(divide='ignore', invalid='ignore'):
+        beta = [(np.arctan2(h_low, coord_from_launcher_in_m[:, k]) -
+                 np.arctan2(h_high, coord_from_launcher_in_m[:, k])) * rad2arcsec
+                for k in (0, 1)]
+    # Replace inf/nan with 0 (physically: when aligned with launcher,
+    # elongation in that direction is undefined/zero)
+    return tuple(np.nan_to_num(b, nan=0.0, posinf=0.0, neginf=0.0) for b in beta)
