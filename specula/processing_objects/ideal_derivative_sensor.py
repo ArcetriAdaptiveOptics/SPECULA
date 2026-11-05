@@ -52,8 +52,7 @@ class IdealDerivativeSensor(BaseProcessingObj):
                            interleave=False,
                            target_device_idx=target_device_idx,
                            precision=precision)
-        self.slopes.single_mask = self.subapdata.single_mask()
-        self.slopes.display_map = self.subapdata.display_map
+        self.slopes.layout = self.subapdata.slopes_layout()
 
         n_subaps = self.subapdata.n_subaps
         self.sx = self.xp.zeros(n_subaps, dtype=self.dtype)

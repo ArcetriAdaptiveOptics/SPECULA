@@ -182,19 +182,11 @@ class SprintShSynim(BaseSprintEstimator):
             # Shack-Hartmann case
             subapdata = self.slopec.subapdata
 
-            # Create Slopes object for IM mode
-            sl = Slopes(length=im_mode.shape[0])
+            # Slopes object for the IM mode, displayed as the slopes of the slope computer
+            sl = Slopes(length=im_mode.shape[0], layout=subapdata.slopes_layout(),
+                        interleave=self.slopec.slopes.interleave)
             sl.set_value(im_mode)
-            sl.single_mask = subapdata.single_mask()
-            sl.display_map = subapdata.display_map
-
-            # Create 2D frames
-            frame_x = sl.xp.zeros_like(sl.single_mask, dtype=sl.dtype)
-            frame_y = sl.xp.zeros_like(sl.single_mask, dtype=sl.dtype)
-
-            # Remap to 2D
-            sl.x_remap2d(frame_x, sl.display_map)
-            sl.y_remap2d(frame_y, sl.display_map)
+            frame_x, frame_y = sl.get2d()
         else:
             raise NotImplementedError("2D IM map is only implemented for"
                                       "Shack-Hartmann WFS in this example")

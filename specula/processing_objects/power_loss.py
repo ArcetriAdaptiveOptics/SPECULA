@@ -81,14 +81,14 @@ class PowerLoss(BaseProcessingObj):
 
             tmp_ef = ef_in[s + self.prop_obj.beam_center[0]:s + self.prop_obj.beam_center[0] + self.pixel_pupil,
                      s + self.prop_obj.beam_center[1]:s + self.prop_obj.beam_center[1] + self.pixel_pupil]
-            self.psf.value[:] = calc_psf(self.xp.angle(tmp_ef), abs(tmp_ef), xp=self.xp, imwidth=self.pad_size,
-                                         complex_dtype=self.complex_dtype)
+            calc_psf(self.xp.angle(tmp_ef), abs(tmp_ef), xp=self.xp, imwidth=self.pad_size,
+                     complex_dtype=self.complex_dtype, out=self.psf.value)
             self.psf_ref = self.psf.value[self.pad_size // 2, self.pad_size // 2].copy()
 
     def trigger_code(self):
         in_ef = self.local_inputs['in_ef']
-        self.psf.value[:] = calc_psf(in_ef.phi_at_lambda(self.prop_obj.wavelengthInNm), in_ef.A, imwidth=self.pad_size,
-                                     xp=self.xp, complex_dtype=self.complex_dtype)
+        calc_psf(in_ef.phi_at_lambda(self.prop_obj.wavelengthInNm), in_ef.A, imwidth=self.pad_size,
+                 xp=self.xp, complex_dtype=self.complex_dtype, out=self.psf.value)
 
         self.sr.value = self.psf.value[self.pad_size // 2, self.pad_size // 2] / self.psf_ref
         self.logger.info(f'SR at {int(self.prop_obj.wavelengthInNm)}nm : {self.sr.value}')

@@ -47,8 +47,8 @@ class ZwfsSlopec(Slopec):
 
         self.outputs['out_pupdata'] = self.pupdata
         
-        self.slopes.single_mask = self.pupdata.single_mask() # unsure if this is needed
-        self.slopes.display_map = self.pupdata.display_map # unsure if this is needed
+        # One value per valid pixel, displayed on the whole frame
+        self.slopes.layout = self.pupdata.slopes_layout(from_intensity=True)
 
         all_idx = self.pupdata.pupil_idx(0).astype(self.xp.int64)
         self.pup_idx  = all_idx[all_idx >= 0]

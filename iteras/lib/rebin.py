@@ -48,11 +48,25 @@ def rebin2d(a, shape, sample=False, xp=None):
         M, N = a.shape
         m, n = shape
 
-        if m<=M and n<=M:
+        if m<=M and n<=N:
             if (M//m != M/m) or (N//n != N/n):
                 raise ValueError('Resampling by non-integer factors is not supported')
-            return a.reshape((m,M//m,n,N//n)).mean(3).mean(1)
-        elif m>=M and n>=M:
+            # Same as a.reshape((m,M//m,n,N//n)).mean(3).mean(1), but summing
+            # strided slices: cupy is very slow at reducing a short last axis
+            fy, fx = M//m, N//n
+            dtype = a.dtype if xp.issubdtype(a.dtype, xp.inexact) else xp.float64
+            cols = a[:, 0::fx].astype(dtype)
+            for j in range(1, fx):
+                cols += a[:, j::fx]
+            if fx > 1:
+                cols /= fx
+            out = cols[0::fy].copy()
+            for i in range(1, fy):
+                out += cols[i::fy]
+            if fy > 1:
+                out /= fy
+            return out
+        elif m>=M and n>=N:
             raise ValueError('Upsampling with sample=False is not supported')
         else:
             raise ValueError('Upsampling and downsampling in different axes it not supported')

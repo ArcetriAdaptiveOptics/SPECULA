@@ -86,6 +86,39 @@ class TestPolyChromDevices(unittest.TestCase):
     def test_poly_crom_pyramid_devices(self, target_device_idx, xp):
         self._compare(self._pyr, target_device_idx, xp)
 
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_instances_use_own_graph(self):
+        '''
+        The instances are triggered with their own CUDA graph, with the same
+        result as when they run trigger_code() as Python code
+        '''
+        n_devices = min(2, cp.cuda.runtime.getDeviceCount())
+        for make in (self._sh, self._pyr):
+            ef = ElectricField(120, 120, 0.05, S0=100, target_device_idx=0)
+            ef.A = make_mask(120)
+            graph = make(0, n_devices=n_devices)
+            python = make(0, n_devices=n_devices)
+            for wfs in (graph, python):
+                wfs.inputs['in_ef'].set(ef)
+                wfs.setup()
+            for wfs in python._wfs_instances:
+                wfs.cuda_graph = None
+                wfs._cuda_graph_invalid = False
+
+            rng = np.random.default_rng(2)
+            for t in (1, 2, 3):
+                ef.phaseInNm[:] = cp.asarray(50 * rng.standard_normal((120, 120)))
+                ef.generation_time = t
+                for wfs in (graph, python):
+                    wfs.check_ready(t)
+                    wfs.trigger()
+                    wfs.post_trigger()
+                np.testing.assert_allclose(cpuArray(graph.outputs['out_i'].i),
+                                           cpuArray(python.outputs['out_i'].i),
+                                           rtol=1e-5, atol=1e-6 * float(python.outputs['out_i'].i.max()),
+                                           err_msg=f'step {t}')
+            self.assertTrue(all(wfs.cuda_graph is not None for wfs in graph._wfs_instances))
+
     def test_allocator_hooks(self):
         for cls in (PolyChromSH, PolyCromPyramid):
             params = {'class': cls.__name__, 'n_devices': 3, 'target_device_idx': 0}

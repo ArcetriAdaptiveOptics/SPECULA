@@ -3,6 +3,7 @@ from specula.lib.interp2d import Interp2D
 from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
 from specula.data_objects.slopes import Slopes
+from specula.lib.slopes_layout import SlopesLayout
 from skimage.restoration import unwrap_phase
 
 class CiaoCiaoSlopec(Slopec):
@@ -93,11 +94,9 @@ class CiaoCiaoSlopec(Slopec):
             self.slopes.resize(nslopes)
         self._nslopes = nslopes
 
-        # CiaoCiao exports a flattened 2D OPD map rather than X/Y subap slopes.
-        # Populate the Slopes remapping metadata so the standard display can
-        # reconstruct the original 2D image.
-        self.slopes.single_mask = self.xp.ones(shape, dtype=self.dtype)
-        self.slopes.display_map = self.xp.arange(nslopes)
+        # CiaoCiao exports a flattened 2D OPD map rather than X/Y subap slopes:
+        # the layout lets the standard display reconstruct the original 2D image.
+        self.slopes.layout = SlopesLayout.full_frame(shape)
 
         if self._input_pupil_mask is not None:
             mask = self.to_xp(self._input_pupil_mask.A, dtype=self.dtype)
