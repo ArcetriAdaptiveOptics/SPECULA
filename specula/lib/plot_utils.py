@@ -513,6 +513,13 @@ def display_lgs_geometry(diameter_in_m: float, n_sub_aps: int, launcher_coord_in
         if rotated:
             # (n, 2) row vectors: p_tel = R c  ->  p_tel = c @ R.T
             ax_p.add_patch(patches.Polygon((c + square) @ to_tel.T, fill=False, color='C0'))
+    # Outline joining the corner sub-apertures of the n_show x n_show set
+    # (shown is ordered row by row, top row first)
+    corners = centres[shown[[0, n_show - 1, n_show**2 - 1, n_show**2 - n_show]]]
+    ax_p.add_patch(patches.Polygon(corners, fill=False, color='C0', lw=0.8))
+    if rotated:
+        ax_p.add_patch(patches.Polygon(corners @ to_tel.T, fill=False, color='C0', lw=0.8,
+                                       ls='--'))
     ax_p.plot([], [], 's', color='C0', label='sub-apertures (WFS frame)')
     if rotated:
         ax_p.plot([], [], 's', mfc='none', color='C0', label='sub-apertures (telescope frame)')
