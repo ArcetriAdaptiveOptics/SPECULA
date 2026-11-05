@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 from astropy.modeling import models, fitting
 from specula import cpuArray
 from specula.data_objects.convolution_kernel import lgs_map_sh
+from specula.data_objects.laser_launch_telescope import launcher_in_wfs_frame
 from specula.log import get_specula_logger
 
 
 def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, launcher_coord_in_m,
                          sub_aps_index, n_sub_aps, sub_aps_fov, sh_spot_fwhm, sigma_noise2,
                          t_g_parameter, h_in_m=None, user_pofile_xy=None, theta=None,
-                         only_diag=False, eta_is_not_one=False, display=False, log_level=None):
+                         only_diag=False, eta_is_not_one=False, display=False, log_level=None,
+                         wfs_rotation_in_deg=None):
     """
     Compute the inverse noise covariance matrix for elongated LGS spots.
 
@@ -27,7 +29,8 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     na_thickness_in_m : float
         Sodium layer FWHM in meters.
     launcher_coord_in_m : array-like
-        Laser launcher coordinates in meters ``[x, y, z]``.
+        Laser launcher coordinates in meters ``[x, y, z]``, in the WFS frame
+        (or in the telescope frame, with ``wfs_rotation_in_deg``).
     sub_aps_index : array-like
         Indices of valid sub-apertures.
     n_sub_aps : int
@@ -53,6 +56,11 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         If ``True``, compute ``eta`` including flux-loss effects.
     display : bool, optional
         If ``True``, show debug plots.
+    wfs_rotation_in_deg : float, optional
+        If given, ``launcher_coord_in_m`` and ``theta`` are in the telescope
+        frame and are rotated into the frame of a WFS rotated by this angle
+        (the ``rotAnglePhInDeg`` of the SH), as the SH does for a
+        ``LaserLaunchTelescope`` with ``absolute_coordinates``.
 
     Returns
     -------
@@ -86,6 +94,14 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
         theta = list(cpuArray(theta)) if hasattr(theta, '__len__') \
             else [float(theta), float(theta)]
 
+    if wfs_rotation_in_deg is not None:
+        launcher_coord_in_m, theta_wfs = launcher_in_wfs_frame(
+            launcher_coord_in_m, [0.0, 0.0] if theta is None else theta,
+            float(wfs_rotation_in_deg))
+        launcher_coord_in_m = np.asarray(launcher_coord_in_m)
+        if theta is not None:
+            theta = theta_wfs
+
     if only_diag:
         logger.debug('onlyDiag is set')
     if eta_is_not_one:
@@ -111,10 +127,12 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
     y_idx = sub_aps_index // n_sub_aps
     x_idx = sub_aps_index % n_sub_aps
 
-    # Coordinates with respect to center (X in column 0 and Y in column 1)
+    # Coordinates of the sub-aperture centres with respect to the pupil
+    # centre (X in column 0 and Y in column 1): sub-aperture i covers
+    # [i, i + 1] sub-aperture pitches from the pupil edge
     coord_sub_aps = np.zeros((len(sub_aps_index), 2), dtype=float)
-    coord_sub_aps[:, 0] = x_idx - float(n_sub_aps / 2)  # X AXIS
-    coord_sub_aps[:, 1] = y_idx - float(n_sub_aps / 2)  # Y AXIS
+    coord_sub_aps[:, 0] = x_idx - (n_sub_aps - 1) / 2.0  # X AXIS
+    coord_sub_aps[:, 1] = y_idx - (n_sub_aps - 1) / 2.0  # Y AXIS
 
     coord_sub_aps *= diameter_in_m / n_sub_aps
 

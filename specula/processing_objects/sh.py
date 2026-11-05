@@ -371,16 +371,19 @@ class SH(BaseProcessingObj):
                                                             target_device_idx=self.target_device_idx,
                                                             precision=self.precision)
             else:
+                # launcher in the frame of this SH (rotated if it is given
+                # in the telescope frame, see LaserLaunchTelescope)
+                launcher_pos, beacon_tt = self._laser_launch_tel.wfs_frame(self._rotAnglePhInDeg)
                 self._kernelobj = ConvolutionKernel(dimx = self._lenslet.dimx,
                                                     dimy = self._lenslet.dimy,
                                                     pxscale = fp4_pixel_pitch * RAD2ASEC,
                                                     pupil_size_m = in_ef.pixel_pitch * in_ef.size[0],
                                                     dimension = fft_size,
-                                                    launcher_pos = self._laser_launch_tel.tel_pos,
+                                                    launcher_pos = launcher_pos,
                                                     seeing = 0.0,
                                                     launcher_size = self._laser_launch_tel.spot_size,
                                                     zfocus = self._laser_launch_tel.beacon_focus,
-                                                    theta = self._laser_launch_tel.beacon_tt,
+                                                    theta = beacon_tt,
                                                     oversampling = 1,
                                                     return_fft = True,
                                                     positive_shift_tt = True,
@@ -598,6 +601,13 @@ class SH(BaseProcessingObj):
         Parameters are the same as EFInterpolator.update_parameters();
         the ones set to None are left unchanged.
         '''
+        if (rotAnglePhInDeg is not None and rotAnglePhInDeg != self._rotAnglePhInDeg
+                and self._laser_launch_tel is not None
+                and self._laser_launch_tel.absolute_coordinates):
+            raise NotImplementedError(
+                'The rotation of an SH with a launcher in absolute coordinates cannot be'
+                ' changed during the simulation: the LGS kernels depend on it and are'
+                ' computed at setup')
         self.ef_interpolator.update_parameters(xShiftPhInPixel=xShiftPhInPixel,
                                                yShiftPhInPixel=yShiftPhInPixel,
                                                rotAnglePhInDeg=rotAnglePhInDeg,

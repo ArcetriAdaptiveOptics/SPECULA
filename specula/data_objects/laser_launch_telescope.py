@@ -6,6 +6,39 @@ from specula.base_data_obj import BaseDataObj
 from specula.data_objects.simul_params import SimulParams
 from iteras.lib import storage
 
+
+def launcher_in_wfs_frame(tel_position, beacon_tt, wfs_rotation_in_deg):
+    """
+    Launcher position and beacon tilt, given in the telescope frame, in the
+    frame of a WFS rotated by wfs_rotation_in_deg (the rotAnglePhInDeg of SH).
+
+    The WFS sees the pupil rotated by this angle (EFInterpolator): a point
+    at p in the telescope pupil appears at R p, with R the rotation by
+    +wfs_rotation_in_deg in the (x, y) plane, x along the columns and y along
+    the rows of the pupil arrays. The launcher position (x, y; z unchanged)
+    and the beacon tilt (x, y) are rotated in the same way.
+
+    Parameters
+    ----------
+    tel_position : array_like [m]
+        Launcher position [x, y, z] in the telescope frame.
+    beacon_tt : array_like [arcsec]
+        Beacon tilt [x, y] in the telescope frame.
+    wfs_rotation_in_deg : float [deg]
+        Rotation of the WFS.
+
+    Returns
+    -------
+    tuple of list
+        (position [x, y, z], tilt [x, y]) in the WFS frame.
+    """
+    a = np.radians(wfs_rotation_in_deg)
+    c, s = np.cos(a), np.sin(a)
+    x, y, z = (float(v) for v in tel_position)
+    tx, ty = (float(v) for v in beacon_tt)
+    return [c * x - s * y, s * x + c * y, z], [c * tx - s * ty, s * tx + c * ty]
+
+
 class LaserLaunchTelescope(BaseDataObj):
     """
     Laser Launch Telescope data object.
@@ -18,6 +51,7 @@ class LaserLaunchTelescope(BaseDataObj):
                  tel_position: list = [],
                  beacon_focus: float = 90e3,
                  beacon_tt: list = [0.0, 0.0],
+                 absolute_coordinates: bool = False,
                  target_device_idx: int = None,
                  precision: int = None
         ):
@@ -35,6 +69,13 @@ class LaserLaunchTelescope(BaseDataObj):
             The distance from the telescope pupil to beacon focus.
         beacon_tt : list [arcsec]
             The tilt and tip of the beacon.
+        absolute_coordinates : bool, optional
+            If False (default), tel_position and beacon_tt are given in the
+            frame of the WFS that uses the launcher (in the configuration,
+            they must already account for the WFS rotation). If True, they are
+            given in the telescope frame, and each WFS rotates them by its own
+            rotation (see launcher_in_wfs_frame()): one launcher can then serve
+            WFSs with different rotations.
 
         TODO the empty tel_position array is actually significant, because
             it is checked in the SH code to manage the kernels,
@@ -64,6 +105,22 @@ class LaserLaunchTelescope(BaseDataObj):
         self.tel_pos = tel_position
         self.beacon_focus = beacon_focus * self.airmass
         self.beacon_tt = beacon_tt
+        self.absolute_coordinates = bool(absolute_coordinates)
+
+    def wfs_frame(self, wfs_rotation_in_deg):
+        """
+        Launcher position and beacon tilt in the frame of a WFS rotated by
+        wfs_rotation_in_deg: rotated if absolute_coordinates, as they are
+        otherwise.
+
+        Returns
+        -------
+        tuple of list
+            (position [x, y, z], tilt [x, y])
+        """
+        if not self.absolute_coordinates or len(self.tel_pos) == 0:
+            return self.tel_pos, self.beacon_tt
+        return launcher_in_wfs_frame(self.tel_pos, self.beacon_tt, wfs_rotation_in_deg)
 
     def get_value(self):
         raise NotImplementedError
@@ -83,6 +140,7 @@ class LaserLaunchTelescope(BaseDataObj):
         hdr['BEAC_FOC'] = self.beacon_focus
         hdr['BEAC_TT0'] = self.beacon_tt[0]
         hdr['BEAC_TT1'] = self.beacon_tt[1]
+        hdr['ABSCOORD'] = self.absolute_coordinates
         return hdr
 
     def save(self, filename, overwrite=False):
@@ -102,6 +160,7 @@ class LaserLaunchTelescope(BaseDataObj):
             tel_position = [hdr['TELPOS_X'], hdr['TELPOS_Y'], hdr['TELPOS_Z']],
             beacon_focus = hdr['BEAC_FOC'],
             beacon_tt = [hdr['BEAC_TT0'], hdr['BEAC_TT1']],
+            absolute_coordinates = hdr.get('ABSCOORD', False),
             target_device_idx=target_device_idx)
         return llt
 
