@@ -111,11 +111,7 @@ class PyrSlopec(Slopec):
         self.outputs['out_pixels_subap'] = self.pixels_subap
         self.outputs['out_pixels_subap_sum'] = self.pixels_subap_sum
 
-        if self.slopes_from_intensity:
-            self.slopes.single_mask = self.pupdata.complete_mask()
-        else:
-            self.slopes.single_mask = self.pupdata.single_mask()
-        self.slopes.display_map = self.pupdata.display_map
+        self.slopes.layout = self.pupdata.slopes_layout(from_intensity=self.slopes_from_intensity)
 
     @classmethod
     def output_names(cls):

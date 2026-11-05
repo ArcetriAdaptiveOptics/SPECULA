@@ -107,9 +107,9 @@ class Slopec(BaseProcessingObj):
                                       precision=precision)
         # 2d view of the slopes, e.g. shape (2, size_x, size_y) for a single
         # subaperture-sized x/y slope map. Allocated lazily on the first
-        # apply_slopes_corrections() call, once a derived class has set self.slopes.single_mask
-        # and self.slopes.display_map (see Slopes.get2d()). Its exact shape depends
-        # on those, and it is not duplicated data: it is recomputed from self.slopes
+        # apply_slopes_corrections() call, once a derived class has set self.slopes.layout
+        # (see Slopes.get2d()). Its exact shape depends on the layout,
+        # and it is not duplicated data: it is recomputed from self.slopes
         # at every step, not accumulated separately.
         self.slopes_map = BaseValue(target_device_idx=self.target_device_idx,
                                     precision=precision)
@@ -255,12 +255,10 @@ class Slopec(BaseProcessingObj):
             self.slopes.slopes -= sl0
 
         # Not duplicated storage: recomputed from self.slopes at every step
-        # via the existing single_mask/display_map machinery (see Slopes.get2d()).
-        # Some Slopec subclasses set up single_mask/display_map in a way that is
-        # not (yet) compatible with get2d(); rather than crashing the whole
-        # simulation, out_slopes_map is simply left unset for those, and a
-        # warning is logged once.
-        if self.slopes.single_mask is not None and self.slopes.display_map is not None:
+        # using the slopes layout (see Slopes.get2d()). If the layout does not
+        # match the slopes, rather than crashing the whole simulation,
+        # out_slopes_map is simply left unset, and a warning is logged once.
+        if self.slopes.layout is not None:
             if not self._slopes_map_unavailable:
                 self.update_slopes_map()
 
@@ -268,8 +266,7 @@ class Slopec(BaseProcessingObj):
         '''
         Update slopes_map from self.slopes. The first call uses Slopes.get2d(),
         the following ones scatter the slopes into the existing map with a
-        single operation, using the same geometry. Geometries not handled
-        here keep using get2d().
+        single operation, using the same layout.
         '''
         if self._slopes_map_idx is not None:
             self.xp.put(self.slopes_map.value, self._slopes_map_idx, self.slopes.slopes)
@@ -284,19 +281,8 @@ class Slopec(BaseProcessingObj):
             )
             return
 
-        # Same geometry as Slopes.get2d()
-        idx = self.slopes.display_map
-        mask_shape = self.slopes.single_mask.shape
-        flat_idx = idx if len(idx.shape) == 1 else idx[0] * mask_shape[1] + idx[1]
-        if self.slopes.slopes.size == len(idx):
-            # slopes from intensity case
-            if len(idx.shape) == 1:
-                self._slopes_map_idx = flat_idx
-        elif self.slopes.slopes.size == 2 * len(flat_idx):
-            map_idx = self.xp.zeros(self.slopes.slopes.size, dtype=flat_idx.dtype)
-            map_idx[self.slopes.indx()] = flat_idx
-            map_idx[self.slopes.indy()] = flat_idx + mask_shape[0] * mask_shape[1]
-            self._slopes_map_idx = map_idx
+        # Same layout as Slopes.get2d()
+        self._slopes_map_idx = self.slopes.layout.value_idx(self.xp, self.slopes.interleave)
 
     def post_trigger(self):
         super().post_trigger()

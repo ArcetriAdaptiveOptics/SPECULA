@@ -81,9 +81,8 @@ class CurWfsSlopec(Slopec):
         # Outputs to track the used pupils
         self.outputs['out_pupdata'] = self.pupdata
 
-        # Setup slopes display mapping (using the first pupdata as geometric reference)
-        self.slopes.single_mask = self.pupdata.single_mask()
-        self.slopes.display_map = self.pupdata.display_map
+        # Slopes display: one curvature signal per valid pixel, on the whole frame
+        self.slopes.layout = self.pupdata.slopes_layout(from_intensity=True)
 
         self.flat_p1 = None
         self.flat_p2 = None

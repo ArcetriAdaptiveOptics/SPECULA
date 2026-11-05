@@ -185,7 +185,7 @@ def calc_noise_cov_elong(diameter_in_m, zenith_angle_in_deg, na_thickness_in_m, 
             except (TypeError, ValueError, RuntimeError) as e:
                 beta1[i] = 0
                 beta2[i] = 0
-                logger.waring(f"1D Gaussian fit failed for sub-aperture {i}: {e}")
+                logger.warning(f"1D Gaussian fit failed for sub-aperture {i}: {e}")
 
             # Compute eta (flux normalization)
             if eta_is_not_one:
