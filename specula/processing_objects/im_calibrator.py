@@ -216,12 +216,10 @@ class ImCalibrator(BaseProcessingObj):
         if self.compute_single_im:
             for mode in range(self.nmodes):
                 self.single_im[mode].modes[0] = self.intmat.modes[mode]
-                self.single_im[mode].single_mask = in_slopes_object.single_mask
-                self.single_im[mode].display_map = in_slopes_object.display_map
+                self.single_im[mode].slopes_layout = in_slopes_object.layout
                 self.single_im[mode].generation_time = self.current_time
 
-        self.intmat.single_mask = in_slopes_object.single_mask
-        self.intmat.display_map = in_slopes_object.display_map
+        self.intmat.slopes_layout = in_slopes_object.layout
         self.intmat.generation_time = self.current_time
 
     def finalize(self):
