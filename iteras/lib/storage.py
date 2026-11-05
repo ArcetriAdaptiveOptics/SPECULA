@@ -413,7 +413,8 @@ class _FitsReader(ObjectReader):
 
     def has(self, name, index=None):
         i = self._index(name, index)
-        return i is not None and self._hdul[i].data is not None
+        # From the header: reading .data would load the whole array in host memory
+        return i is not None and self._hdul[i].header.get('NAXIS', 0) > 0
 
     def names(self):
         return [hdu.name for hdu in self._hdul[1:] if hdu.name]

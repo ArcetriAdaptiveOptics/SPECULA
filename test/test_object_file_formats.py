@@ -269,6 +269,14 @@ class TestStorageAPI(unittest.TestCase):
             np.testing.assert_array_equal(f.read(None, 1), self.a)
             self.assertFalse(f.has('b', 2))
 
+    def test_fits_has_does_not_read_data(self):
+        path = self._path('obj', 'fits')
+        storage.write_object(path, self.header, {'a': self.a, 'none': None})
+        with storage.read_object(path) as f:
+            self.assertTrue(f.has('a'))
+            self.assertFalse(f.has('none'))
+            self.assertFalse(f._hdul[1]._data_loaded)
+
     def test_load_on_device(self):
         targets = [-1] + ([0] if specula.cp is not None else [])
         for data_format in storage.OBJECT_FORMATS:
