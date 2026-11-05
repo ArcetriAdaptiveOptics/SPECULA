@@ -17,6 +17,9 @@ class CiaoCiaoSlopec(Slopec):
     5. Extracts the phase (arctan2) and (optionally) unwraps it.
     6. Converts the phase to OPD.
     7. Exports the OPD map as a flattened output vector.
+
+    clamp_negative (see Slopec): the negative pixels of the interferogram are
+    set to zero before the FFT.
     """
     def __init__(self,
                  wavelength_in_nm: float,
@@ -52,6 +55,11 @@ class CiaoCiaoSlopec(Slopec):
         unwrap : bool, optional
             If True, performs 2D phase unwrapping using skimage (runs on CPU).
             Default is False.
+        sn : Slopes, optional
+            Slope null (see Slopec).
+        **kwargs
+            Passed to Slopec (e.g. clamp_negative, default True: the negative
+            pixels of the interferogram are set to zero before the FFT).
         """
         self.wavelength = float(wavelength_in_nm)
         self.window_x = float(window_x_in_pix)
@@ -134,6 +142,8 @@ class CiaoCiaoSlopec(Slopec):
     def compute_slopes(self):
         # 1. Retrieve the interferogram (current pixels from the CCD)
         pixels = self.local_inputs['in_pixels'].pixels
+        if self.clamp_negative:
+            pixels = self.xp.maximum(pixels, 0)   # a copy: the input is not modified
 
         # 2. Fourier Transform and shift
         ft_intensity = self.fft.fftshift(self.fft.fft2(pixels, norm='ortho'))
