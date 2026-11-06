@@ -93,6 +93,8 @@ SPECULA supports special configuration options in YAML files to load data from e
 - The object class is automatically inferred from the type hint of the corresponding initialization parameter in the Python class definition.
 - When restoring an object, SPECULA calls the class's ``restore()`` method, passing the specified tag or filename as an argument.
 - The restored object is assigned to the parameter ``<name>`` in the object constructor.
+- The object is restored on the device of the object that uses it, unless its class lists the
+  parameter in ``host_data_objects`` (see :doc:`extension_api`): it is then restored on the CPU.
 
 .. code-block:: yaml
 
