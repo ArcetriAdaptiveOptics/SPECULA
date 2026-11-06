@@ -71,8 +71,10 @@ class ExtSourcePyramid(ModulatedPyramid):
         Extended source coefficients array of shape (n_points, 4) with columns:
         [tip_coeff, tilt_coeff, focus_coeff, flux]. Typically provided by an
         ExtendedSource object. This input replaces the modulation pattern used
-        in point source mode.
-    
+        in point source mode. Each update captures the CUDA graph again: it is
+        meant for occasional changes, not for a source that changes at every
+        step.
+
     Notes
     -----
     No specific outputs for extended source pyramid, uses same outputs as ModulatedPyramid.
