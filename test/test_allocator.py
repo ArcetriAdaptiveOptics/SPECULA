@@ -1191,7 +1191,8 @@ class TestAllocatorRun(AllocatorTestCase):
         try:
             with mock.patch('iteras.allocator.profile_run', counting_run), \
                     iteras.cp.cuda.using_allocator(pool.malloc):
-                Simul(path, speed_report=False).run()
+                # Not accelerated: the CUDA graphs would add their temporaries to the 45 MB
+                Simul(path, speed_report=False, accelerate=False).run()
         finally:
             pool.free_all_blocks()
         self.assertGreater(len(calls), 2)
@@ -1205,7 +1206,8 @@ class TestAllocatorRun(AllocatorTestCase):
     def test_gpu_profile(self):
         params = json.loads(json.dumps(self.params))
         params['architecture'] = self.arch(mode='plan', nodes='local', memory_source='probe')
-        simul = Simul(self.write(params), speed_report=False)
+        # Not accelerated: the costs are read below with the key of that mode
+        simul = Simul(self.write(params), speed_report=False, accelerate=False)
         simul.run()
         profile = Profile(params['architecture']['allocation_file'].replace('.yml', '_profile.json'))
         kinds = {k.split('|')[1] for k in profile.entries}

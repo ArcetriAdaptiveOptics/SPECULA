@@ -74,7 +74,7 @@ class Counter(BaseProcessingObj):
 
 
 class Slow(BaseProcessingObj):
-    '''Long GPU work on its own stream (CUDA graph, see build_stream()), from its input'''
+    '''Long GPU work on its own stream (see build_stream()), from its input'''
 
     def __init__(self, target_device_idx=None, n=1 << 21):
         super().__init__(target_device_idx=target_device_idx)
@@ -289,9 +289,8 @@ class TestAccelerator(unittest.TestCase):
     def test_accelerated_object_does_not_wait_for_the_gpu(self):
         (_, dbl, _), _ = self.check_same()
         self.assertIsNotNone(dbl._accel)
-        # post_trigger() of a accelerated object with its own graph does not wait for its stream
+        # post_trigger() of a accelerated object with its own stream does not wait for it
         dbl.stream = cp.cuda.Stream()
-        dbl.cuda_graph = object()
         dbl.inputs_changed = True
         dbl.post_trigger()
 
@@ -371,6 +370,34 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         sim = Simul(path, accelerate=True, speed_report=False)
         sim.run()
         self.assertIn('0 of 1 objects accelerated', sim.accelerator.report())
+
+    def test_accelerate_is_the_default(self):
+        from specula.simul import Simul
+        from iteras.scripts.iteras_main import build_parser
+        self.assertTrue(Simul('unused.yml').accelerate)
+        parser = build_parser()
+        self.assertTrue(parser.parse_args(['p.yml']).accelerate)
+        self.assertTrue(parser.parse_args(['--accelerate', 'p.yml']).accelerate)
+        self.assertFalse(parser.parse_args(['--no-accelerate', 'p.yml']).accelerate)
+
+    def test_accelerate_false_ignores_the_accelerator_section(self):
+        import os
+        import yaml
+        from specula.simul import Simul
+        params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp.name, 'total_time': 0.003,
+                           'time_step': 0.001},
+                  'gen': {'class': 'WaveGenerator', 'amp': [1.0], 'freq': [10.0], 'output_size': 2,
+                          'target_device_idx': -1},
+                  'accelerator': {'class': 'Accelerator', 'exclude': ['gen']}}
+        path = os.path.join(self.tmp.name, 'params.yml')
+        with open(path, 'w') as f:
+            yaml.dump(params, f)
+        sim = Simul(path, accelerate=False, speed_report=False)
+        sim.run()
+        self.assertIsNone(sim.accelerator)
+        sim = Simul(path, speed_report=False)
+        sim.run()
+        self.assertEqual(sim.accelerator.options.exclude, ['gen'])
 
     def test_accelerator_sections(self):
         from specula.simul import Simul

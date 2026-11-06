@@ -129,9 +129,6 @@ Methods to override
    * - ``get_resolved_seed()``
      - Return the random seed used, if chosen at construction, so that a replay
        reproduces the same values. Default: ``None``.
-   * - ``graph_input_ptrs()``
-     - Override to exclude, from the check made at each launch of the CUDA
-       graph, inputs that the graph does not read.
    * - ``can_accelerate()``
      - Called by the :doc:`accelerator <accelerator>` just before it captures
        ``trigger_code()`` in a CUDA graph launched at each step instead. Return
@@ -142,7 +139,7 @@ Methods to override
        ``prepare_trigger()``, which runs at each step); matrix products use
        ``specula.lib.graph_matmul.matmul()``. Otherwise return ``False``, or a
        string saying why (it is called again at the next trigger). Default:
-       ``True`` for objects that build their own CUDA graph, ``False`` otherwise.
+       ``True`` for objects that call ``build_stream()``, ``False`` otherwise.
        A derived class that redefines ``trigger_code()`` is not accelerated
        unless it declares ``can_accelerate()`` itself.
 

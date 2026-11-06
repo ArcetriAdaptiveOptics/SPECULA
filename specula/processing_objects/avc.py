@@ -265,9 +265,7 @@ class AVC(BaseProcessingObj):
 
     def setup(self):
         super().setup()
-        # The CUDA graph is captured at the first trigger(): the warm-up run
-        # of capture_stream() in setup() would advance alpha by one step
-        self.build_stream(capture=False)
+        self.build_stream()
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

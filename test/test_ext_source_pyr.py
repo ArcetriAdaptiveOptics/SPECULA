@@ -14,7 +14,7 @@ from specula.processing_objects.extended_source import ExtendedSource
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
 from specula.processing_objects.ext_source_pyramid import ExtSourcePyramid
 from specula.base_value import BaseValue
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, accelerate, graph_captured
 
 class TestExtSourcePyramidComparison(unittest.TestCase):
 
@@ -954,6 +954,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         src.outputs['coeff'].generation_time = 0
         pyr_graph.setup()
         pyr_ref.setup()
+        accelerate(pyr_graph, pyr_ref)
 
         for k in (1, 2):
             t = ef.seconds_to_t(k)
@@ -1021,14 +1022,7 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
         src_ref.generation_time = 0
         pyr_graph.setup()
         pyr_ref.setup()
-
-        n_captures = [0]
-        build_stream = pyr_graph.build_stream
-
-        def counting_build_stream(*args, **kwargs):
-            n_captures[0] += 1
-            return build_stream(*args, **kwargs)
-        pyr_graph.build_stream = counting_build_stream
+        accelerate(pyr_graph, pyr_ref)
 
         for k, (n_points, n_chunks) in enumerate(zip(n_points_per_frame, expected_chunks), start=1):
             t = ef.seconds_to_t(k)
@@ -1055,6 +1049,6 @@ class TestExtSourcePyramidComparison(unittest.TestCase):
                 err_msg=f"At frame {k} ({n_points} points ExtSourcePyramid with "
                         f"cuda_stream_enable=True does not follow the changing source")
 
-        if target_device_idx >= 0:
-            # recapturing has to be done twice (2->3 and 3->2)
-            self.assertEqual(n_captures[0], 2)
+        # The graph is captured again at each change of the source
+        self.assertEqual(graph_captured(pyr_graph), target_device_idx >= 0)
+        self.assertFalse(graph_captured(pyr_ref))

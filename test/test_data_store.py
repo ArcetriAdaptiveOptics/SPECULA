@@ -94,7 +94,7 @@ class TestDataStore(unittest.TestCase):
                 self.outputs['out'] = self.out
 
         producer = Producer()
-        producer.build_stream(capture=False)
+        producer.build_stream()
         store = DataStore(store_dir=self.tmp_dir, create_tn=False, target_device_idx=0)
         store.inputs['v'] = InputValue(type=BaseValue)
         store.inputs['v'].set(producer.out)
@@ -104,7 +104,8 @@ class TestDataStore(unittest.TestCase):
                 producer.out.value.fill(t)
                 for _ in range(3):
                     producer.out.value *= 1.0       # GPU work, so that the next write takes time
-            producer.stream.synchronize()           # as post_trigger() waits for the own graph
+            # as post_trigger() of an accelerated object: the default stream waits for it on the GPU
+            cp.cuda.get_current_stream().wait_event(producer.stream.record())
             producer.out.generation_time = t
             store.check_ready(t)
             store.trigger()

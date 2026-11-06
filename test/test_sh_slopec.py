@@ -7,6 +7,7 @@ import glob
 
 from specula import np
 from specula import cpuArray
+from iteras.accelerator import AcceleratorError
 
 from specula.data_objects.electric_field import ElectricField
 from specula.processing_objects.sh import SH
@@ -16,7 +17,7 @@ from specula.data_objects.recmat import Recmat
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
 from specula.processing_objects.sh_slopec import ShSlopec
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, accelerate, graph_captured
 
 class TestShSlopec(unittest.TestCase):
 
@@ -692,6 +693,7 @@ class TestShSlopec(unittest.TestCase):
         slopec.inputs['in_pixels'].set(pixels)
         if use_setup:
             slopec.setup()
+            accelerate(slopec)
         results = []
         for i, frame in enumerate(frames):
             t = slopec.seconds_to_t(i + 1)
@@ -708,7 +710,7 @@ class TestShSlopec(unittest.TestCase):
 
     def test_cuda_graph_matches_eager_and_cpu(self):
         """
-        The CUDA graph built by setup() must give the same results as
+        The CUDA graph captured by the accelerator must give the same results as
         the eager GPU execution, and the GPU results must match the CPU ones,
         with changing input pixels and all the slope corrections.
         """
@@ -748,7 +750,7 @@ class TestShSlopec(unittest.TestCase):
                                                              use_setup, sn=sn, **kwargs)
                         results[(target_device_idx, use_setup)] = res
                         if use_setup:
-                            self.assertIsNotNone(slopec.cuda_graph)
+                            self.assertTrue(graph_captured(slopec))
 
                 msg = f'{kwargs=} {interleave_sn=}'
                 for step_cpu, step_eager, step_graph in zip(results[(-1, False)],
@@ -786,7 +788,7 @@ class TestShSlopec(unittest.TestCase):
         class GraphShSlopec(DerivedShSlopec):
             def setup(self):
                 super().setup()
-                self.build_stream(capture=False)
+                self.build_stream()
 
         subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
         sn = Slopes(slopes=np.random.default_rng(2).normal(size=2 * subapdata.n_subaps),
@@ -796,7 +798,7 @@ class TestShSlopec(unittest.TestCase):
             slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx, True,
                                                  sn=sn, cls=cls)
             uses_graph = target_device_idx >= 0 and cls is not DerivedShSlopec
-            self.assertEqual(slopec.cuda_graph is not None, uses_graph, cls.__name__)
+            self.assertEqual(graph_captured(slopec), uses_graph, cls.__name__)
             for step, ref_step in zip(res, ref_no_sn):
                 np.testing.assert_allclose(step[0], ref_step[0] - cpuArray(sn.slopes),
                                            rtol=1e-5, atol=1e-6, err_msg=cls.__name__)
@@ -810,13 +812,14 @@ class TestShSlopec(unittest.TestCase):
 
     @unittest.skipIf(specula.cp is None, 'GPU not available')
     def test_reallocated_input_raises_with_cuda_graph(self):
-        """With a CUDA graph, an input reallocated by its producer raises an error,
+        """When accelerated, an input reallocated by its producer raises an error,
         instead of the graph silently reading the old array"""
         subapdata, _, frames = self._frames_and_subapdata(0, specula.cp)
         pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=0)
         slopec = ShSlopec(subapdata, target_device_idx=0)
         slopec.inputs['in_pixels'].set(pixels)
         slopec.setup()
+        accelerate(slopec)
         for i, frame in enumerate(frames):
             t = slopec.seconds_to_t(i + 1)
             if i < 2:
@@ -829,7 +832,7 @@ class TestShSlopec(unittest.TestCase):
                 slopec.trigger()
                 slopec.post_trigger()
             else:
-                with self.assertRaisesRegex(RuntimeError, 'in_pixels has been reallocated'):
+                with self.assertRaisesRegex(AcceleratorError, 'Pixels.pixels was reallocated'):
                     slopec.trigger()
                 break
 
@@ -849,6 +852,7 @@ class TestShSlopec(unittest.TestCase):
         slopec = ShSlopec(subapdata, target_device_idx=target_device_idx)
         slopec.inputs['in_pixels'].set(dark.outputs['out_subtracted_pixels'])
         slopec.setup()
+        accelerate(slopec)
 
         _, expected = self._run_slopec_steps(subapdata, frames, target_device_idx, False)
         for i, frame in enumerate(frames):
@@ -861,7 +865,7 @@ class TestShSlopec(unittest.TestCase):
                 obj.post_trigger()
             np.testing.assert_allclose(cpuArray(slopec.slopes.slopes), expected[i][0],
                                        rtol=1e-5, atol=1e-6, err_msg=f'step {i}')
-        self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)
+        self.assertEqual(graph_captured(slopec), target_device_idx >= 0)
 
     @cpu_and_gpu
     def test_int_pixels_weight(self, target_device_idx, xp):
@@ -891,7 +895,7 @@ class TestShSlopec(unittest.TestCase):
         with self.assertLogs('specula.ShSlopec', level='WARNING') as logs:
             slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx, True,
                                                  attrs=dict(mult_factor=2.0))
-        self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)
+        self.assertEqual(graph_captured(slopec), target_device_idx >= 0)
         self.assertTrue(any('multiplication factor' in line for line in logs.output))
         for step, ref_step in zip(res, ref):
             np.testing.assert_allclose(step[0], ref_step[0] * 2, rtol=1e-5, atol=1e-6)
@@ -909,7 +913,7 @@ class TestShSlopec(unittest.TestCase):
         slopec, res = self._run_slopec_steps(
             subapdata, frames, target_device_idx, True,
             attrs=dict(recmat=Recmat(recmat, target_device_idx=target_device_idx)))
-        self.assertEqual(slopec.cuda_graph is not None, target_device_idx >= 0)
+        self.assertEqual(graph_captured(slopec), target_device_idx >= 0)
         for step, ref_step in zip(res, ref):
             np.testing.assert_allclose(step[0], ref_step[0] @ recmat, rtol=1e-4, atol=1e-5)
 

@@ -326,7 +326,7 @@ class AtmoEvolution(BaseProcessingObj):
         self.layer_center_xp = (self.pixel_layer_xp - 1) / 2
         self.screen_size_xp = self.to_xp(self.phasescreens_sizes_array, dtype=self.dtype)
 
-        # Reallocated inputs raise an error, see BaseProcessingObj.check_input_ptrs()
+        # Reallocated inputs raise an error when accelerated, see iteras.accelerator
         self.build_stream()
 
     def prepare_trigger(self, t):
@@ -351,7 +351,7 @@ class AtmoEvolution(BaseProcessingObj):
 
         On GPU, in addition to kernel launches, there are small temporary
         allocations inside cupyx.scipy.ndimage.affine_transform: in the CUDA graph,
-        they are taken from its own memory pool (see BaseProcessingObj.capture_stream()).
+        they are taken from its own memory pool (see iteras.accelerator.GraphRunner.capture()).
         """
         wind_speed = self.local_inputs['wind_speed'].value
         wind_direction = self.local_inputs['wind_direction'].value

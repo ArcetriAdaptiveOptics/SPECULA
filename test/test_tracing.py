@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 import tempfile
 import unittest
 
@@ -316,7 +317,9 @@ class _GpuObj(_Obj):
         self.target_device_idx = 0
         self._target_device = _FakeDevice()
         self.stream = object()
-        self.cuda_graph = object() if with_graph else None
+        # As set by the accelerator once the graph is captured, launched on the own stream
+        self._accel = SimpleNamespace(graph=object(), launch_stream=lambda: self.stream) \
+            if with_graph else None
 
 
 class TestGpuEvents(unittest.TestCase):

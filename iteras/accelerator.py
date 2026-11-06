@@ -1,10 +1,10 @@
 '''
 Accelerator: run the GPU work of the processing objects as a chain of CUDA graphs.
 
-With the accelerator off, each object runs its trigger_code() as Python code launching
-its kernels one by one (or replays its own CUDA graph, waiting for it in
-post_trigger()). In small simulations, this host work, not the GPU, sets the
-time per step.
+The accelerator is on by default (Simul(accelerate=True), command line option
+--no-accelerate to turn it off). With the accelerator off, each object runs its
+trigger_code() as Python code launching its kernels one by one. In small
+simulations, this host work, not the GPU, sets the time per step.
 
 With the accelerator, on each GPU:
 
@@ -44,9 +44,7 @@ the object can be excluded with the "exclude" option.
 
 States of an accelerated object (GraphRunner):
 
-* first triggers (capture_after): trigger_code() runs as Python code. The own
-  CUDA graph of the object, if it built one (see build_stream()), is released
-  at its first trigger and never used again;
+* first triggers (capture_after): trigger_code() runs as Python code;
 * then, at each trigger, can_accelerate() is asked: while it does not return
   True, trigger_code() runs as Python code; when it does, the graph is
   captured and launched;
@@ -55,9 +53,10 @@ States of an accelerated object (GraphRunner):
 
 Objects that are not accelerated (on the CPU, excluded, or whose class
 overrides trigger() or redefines trigger_code() without declaring
-can_accelerate()) run as when the accelerator is off, with their own CUDA
-graph if they built one.
+can_accelerate()) run as when the accelerator is off.
 '''
+import weakref
+
 import iteras
 from iteras.base_data_obj import BaseDataObj
 from iteras.log import get_iteras_logger
@@ -164,8 +163,6 @@ class GraphRunner:  # pragma: gpu
 
     def trigger(self):
         '''The computation of a step: launch the graph, or run or capture trigger_code()'''
-        if self.triggers == 0:
-            self.release_own_graph()
         self.triggers += 1
         if self.graph is None:
             self.run_or_capture()
@@ -248,6 +245,9 @@ class GraphRunner:  # pragma: gpu
                 f'({type(error).__name__}: {first[:200]})')) from error
         self.graph = graph
         self.pool = pool
+        # A deleted MemoryPool does not release its memory to the device (CuPy >= 13):
+        # free it explicitly when this runner (and its object) is garbage collected
+        weakref.finalize(self, pool.free_all_blocks)
         self.outputs = [o for o, b in zip(outputs, before) if o.generation_time == t and b != t]
         self.refs = array_refs(obj) if self.options.check_pointers else []
         # The capture did not run the GPU work of this step
@@ -261,9 +261,8 @@ class GraphRunner:  # pragma: gpu
         '''
         Stream where the graph is launched: the object's own stream, if it
         has one (see build_stream()), so that objects of the same trigger level run
-        in parallel as when the accelerator is off, otherwise the default stream. An own
-        stream is a blocking stream: the graph follows the work queued before it on
-        the default stream.
+        in parallel, otherwise the default stream. An own stream is a blocking
+        stream: the graph follows the work queued before it on the default stream.
         '''
         if self.obj.stream is not None:
             return self.obj.stream
@@ -277,14 +276,6 @@ class GraphRunner:  # pragma: gpu
         '''
         if self.graph is not None and self.obj.stream is not None:
             iteras.cp.cuda.get_current_stream().wait_event(self.obj.stream.record())
-
-    def release_own_graph(self):
-        '''The CUDA graph that the object captured by itself (see build_stream()) is not used'''
-        obj = self.obj
-        obj.cuda_graph = None
-        obj._cuda_graph_invalid = False
-        if obj._graph_mempool is not None:
-            obj._graph_mempool.free_all_blocks()
 
     def invalidate(self):
         '''Something frozen in the graph changed: capture it again at the next trigger'''

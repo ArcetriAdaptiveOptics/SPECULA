@@ -11,6 +11,8 @@ from specula.connections import InputList, InputValue
 from specula.base_processing_obj import BaseProcessingObj
 from specula.base_processing_obj import InputDesc, OutputDesc
 from specula.log import MPI_DBG_LEVEL
+from iteras.accelerator import Accelerator
+from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
 
 from test.specula_testlib import cpu_and_gpu
 
@@ -160,7 +162,6 @@ class TestBaseProcessingObj(unittest.TestCase):
         obj = BaseProcessingObj(target_device_idx=target_device_idx)
         obj.inputs_changed = True
         obj.stream = MagicMock()
-        obj.cuda_graph = None
         obj._target_device = MagicMock()
 
         obj.post_trigger()
@@ -211,11 +212,10 @@ class TestBaseProcessingObj(unittest.TestCase):
             obj.trigger()
 
     @cpu_and_gpu
-    def test_trigger_calls_trigger_code_when_no_cuda_graph(self, target_device_idx, xp):
+    def test_trigger_calls_trigger_code_when_not_accelerated(self, target_device_idx, xp):
         obj = BaseProcessingObj(target_device_idx=target_device_idx)
         obj.inputs_changed = True
         obj.trigger_code = MagicMock()
-        obj.cuda_graph = None
 
         obj.trigger()
         obj.trigger_code.assert_called_once()
@@ -231,81 +231,20 @@ class TestBaseProcessingObj(unittest.TestCase):
         self.assertEqual(result, "cached_stream")
         del BaseProcessingObj._streams[test_device_idx]
 
-    # --- CUDA GRAPH CAPTURE TESTS ---
+    # --- CUDA GRAPH CAPTURE TESTS (through the accelerator) ---
 
-    @cpu_and_gpu
-    def test_capture_stream_records_and_creates_graph(self, target_device_idx, xp):
-        obj = BaseProcessingObj(target_device_idx=target_device_idx)
-        obj.trigger_code = MagicMock()
+    @staticmethod
+    def _accelerate(obj):
+        '''Accelerate *obj* as Simul does, returning its GraphRunner'''
+        Accelerator(AcceleratorOptions()).apply([obj])
+        return obj._accel
 
-        mock_stream = MagicMock()
-        obj.stream = mock_stream
-
-        mock_graph = MagicMock()
-        mock_stream.end_capture.return_value = mock_graph
-
-        obj.capture_stream()
-
-        # trigger_code should be called twice: before and during capture
-        self.assertEqual(obj.trigger_code.call_count, 2)
-        # end_capture must set cuda_graph
-        self.assertEqual(obj.cuda_graph, mock_graph)
-
-    @cpu_and_gpu
-    def test_capture_stream_with_no_trigger_code_error_handled(self, target_device_idx, xp):
-        """If trigger_code raises, ensure end_capture is not called."""
-        obj = BaseProcessingObj(target_device_idx=target_device_idx)
-
-        obj.trigger_code = MagicMock(side_effect=RuntimeError("GPU failure"))
-        mock_stream = MagicMock()
-        obj.stream = mock_stream
-
-        with self.assertRaises(RuntimeError):
-            obj.capture_stream()
-
-        mock_stream.end_capture.assert_not_called()
-
-    @unittest.skipIf(cp is None, 'GPU not available')
-    def test_trigger_recaptures_graph_after_invalidate_graph(self):
-        '''
-        A Python scalar used in trigger_code() is frozen in the CUDA graph.
-        The graph must be captured again at the next trigger() after
-        invalidate_graph(), and only then.
-        '''
-        class GraphObj(BaseProcessingObj):
-            def __init__(self):
-                super().__init__(target_device_idx=0)
-                self.value = 1.0
-                self.buf = cp.zeros(4, dtype=cp.float32)
-
-            def set_value(self, value):
-                self.value = value
-                self.invalidate_graph()
-
-            def trigger_code(self):
-                self.buf[:] = self.value
-
-        def run(obj):
-            obj.inputs_changed = True
-            obj.trigger()
-            obj.stream.synchronize()
-            return float(obj.buf[0])
-
-        obj = GraphObj()
-        obj.build_stream(allow_parallel=False)
-        self.assertEqual(run(obj), 1.0)
-
-        # Changed without invalidating: the graph keeps the old value
-        obj.value = 2.0
-        self.assertEqual(run(obj), 1.0)
-
-        # Changed through a method that invalidates the graph: captured again
-        obj.set_value(3.0)
-        self.assertEqual(run(obj), 3.0)
-
-        # The flag is reset by the new capture
-        self.assertFalse(obj._cuda_graph_invalid)
-        self.assertEqual(run(obj), 3.0)
+    @staticmethod
+    def _trigger(obj):
+        obj.inputs_changed = True
+        obj.trigger()
+        obj.post_trigger()
+        cp.cuda.Device(0).synchronize()
 
     @unittest.skipIf(cp is None, 'GPU not available')
     def test_graph_temporaries_are_not_reused(self):
@@ -328,16 +267,17 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         def run(obj):
             obj.out[:] = 0
-            obj.inputs_changed = True
-            obj.trigger()
-            obj.stream.synchronize()
+            self._trigger(obj)
             np.testing.assert_array_equal(cpuArray(obj.out), np.arange(n) * 2 + 1)
 
         obj = TempObj()
         obj.build_stream(allow_parallel=False)
+        runner = self._accelerate(obj)
+        run(obj)        # warm-up
+        run(obj)        # capture
+        self.assertIsNotNone(runner.graph)
 
-        with obj.stream:
-            others = [cp.full(n, -1, dtype=cp.float32) for _ in range(4)]
+        others = [cp.full(n, -1, dtype=cp.float32) for _ in range(4)]
         run(obj)
         for other in others:
             np.testing.assert_array_equal(cpuArray(other), -1)
@@ -367,10 +307,13 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj = TempObj()
         obj.build_stream(allow_parallel=False)
-        pool = obj._graph_mempool
+        runner = self._accelerate(obj)
+        self._trigger(obj)
+        self._trigger(obj)
+        pool = runner.pool
         self.assertGreater(pool.total_bytes(), 0)
 
-        del obj
+        del obj, runner
         gc.collect()
         self.assertEqual(pool.total_bytes(), 0)
 
@@ -379,12 +322,10 @@ class TestBaseProcessingObj(unittest.TestCase):
         '''
         The cuFFT plans created by the first execution of trigger_code() are
         cached by cupy and shared with other objects: their work areas must not
-        come from the CUDA graph pool, which is freed with the object (with
-        CuPy 12 also the memory still in use, leaving a cached plan pointing
-        to freed memory). After the capture the pool holds no memory in use,
-        since the temporaries of trigger_code() are released when it returns.
-        With CuPy >= 13 the pool stays empty also without this precaution: the
-        test detects the problem only with CuPy 12.
+        come from the CUDA graph pool, which is freed with the object. The
+        first triggers run as Python code, before the capture, so after the
+        capture the pool holds no memory in use, since the temporaries of
+        trigger_code() are released when it returns.
         '''
         # An FFT size used nowhere else, so that the plan is created here
         shape = (37, 41)
@@ -400,13 +341,15 @@ class TestBaseProcessingObj(unittest.TestCase):
 
         obj = FftObj()
         obj.build_stream(allow_parallel=False)
-        obj.stream.synchronize()
+        runner = self._accelerate(obj)
+        self._trigger(obj)
+        self._trigger(obj)
+        self.assertIsNotNone(runner.graph)
         with cp.cuda.Device(0):
-            self.assertEqual(obj._graph_mempool.used_bytes(), 0)
+            self.assertEqual(runner.pool.used_bytes(), 0)
 
         obj.out[:] = 0
-        obj.cuda_graph.launch(stream=obj.stream)
-        obj.stream.synchronize()
+        self._trigger(obj)
         np.testing.assert_allclose(cpuArray(obj.out), np.abs(np.fft.fft2(cpuArray(obj.inp))))
 
     @unittest.skipIf(cp is None, 'GPU not available')
@@ -414,8 +357,7 @@ class TestBaseProcessingObj(unittest.TestCase):
         '''
         With a stateful trigger_code() (like an integrator), each trigger() must
         advance the state exactly once, also in the steps where the CUDA graph
-        is captured: at the first trigger() with build_stream(capture=False),
-        and after invalidate_graph().
+        is captured: the first capture, and after invalidate_graph().
         '''
         class Integrator(BaseProcessingObj):
             def __init__(self):
@@ -426,20 +368,20 @@ class TestBaseProcessingObj(unittest.TestCase):
                 self.state += 1
 
         def run(obj):
-            obj.inputs_changed = True
-            obj.trigger()
-            obj.stream.synchronize()
+            self._trigger(obj)
             return float(obj.state[0])
 
         obj = Integrator()
-        obj.build_stream(allow_parallel=False, capture=False)
-        self.assertIsNone(obj.cuda_graph)
-        self.assertEqual(run(obj), 1.0)     # captured here
-        self.assertIsNotNone(obj.cuda_graph)
-        self.assertEqual(run(obj), 2.0)     # graph launch
+        obj.build_stream(allow_parallel=False)
+        runner = self._accelerate(obj)
+        self.assertEqual(run(obj), 1.0)     # Python code
+        self.assertIsNone(runner.graph)
+        self.assertEqual(run(obj), 2.0)     # captured here
+        self.assertIsNotNone(runner.graph)
+        self.assertEqual(run(obj), 3.0)     # graph launch
         obj.invalidate_graph()
-        self.assertEqual(run(obj), 3.0)     # captured again
-        self.assertEqual(run(obj), 4.0)     # graph launch
+        self.assertEqual(run(obj), 4.0)     # captured again
+        self.assertEqual(run(obj), 5.0)     # graph launch
 
     @cpu_and_gpu
     def test_invalidate_graph_without_stream_does_nothing(self, target_device_idx, xp):
@@ -449,40 +391,31 @@ class TestBaseProcessingObj(unittest.TestCase):
         obj.inputs_changed = True
         obj.trigger()
         obj.trigger_code.assert_called_once()
-        self.assertIsNone(obj.cuda_graph)
+
+    @cpu_and_gpu
+    def test_build_stream_only_creates_the_stream(self, target_device_idx, xp):
+        obj = BaseProcessingObj(target_device_idx=target_device_idx)
+        obj.trigger_code = MagicMock()
+        obj.build_stream()
+        obj.trigger_code.assert_not_called()
+        self.assertEqual(obj.stream is not None, target_device_idx >= 0)
+        self.assertEqual(obj.can_accelerate(), target_device_idx >= 0)
 
     # --- CUDA SYNCHRONIZATION TESTS ---
 
     @cpu_and_gpu
-    def test_post_trigger_synchronizes_cuda_graph(self, target_device_idx, xp):
+    def test_post_trigger_does_not_synchronize(self, target_device_idx, xp):
         obj = BaseProcessingObj(target_device_idx=target_device_idx)
         obj.inputs_changed = True
         obj._target_device = MagicMock()
         obj.target_device_idx = 0  # Force execution of GPU code path
         obj.stream = MagicMock()
-        obj.cuda_graph = "fake_graph"
-
-        obj.post_trigger()
-
-        # Device must be selected again
-        obj._target_device.use.assert_called_once()
-        # Stream must be synchronized because cuda_graph is set
-        obj.stream.synchronize.assert_called_once()
-
-    @cpu_and_gpu
-    def test_post_trigger_skips_synchronize_if_no_graph(self, target_device_idx, xp):
-        obj = BaseProcessingObj(target_device_idx=target_device_idx)
-        obj.inputs_changed = True
-        obj._target_device = MagicMock()
-        obj.target_device_idx = 0  # Force execution of GPU code path
-        obj.stream = MagicMock()
-        obj.cuda_graph = None
 
         obj.post_trigger()
 
         # Device still selected
         obj._target_device.use.assert_called_once()
-        # No synchronization since there's no graph
+        # Not accelerated: the work is on the default stream, no synchronization
         obj.stream.synchronize.assert_not_called()
 
     def test_check_input_names_raises_if_input_missing(self):

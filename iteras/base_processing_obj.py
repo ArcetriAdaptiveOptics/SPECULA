@@ -1,8 +1,6 @@
 from collections import defaultdict, namedtuple
-import contextlib
 import fnmatch
 import re
-import weakref
 
 import iteras
 from iteras import cpuArray, np
@@ -39,16 +37,6 @@ class BaseProcessingObj(BaseTimeObj):
         # Stream/input management
         self.stream = None
         self.inputs_changed = False
-        self.cuda_graph = None
-
-        # Set by invalidate_graph(): the CUDA graph is captured again at the next trigger()
-        self._cuda_graph_invalid = False
-
-        # Memory pool for the arrays allocated while capturing the CUDA graph
-        self._graph_mempool = None
-
-        # Addresses of the input arrays when the CUDA graph was captured
-        self._captured_input_ptrs = {}
 
         # Set by the accelerator (iteras.accelerator.GraphRunner) if this object is accelerated
         self._accel = None
@@ -144,8 +132,9 @@ class BaseProcessingObj(BaseTimeObj):
                 from variables that are reallocated by prepare_trigger() or
                 post_trigger().
 
-                When stream capture is enabled, a CUDA graph is generated, non-GPU
-                operations are skipped, and GPU memory addresses from the first run
+                When the object is accelerated (see iteras.accelerator and
+                can_accelerate()), this code is captured in a CUDA graph: non-GPU
+                operations are skipped, and GPU memory addresses from the capture
                 are reused.
         '''
         pass
@@ -153,9 +142,8 @@ class BaseProcessingObj(BaseTimeObj):
     def post_trigger(self):
         '''
         Make sure we are using the correct device and that the GPU work of
-        trigger() is ordered before what follows: the host waits for the own
-        CUDA graph of the object; when accelerated, the order is kept on the GPU
-        and the host does not wait.
+        trigger() is ordered before what follows: when accelerated, the order
+        is kept on the GPU and the host does not wait.
         '''
         # Double check that we can execute
         if not self.inputs_changed:
@@ -169,9 +157,6 @@ class BaseProcessingObj(BaseTimeObj):
             if self._accel is not None:  # pragma: gpu
                 # Accelerated: the GPU work stays in order on the GPU, the host does not wait
                 self._accel.after_trigger()
-            elif self.cuda_graph:
-                # Like stream.synchronize(), but MPI sends in flight keep moving
-                mpi_progress.wait_stream(self.stream)
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         self.logger.mpi_send_debug(f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})')
@@ -267,11 +252,16 @@ class BaseProcessingObj(BaseTimeObj):
             cls._streams[target_device_idx] = iteras.cp.cuda.Stream(non_blocking=False)
         return cls._streams[target_device_idx]
 
-    def build_stream(self, allow_parallel=True, capture=True):
+    def build_stream(self, allow_parallel=True):
         '''
-        Create the CUDA stream and capture the CUDA graph.
-        If *capture* is False, the graph is captured at the first trigger() instead,
-        for objects whose trigger_code() needs data that is only available then.
+        Create the CUDA stream of the object. When the object is accelerated
+        (see iteras.accelerator), its CUDA graph is launched on this stream,
+        so that the objects of the same trigger level run in parallel.
+        With *allow_parallel* False, the stream is shared by all the objects
+        of the device that ask for it, which then run one after the other.
+
+        Calling it also declares that trigger_code() can be captured in a
+        CUDA graph (see can_accelerate()).
         '''
         if self.target_device_idx >= 0:
             self._target_device.use()
@@ -282,100 +272,18 @@ class BaseProcessingObj(BaseTimeObj):
                 self.stream = iteras.cp.cuda.Stream(non_blocking=False)
             else:
                 self.stream = self.device_stream(self.target_device_idx)
-            if capture:
-                self.capture_stream()
-            else:
-                self._cuda_graph_invalid = True
             iteras.default_target_device.use()
-
-    def capture_stream(self):
-        # The temporary arrays allocated by trigger_code() are released when it
-        # returns, but the CUDA graph keeps using their memory at each launch.
-        # Taken from the default memory pool, that memory could be given to other
-        # arrays (overwritten by the graph) or freed (illegal address at launch).
-        # It is taken instead from a pool used only for this graph.
-        if iteras.cp is not None:  # pragma: gpu
-            if self._graph_mempool is None:
-                self._graph_mempool = iteras.cp.cuda.MemoryPool()
-                # A deleted MemoryPool does not release its memory to the device
-                # (CuPy >= 13; CuPy 12 releases also the memory still in use),
-                # free it explicitly when this object is garbage collected
-                weakref.finalize(self, self._graph_mempool.free_all_blocks)
-            else:
-                # Recapture: the old graph is not launched anymore
-                self.cuda_graph = None
-                self._graph_mempool.free_all_blocks()
-            allocator = iteras.cp.cuda.using_allocator(self._graph_mempool.malloc)
-        else:
-            allocator = contextlib.nullcontext()
-
-        with self.stream:
-            # First execution is needed to build the FFT plan cache
-            # See for example https://github.com/cupy/cupy/issues/7559
-            # It uses the default memory pool: the cuFFT plans are cached by CuPy and
-            # shared with other objects, so their work areas must not come from this
-            # graph's pool (with CuPy 12 a deleted pool frees them)
-            self.trigger_code()
-            with allocator:
-                self.stream.begin_capture()
-                self.trigger_code()
-                self.cuda_graph = self.stream.end_capture()
-        self._cuda_graph_invalid = False
-        self._captured_input_ptrs = self.graph_input_ptrs()
-
-    def graph_input_ptrs(self):
-        '''
-        Addresses of the GPU arrays of the local inputs, as a dictionary
-        {(input name, list index, attribute name): address}, checked by
-        check_input_ptrs(). Derived classes whose CUDA graph does not read
-        some inputs (for example copied by prepare_trigger()) can override
-        this method to exclude them.
-        '''
-        ptrs = {}
-        for name, value in self.local_inputs.items():
-            values = value if type(value) is list else [value]
-            for i, obj in enumerate(values):
-                if obj is None:
-                    continue
-                for attr, array in getattr(obj, '__dict__', {}).items():
-                    if isinstance(array, iteras.cp.ndarray):
-                        ptrs[(name, i, attr)] = array.data.ptr
-        return ptrs
-
-    def check_input_ptrs(self):
-        '''
-        The CUDA graph reads the inputs at the addresses they had when it was
-        captured: raise an error if an input array has been reallocated since,
-        instead of silently reading stale data. Host-side check, no synchronization.
-        '''
-        if not self._captured_input_ptrs:
-            return
-        current = self.graph_input_ptrs()
-        for key, ptr in self._captured_input_ptrs.items():
-            if current.get(key) != ptr:
-                name, i, attr = key
-                where = f'{name}[{i}]' if type(self.local_inputs[name]) is list else name
-                raise RuntimeError(f'{self.name}: input {where} has been reallocated after the'
-                                   f' CUDA graph capture (attribute {attr}), its producer must'
-                                   f' update its value in place')
 
     def invalidate_graph(self):
         '''
         Mark the CUDA graph as invalid, so that it is captured again at the next trigger().
         To be called by the methods that change something frozen in the graph
-        at capture time, like kernel parameters passed by value.
-        Does nothing if the object does not use a CUDA graph.
-
-        In the trigger() that captures the graph, the GPU work of trigger_code()
-        is executed only once: the graph is not launched, since the warm-up run in
-        capture_stream() already computes the results of that step. The Python code
-        of trigger_code() runs twice (warm-up and capture), so trigger_code() must
-        not keep state in Python variables, as for any code in a CUDA graph.
+        at capture time, like kernel parameters passed by value, or that
+        reallocate an array used by trigger_code().
+        Does nothing if the object is not accelerated.
         '''
         if self._accel is not None:  # pragma: gpu
             self._accel.invalidate()
-        elif self.stream is not None:
-            self._cuda_graph_invalid = True
 
     def can_accelerate(self):
         '''
@@ -395,9 +303,9 @@ class BaseProcessingObj(BaseTimeObj):
         place, not reallocated). The output generation times set by
         trigger_code() are set by the accelerator at each launch.
 
-        The default is True for objects that build their own CUDA graph (see
-        build_stream()), whose trigger_code() already follows these rules, and
-        False otherwise. Derived classes override it.
+        The default is True for objects that call build_stream(), whose
+        trigger_code() follows these rules, and False otherwise. Derived
+        classes override it.
         '''
         return self.stream is not None
 
@@ -418,12 +326,10 @@ class BaseProcessingObj(BaseTimeObj):
 
     def trigger(self):
         '''
-        The computation of the step, in one of three ways:
+        The computation of the step, in one of two ways:
 
         * accelerated (see iteras.accelerator): the accelerator runs trigger_code()
           or launches the CUDA graph it captured for it;
-        * with the object's own CUDA graph (see build_stream()): capture it
-          if needed, otherwise launch it;
         * otherwise, trigger_code() as Python code.
         '''
         # Double check that we can execute
@@ -434,22 +340,8 @@ class BaseProcessingObj(BaseTimeObj):
             self._target_device.use()
         if self._accel is not None:  # pragma: gpu
             self._accel.trigger()
-        elif self.target_device_idx >= 0 and (self._cuda_graph_invalid or self.cuda_graph):  # pragma: gpu
-            self._trigger_own_graph()
         else:
             self.trigger_code()
-
-    def _trigger_own_graph(self):  # pragma: gpu
-        if self._cuda_graph_invalid:
-            # Capture the graph. The warm-up run in capture_stream() computes
-            # the results of this step, so the new graph is not launched.
-            self.logger.debug('Capturing the CUDA graph')
-            self.capture_stream()
-        else:
-            self.check_input_ptrs()
-            # NVTX range only, to mark the graph kernels in Nsight Systems
-            with tracer.no_record(), tracer('cuda_graph', self):
-                self.cuda_graph.launch(stream=self.stream)
 
     def setup(self):
         """
