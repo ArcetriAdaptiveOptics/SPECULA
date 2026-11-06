@@ -247,6 +247,94 @@ class TestPsfCoronagraph(unittest.TestCase):
         self.assertGreater(float(psf_coro.int_coronagraph_psf.value.max()), 0.0)
         self.assertGreaterEqual(float(psf_coro.std_coronagraph_psf.value.max()), 0.0)
 
+    def run_speckle_case(self, target_device_idx, xp, amplitude_rad=0.1, k_cycles=8,
+                         pixel_pupil=32, nd=4.0, n_steps=2):
+        """Constant sinusoidal phase over a circular pupil, perfect coronagraph, profiles on.
+
+        With pixel_pupil=32 and nd=4 the focal-plane pixel is lambda/D / 4, so the speckles
+        at +-k lambda/D fall exactly on pixel centres (+-4k px from the centre at shape/2).
+        """
+        simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx,
+                                                                pixel_pupil=pixel_pupil)
+        psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                  nd=nd, use_average_field=True, compute_profile_metrics=True,
+                                  target_device_idx=target_device_idx)
+        psf_coro.inputs['in_ef'].set(ef)
+        psf_coro.setup()
+
+        yy, xx = np.mgrid[0:pixel_pupil, 0:pixel_pupil]
+        r = np.hypot(yy - (pixel_pupil - 1) / 2, xx - (pixel_pupil - 1) / 2)
+        pupil = (r <= pixel_pupil / 2).astype(float)
+        phase_nm = amplitude_rad * wavelengthInNm / (2 * np.pi) * \
+            np.cos(2 * np.pi * k_cycles * xx / pixel_pupil)
+        for t in range(1, n_steps + 1):
+            ef.A[:] = xp.asarray(pupil)
+            ef.phaseInNm[:] = xp.asarray(phase_nm)
+            ef.generation_time = t
+            psf_coro.check_ready(t)
+            psf_coro.trigger()
+            psf_coro.post_trigger()
+        psf_coro.finalize()
+        return psf_coro
+
+    @cpu_and_gpu
+    def test_speckle_contrast_physical(self, target_device_idx, xp):
+        # exp(i a cos(2 pi k x / D)) has side orders of amplitude J1(a) relative to J0(a)
+        # for the core, so the coronagraphic speckle peak relative to the PSF peak is
+        # (J1/J0)^2 (the perfect coronagraph removes the J0 term)
+        from scipy.special import j0, j1
+        a = 0.1
+        psf_coro = self.run_speckle_case(target_device_idx, xp, amplitude_rad=a)
+        expected = (j1(a) / j0(a)) ** 2
+        contrast = float(psf_coro.int_coronagraph_psf.value.max() / psf_coro.int_psf.value.max())
+        self.assertAlmostEqual(contrast / expected, 1.0, delta=0.1)
+
+    @cpu_and_gpu
+    def test_profiles_in_contrast_units(self, target_device_idx, xp):
+        from specula.lib.radial_profile import compute_radial_profile
+        psf_coro = self.run_speckle_case(target_device_idx, xp)
+        peak = float(psf_coro.int_psf.value.max())
+
+        int_coro = cpuArray(psf_coro.int_coronagraph_psf.value).astype(np.float64)
+        std_coro = cpuArray(psf_coro.std_coronagraph_psf.value).astype(np.float64)
+        int_prof = cpuArray(psf_coro.int_coronagraph_psf_profile.value)
+        std_prof = cpuArray(psf_coro.std_coronagraph_psf_profile.value)
+
+        for prof, img in ((int_prof, int_coro), (std_prof, std_coro)):
+            ref, dist = compute_radial_profile(img / peak)
+            np.testing.assert_allclose(prof[0], dist / psf_coro.nd, rtol=1e-5)
+            np.testing.assert_allclose(prof[1], ref, rtol=1e-4, atol=1e-6 * ref.max())
+        # Contrast units: the profile peak is the contrast of the speckle, not O(1)
+        self.assertLess(int_prof[1].max(), 1e-2)
+        # Same radial axis in all the profiles
+        np.testing.assert_allclose(int_prof[0], std_prof[0])
+        azstd_prof = cpuArray(psf_coro.int_coronagraph_psf_azstd_profile.value)
+        np.testing.assert_allclose(azstd_prof[0], int_prof[0], rtol=1e-5)
+
+    @cpu_and_gpu
+    def test_azimuthal_std_profile(self, target_device_idx, xp):
+        k = 8
+        psf_coro = self.run_speckle_case(target_device_idx, xp, k_cycles=k)
+        peak = float(psf_coro.int_psf.value.max())
+        img = cpuArray(psf_coro.int_coronagraph_psf.value).astype(np.float64) / peak
+        azstd = cpuArray(psf_coro.int_coronagraph_psf_azstd_profile.value)
+        mean_prof = cpuArray(psf_coro.int_coronagraph_psf_profile.value)
+
+        # Same binning as compute_radial_profile: floor of the distance from shape/2
+        yy, xx = np.indices(img.shape)
+        ring = np.floor(np.hypot(yy - img.shape[0] / 2, xx - img.shape[1] / 2)).astype(int)
+        expected = np.array([img[ring == i].std() for i in range(ring.max() + 1)
+                             if np.any(ring == i)])
+        self.assertEqual(azstd.shape, (2, expected.size))
+        np.testing.assert_allclose(azstd[1], expected, rtol=1e-3, atol=1e-6 * expected.max())
+
+        # The speckle pair sits in the ring of radius k lambda/D: few bright pixels in a
+        # ring with many pixels, so std >> mean there
+        idx = int(np.argmin(np.abs(azstd[0] - k)))
+        self.assertGreater(azstd[1][idx], 0.0)
+        self.assertGreater(azstd[1][idx], 3 * mean_prof[1][idx])
+        self.assertEqual(int(np.argmax(azstd[1])), idx)
+
     def test_logs(self):
         from unittest import mock
         import logging
