@@ -98,7 +98,7 @@ class IFuncInv(BaseDataObj):
         with storage.read_object(filename) as f:
             mask = f.read('mask_inf_func' if exten == 1 else None, exten + 1)
             ifunc_inv = f.load('influence_function_inv' if exten == 1 else None, exten,
-                           target_device_idx=target_device_idx).T
+                           target_device_idx=target_device_idx, transpose=True)
         return IFuncInv(ifunc_inv, mask, target_device_idx=target_device_idx)
 
     def get_value(self):
