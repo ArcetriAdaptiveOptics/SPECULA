@@ -168,6 +168,14 @@ The default implementations do nothing; override them to change how
        (writing files, interacting with the user): the :doc:`allocator <allocator>`
        never places them on a GPU. Used by ``DataPrint``,
        ``DisplayServer`` and ``InteractiveInput``.
+   * - ``host_data_objects``
+     - Class attribute: a tuple of constructor parameter names. The data
+       objects given for them as ``<name>_object`` in the parameter file are
+       restored on the CPU instead of the device of the object. For large
+       inputs used only once in ``__init__``, e.g. to compute a smaller matrix,
+       which the class then builds on its device in blocks, so that the inputs
+       are never on the GPU all at once. Default: empty. Used by
+       ``ModalrecImplicitPolc`` for ``recmat``, ``projmat`` and ``intmat``.
    * - ``runs_on_main_process_only()``
      - Class method. Return ``True`` for classes that must run in the main
        process (MPI rank 0), like ``DisplayServer`` and ``InteractiveInput``.

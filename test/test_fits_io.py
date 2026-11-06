@@ -45,6 +45,23 @@ class TestLoadFitsArray(unittest.TestCase):
             self.assertTrue(out.dtype.isnative)
             np.testing.assert_array_equal(cpuArray(out), data.astype(dtype))
 
+    def test_read_empty_array(self):
+        '''An empty array, also transposed with empty rows (no division by the row length)'''
+        out = fits_io.read_from_file(self.filename, 0, (3, 0), np.float32, np.float32,
+                                     byteswap=True, transpose=True)
+        self.assertEqual(out.shape, (0, 3))
+        out = fits_io.read_from_file(self.filename, 0, (0, 4), np.float32, np.float32, byteswap=True)
+        self.assertEqual(out.shape, (0, 4))
+
+    @cpu_and_gpu
+    def test_truncated_file(self, target_device_idx, xp):
+        data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
+        self._write(data)
+        with open(self.filename, 'r+b') as f:
+            f.truncate(os.path.getsize(self.filename) - 2880 - 4096)
+        with self.assertRaises(EOFError):
+            load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx)
+
     @cpu_and_gpu
     def test_multiple_chunks(self, target_device_idx, xp):
         data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)

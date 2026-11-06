@@ -42,7 +42,8 @@ def load_fits_array(filename, ext=1, target_device_idx=None, precision=None, tra
     On GPU, the file is read in chunks into two pinned host buffers,
     which are uploaded asynchronously while the next chunk is read,
     and are byteswapped and converted on the GPU. This avoids
-    full-size temporary copies in host memory.
+    full-size temporary copies in host memory. On the CPU, the file
+    is also read in chunks, converted into the result.
     '''
     if target_device_idx is None:
         target_device_idx = iteras.default_target_device_idx
@@ -64,8 +65,7 @@ def load_fits_array(filename, ext=1, target_device_idx=None, precision=None, tra
         if hdr.get('NAXIS', 0) == 0:
             return None     # No data, like astropy
         info = hdu.fileinfo()
-        fast = (target_device_idx >= 0
-                and type(hdu) in (fits.PrimaryHDU, fits.ImageHDU)
+        fast = (type(hdu) in (fits.PrimaryHDU, fits.ImageHDU)
                 and info['file'].compression is None
                 and hdr.get('BSCALE', 1) == 1 and hdr.get('BZERO', 0) == 0
                 and 'BLANK' not in hdr
@@ -82,12 +82,49 @@ def load_fits_array(filename, ext=1, target_device_idx=None, precision=None, tra
                 return np.array(data, dtype=dtype, order='C')
             with iteras.cp.cuda.Device(target_device_idx):  # pragma: no cover
                 return iteras.cp.asarray(np.array(data, dtype=dtype, order='C'))
-        src_dtype = np.dtype(_BITPIX2DTYPE[hdr['BITPIX']])  # pragma: no cover
-        shape = hdu.shape  # pragma: no cover
-        offset = info['datLoc']  # pragma: no cover
+        src_dtype = np.dtype(_BITPIX2DTYPE[hdr['BITPIX']])
+        shape = hdu.shape
+        offset = info['datLoc']
 
+    if target_device_idx < 0:
+        return read_from_file(filename, offset, shape, src_dtype, target_dtype(src_dtype), byteswap=True,
+                              transpose=transpose)
     return upload_from_file(filename, offset, shape, src_dtype, target_dtype(src_dtype),  # pragma: no cover
                             target_device_idx, byteswap=True, transpose=transpose)
+
+
+def read_from_file(filename, offset, shape, src_dtype, out_dtype, byteswap, transpose=False):
+    '''
+    Read an array stored contiguously (C order) at *offset* in a file, with values
+    of type *src_dtype* (big-endian if *byteswap* is True, native otherwise), into
+    a new numpy array of type *out_dtype*, in chunks: the only full-size array is
+    the result (reading the whole file and then converting it would need two).
+    With *transpose*, a 2D array is returned transposed, in C order: each chunk of
+    rows is written into the columns of the result, as in upload_from_file().
+    '''
+    file_dtype = np.dtype(src_dtype).newbyteorder('>' if byteswap else '=')
+    size = int(np.prod(shape))
+    if transpose and len(shape) != 2:
+        raise ValueError(f'transpose needs a 2D array, {filename} has shape {shape}')
+    out = np.empty(tuple(shape[::-1]) if transpose else shape, dtype=out_dtype)
+    if size == 0:
+        return out
+    # With transpose, chunks of whole rows (at least one)
+    row = shape[1] if transpose else 1
+    target = out.T if transpose else out.reshape(-1)
+    buf = np.empty(max(1, min(_CHUNK_BYTES // (file_dtype.itemsize * row), size // row)) * row,
+                   dtype=file_dtype)
+    with open(filename, 'rb') as f:
+        f.seek(offset)
+        for start in range(0, size, len(buf)):
+            n = min(len(buf), size - start)
+            if f.readinto(buf[:n]) != n * file_dtype.itemsize:
+                raise EOFError(f'Unexpected end of file reading {filename}')
+            if transpose:
+                target[start // row:(start + n) // row] = buf[:n].reshape(-1, row)
+            else:
+                target[start:start + n] = buf[:n]
+    return out
 
 
 def upload_from_file(filename, offset, shape, src_dtype, out_dtype, target_device_idx,

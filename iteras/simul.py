@@ -580,8 +580,9 @@ class Simul():
                         pars2[parname] = None
                     elif parname in hints:
                         partype = resolve_type(hints[parname])
-
-                        pars2[parname] = self.restore_object(partype, value, target_device_idx)
+                        device_idx = -1 if parname in getattr(klass, 'host_data_objects', ()) \
+                            else target_device_idx
+                        pars2[parname] = self.restore_object(partype, value, device_idx)
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
 
