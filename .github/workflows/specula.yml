@@ -29,6 +29,8 @@ jobs:
         # Exclude invalid combinations:
         # MacOS does not have intelmpi.
         # Windows does not seem to have any valid mpi distribution.
+        # MacOS and Windows runners are slower and scarcer: test only the
+        # oldest and newest Python there (all versions run on Linux).
         exclude:
           - os: macos-latest
             mpi: intelmpi
@@ -36,6 +38,18 @@ jobs:
             mpi: mpich
           - os: windows-latest
             mpi: intelmpi
+          - os: macos-latest
+            python-version: "3.11"
+          - os: macos-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.13"
+          - os: windows-latest
+            python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.13"
     
     steps:
     - uses: actions/checkout@v4
