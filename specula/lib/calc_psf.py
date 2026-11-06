@@ -17,7 +17,8 @@ def calc_psf_from_ef(u_ef, xp=np, out=None, normalize=False, nocenter=False, ret
     """
     Calculates a PSF from an (already zero-padded, if needed) complex electric field.
 
-    Parameters:
+    Parameters
+    ----------
     u_ef : ndarray
         2D complex electric field. It is overwritten by the calculation.
     xp : module, optional
@@ -32,7 +33,8 @@ def calc_psf_from_ef(u_ef, xp=np, out=None, normalize=False, nocenter=False, ret
     return_total: bool, optional
         If set, return a (psf, total) tuple instead of just the psf.
 
-    Returns:
+    Returns
+    -------
     psf : ndarray
         2D PSF (same dimensions as u_ef)
     (psf, total): tuple of (ndarray, scalar)
@@ -73,7 +75,8 @@ def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normal
     """
     Calculates a PSF from an electrical field phase and amplitude.
 
-    Parameters:
+    Parameters
+    ----------
     phase : ndarray
         2D phase array.
     amp : ndarray
@@ -94,7 +97,8 @@ def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normal
     out : ndarray, optional
         Real array where the PSF is stored. If not given, a new array is allocated.
 
-    Returns:
+    Returns
+    -------
     psf : ndarray
         2D PSF (same dimensions as phase)
     (psf, total): tuple of (ndarray, scalar)
