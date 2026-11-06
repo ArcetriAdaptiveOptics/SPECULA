@@ -149,7 +149,7 @@ class TestDM(unittest.TestCase):
                         target_device_idx=target_device_idx)
                 dm.inputs['in_command'].set(in_dm)
                 dm.setup()
-                self.assertIsNotNone(dm._ifunc_ell)
+                self.assertIsNotNone(dm._ifunc_sparse)
                 dm.check_ready(t)
                 dm.trigger()
                 dm.post_trigger()

@@ -6,7 +6,7 @@ import unittest
 from specula import np
 from specula import cpuArray
 
-from specula.lib.graph_matmul import left_mul, matmul, matvec, vecmat, EllMatrix
+from specula.lib.graph_matmul import left_mul, matmul, matvec, vecmat, SparseColumns
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -142,7 +142,7 @@ class TestMatmul(unittest.TestCase):
                 np.testing.assert_allclose(cpuArray(out), cpuArray(a @ b), rtol=1e-4, atol=1e-4)
 
 
-class TestEllMatrix(unittest.TestCase):
+class TestSparseColumns(unittest.TestCase):
 
     @staticmethod
     def sparse_matrix(rng, r=50, n=300):
@@ -162,9 +162,9 @@ class TestEllMatrix(unittest.TestCase):
         v = rng.standard_normal(m.shape[0])
         for dtype, tol in ((np.float64, 1e-12), (np.float32, 1e-5)):
             with self.subTest(dtype=dtype):
-                ell = EllMatrix.from_dense(xp.asarray(m.astype(dtype)), xp, chunk_rows=16)
-                self.assertEqual(ell.kmax, 4)
-                y = ell.vecmat(xp.asarray(v.astype(dtype)))
+                sc = SparseColumns.from_dense(xp.asarray(m.astype(dtype)), xp, chunk_rows=16)
+                self.assertEqual(sc.kmax, 4)
+                y = sc.vecmat(xp.asarray(v.astype(dtype)))
                 self.assertEqual(y.dtype, dtype)
                 np.testing.assert_allclose(cpuArray(y), v @ m, rtol=tol, atol=tol)
 
@@ -172,7 +172,7 @@ class TestEllMatrix(unittest.TestCase):
     def test_dense_matrix_is_rejected(self, target_device_idx, xp):
         rng = np.random.default_rng(8)
         m = xp.asarray(rng.standard_normal((50, 300)))
-        self.assertIsNone(EllMatrix.from_dense(m, xp))
+        self.assertIsNone(SparseColumns.from_dense(m, xp))
 
     @cpu_and_gpu
     def test_captured_in_cuda_graph(self, target_device_idx, xp):  # pragma: gpu
@@ -182,11 +182,11 @@ class TestEllMatrix(unittest.TestCase):
         m = self.sparse_matrix(rng)
         stream = xp.cuda.Stream(non_blocking=True)
         with stream:
-            ell = EllMatrix.from_dense(xp.asarray(m), xp)
+            sc = SparseColumns.from_dense(xp.asarray(m), xp)
             v = xp.asarray(rng.standard_normal(m.shape[0]))
-            ell.vecmat(v)    # compiles the kernel outside the capture
+            sc.vecmat(v)    # compiles the kernel outside the capture
             stream.begin_capture()
-            out = ell.vecmat(v)
+            out = sc.vecmat(v)
             graph = stream.end_capture()
             v *= 2           # the graph uses the current values
             graph.launch(stream)

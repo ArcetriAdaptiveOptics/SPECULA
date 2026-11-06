@@ -270,7 +270,7 @@ def _matmul_captured(a, b, xp):  # pragma: gpu
     return a @ b
 
 
-_ELL_SRC = '''
+_SPARSE_COLUMNS_SRC = '''
 T acc = 0;
 for (int k = 0; k < kmax; k++) {
     long long j = (long long)k * n + i;
@@ -278,10 +278,10 @@ for (int k = 0; k < kmax; k++) {
 }
 y = acc;
 '''
-_ell_kernels = {}
+_sparse_columns_kernels = {}
 
 
-class EllMatrix:
+class SparseColumns:
     """
     A matrix M (r, n) with few non-zero elements in each column, for v @ M.
 
@@ -304,11 +304,12 @@ class EllMatrix:
     @classmethod
     def from_dense(cls, m, xp, max_fraction=0.125, chunk_rows=None):
         """
-        The EllMatrix of the dense matrix m (r, n), or None if a column has
-        more than max_fraction * r non-zero elements: the dense product is
-        then faster. The rows are scanned in chunks of up to 4M elements by
-        default, so that the temporaries stay small (they would otherwise
-        remain in the memory pool, also when a dense matrix is rejected).
+        The SparseColumns form of the dense matrix m (r, n), or None if a
+        column has more than max_fraction * r non-zero elements: the dense
+        product is then faster. The rows are scanned in chunks of up to 4M
+        elements by default, so that the temporaries stay small (they would
+        otherwise remain in the memory pool, also when a dense matrix is
+        rejected).
         """
         r, n = m.shape
         limit = max_fraction * r
@@ -354,13 +355,14 @@ class EllMatrix:
     def _vecmat_gpu(self, v):  # pragma: gpu
         xp = self.xp
         if v.dtype != self.w.dtype:
-            raise ValueError(f'EllMatrix.vecmat: v must have dtype {self.w.dtype}, got {v.dtype}')
+            raise ValueError(f'SparseColumns.vecmat: v must have dtype {self.w.dtype}, got {v.dtype}')
         key = (self.w.dtype.str, xp.cuda.Device().id)
-        if key not in _ell_kernels:
-            _ell_kernels[key] = xp.ElementwiseKernel(
-                'raw T v, raw int32 idx, raw T w, int32 kmax, int32 n', 'T y', _ELL_SRC, 'ell_vecmat')
+        if key not in _sparse_columns_kernels:
+            _sparse_columns_kernels[key] = xp.ElementwiseKernel(
+                'raw T v, raw int32 idx, raw T w, int32 kmax, int32 n', 'T y',
+                _SPARSE_COLUMNS_SRC, 'sparse_columns_vecmat')
         y = xp.empty(self.n, dtype=v.dtype)
-        _ell_kernels[key](xp.ascontiguousarray(v), self.idx, self.w,
+        _sparse_columns_kernels[key](xp.ascontiguousarray(v), self.idx, self.w,
                           np.int32(self.kmax), np.int32(self.n), y)
         return y
 
