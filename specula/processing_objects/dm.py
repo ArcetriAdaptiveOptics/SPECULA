@@ -11,7 +11,7 @@ from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.graph_matmul import matmul
+from specula.lib.graph_matmul import matmul, EllMatrix
 
 class DM(BaseProcessingObj):
     """
@@ -270,7 +270,11 @@ class DM(BaseProcessingObj):
         if self.stroke is not None:
             cmd = self.xp.minimum(self.xp.maximum(-self.stroke, cmd), self.stroke)
 
-        self.layer.phaseInNm[self._ifunc.idx_inf_func] = matmul(self.sign * cmd, self._ifunc_act, self.xp)
+        if self._ifunc_ell is not None:
+            shape = self._ifunc_ell.vecmat(self.sign * cmd)
+        else:
+            shape = matmul(self.sign * cmd, self._ifunc_act, self.xp)
+        self.layer.phaseInNm[self._ifunc.idx_inf_func] = shape
         self.layer.generation_time = self.current_time
         self.clip_command.value[:] = cmd
         self.clip_command.generation_time = self.current_time
@@ -308,6 +312,9 @@ class DM(BaseProcessingObj):
             self._m2c_sel = None
             self._ifunc_act = self.xp.ascontiguousarray(
                 self.to_xp(self._ifunc.influence_function[self._sel]))
+        # Zonal or segmented influence functions are mostly zeros: then only
+        # the non-zero elements are read by the trigger (None if dense)
+        self._ifunc_ell = EllMatrix.from_dense(self._ifunc_act, self.xp)
 
     # Getters and Setters for the attributes
     @property

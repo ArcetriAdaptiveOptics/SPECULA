@@ -268,3 +268,102 @@ def _matmul_captured(a, b, xp):  # pragma: gpu
         left_mul(xp.ascontiguousarray(a), b[None], out, xp)
         return out[0]
     return a @ b
+
+
+_ELL_SRC = '''
+T acc = 0;
+for (int k = 0; k < kmax; k++) {
+    long long j = (long long)k * n + i;
+    acc += w[j] * v[idx[j]];
+}
+y = acc;
+'''
+_ell_kernels = {}
+
+
+class EllMatrix:
+    """
+    A matrix M (r, n) with few non-zero elements in each column, for v @ M.
+
+    For each column j, the k-th non-zero element (in row order) is
+    w[k, j] = M[idx[k, j], j], with zero padding up to kmax elements
+    (the ELLPACK format, column-major so that the GPU reads are coalesced).
+    v @ M is then y[j] = sum_k w[k, j] v[idx[k, j]]: on GPU, one thread per
+    column, adding in a fixed order (deterministic), in a kernel that can be
+    captured in a CUDA graph. Only the non-zero elements are read, which
+    matters for zonal or segmented influence functions: e.g. the M4 ones
+    have about 2% of non-zeros, and v @ M is limited by the memory bandwidth.
+    """
+
+    def __init__(self, idx, w, xp):
+        self.idx = idx
+        self.w = w
+        self.kmax, self.n = w.shape
+        self.xp = xp
+
+    @classmethod
+    def from_dense(cls, m, xp, max_fraction=0.125, chunk_rows=None):
+        """
+        The EllMatrix of the dense matrix m (r, n), or None if a column has
+        more than max_fraction * r non-zero elements: the dense product is
+        then faster. The rows are scanned in chunks of up to 4M elements by
+        default, so that the temporaries stay small (they would otherwise
+        remain in the memory pool, also when a dense matrix is rejected).
+        """
+        r, n = m.shape
+        limit = max_fraction * r
+        if chunk_rows is None:
+            chunk_rows = max(1, (1 << 22) // max(n, 1))
+        # First pass: count, so that a dense matrix is rejected before extracting its elements
+        counts = np.zeros(n, dtype=np.int64)
+        for r0 in range(0, r, chunk_rows):
+            counts += _to_host((m[r0:r0 + chunk_rows] != 0).sum(axis=0, dtype=np.int32), xp)
+            if counts.max() > limit:
+                return None
+        # Second pass: extract the non-zero elements
+        rows, cols, vals = [], [], []
+        for r0 in range(0, r, chunk_rows):
+            chunk = m[r0:r0 + chunk_rows]
+            nz_r, nz_c = xp.nonzero(chunk)
+            vals.append(_to_host(chunk[nz_r, nz_c], xp))
+            nz_r, nz_c = _to_host(nz_r, xp), _to_host(nz_c, xp)
+            rows.append(nz_r + r0)
+            cols.append(nz_c)
+        rows = np.concatenate(rows).astype(np.int32)
+        cols = np.concatenate(cols)
+        vals = np.concatenate(vals)
+        # Sort by column, then by row: position k of each element in its column
+        order = np.lexsort((rows, cols))
+        rows, cols, vals = rows[order], cols[order], vals[order]
+        start = np.concatenate(([0], np.cumsum(counts)[:-1]))
+        k = np.arange(len(cols)) - start[cols]
+        kmax = max(int(counts.max()), 1)
+        idx = np.zeros((kmax, n), dtype=np.int32)
+        w = np.zeros((kmax, n), dtype=vals.dtype)
+        idx[k, cols] = rows
+        w[k, cols] = vals
+        return cls(xp.asarray(idx), xp.asarray(w), xp)
+
+    def vecmat(self, v):
+        """v @ M for a vector v (r,)"""
+        xp = self.xp
+        if xp is np:
+            return (self.w * v[self.idx]).sum(axis=0)
+        return self._vecmat_gpu(v)  # pragma: gpu
+
+    def _vecmat_gpu(self, v):  # pragma: gpu
+        xp = self.xp
+        if v.dtype != self.w.dtype:
+            raise ValueError(f'EllMatrix.vecmat: v must have dtype {self.w.dtype}, got {v.dtype}')
+        key = (self.w.dtype.str, xp.cuda.Device().id)
+        if key not in _ell_kernels:
+            _ell_kernels[key] = xp.ElementwiseKernel(
+                'raw T v, raw int32 idx, raw T w, int32 kmax, int32 n', 'T y', _ELL_SRC, 'ell_vecmat')
+        y = xp.empty(self.n, dtype=v.dtype)
+        _ell_kernels[key](xp.ascontiguousarray(v), self.idx, self.w,
+                          np.int32(self.kmax), np.int32(self.n), y)
+        return y
+
+
+def _to_host(a, xp):
+    return a if xp is np else a.get()  # pragma: gpu
