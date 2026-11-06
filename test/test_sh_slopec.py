@@ -786,9 +786,8 @@ class TestShSlopec(unittest.TestCase):
                 super().compute_slopes()
 
         class GraphShSlopec(DerivedShSlopec):
-            def setup(self):
-                super().setup()
-                self.build_stream()
+            def can_accelerate(self):
+                return True
 
         subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
         sn = Slopes(slopes=np.random.default_rng(2).normal(size=2 * subapdata.n_subaps),

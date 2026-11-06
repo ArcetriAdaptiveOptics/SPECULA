@@ -453,6 +453,10 @@ class ExtSourcePyramid(ModulatedPyramid):
         self.pyr_image *= 0
         self.fpsf *= 0
 
+    def can_accelerate(self):
+        # Without stream_enable, the number of valid points changes at each step
+        return self.stream_enable
+
     def trigger_code(self):
         iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit
         u_tlt_const = self.ef * self.tlt_f_y[:, None] * self.tlt_f_x[None, :]

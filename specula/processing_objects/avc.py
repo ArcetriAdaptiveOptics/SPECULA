@@ -263,9 +263,8 @@ class AVC(BaseProcessingObj):
             'out_state': OutputDesc(BaseValue, 'State [plant_re, plant_im, x3, x4] per AVC instance'),
         }
 
-    def setup(self):
-        super().setup()
-        self.build_stream()
+    def can_accelerate(self):
+        return True
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

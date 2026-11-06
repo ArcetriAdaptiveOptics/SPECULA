@@ -97,8 +97,8 @@ class ShSlopec(Slopec):
         0 for double, 1 for single precision. Default: global setting.
 
     Derived classes are not accelerated, since their compute_slopes()
-    may have host-side logic. Those with GPU-only code can opt in calling
-    self.build_stream() in their setup().
+    may have host-side logic. Those with GPU-only code can opt in
+    overriding can_accelerate().
     """
 
     def __init__(self,
@@ -183,11 +183,9 @@ class ShSlopec(Slopec):
             return None
         return self._int_pixels_weight.T
 
-    def setup(self):
-        super().setup()
+    def can_accelerate(self):
         # Derived classes must opt in, see the class docstring.
-        if type(self) is ShSlopec:
-            self.build_stream()
+        return type(self) is ShSlopec
 
     def set_xy_weights(self):
         if self.subapdata:

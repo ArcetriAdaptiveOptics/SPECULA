@@ -40,13 +40,12 @@ On each GPU, with the accelerator:
   launched, as when the accelerator is off;
 * the GPU work goes to the default stream of the device, in trigger order:
   the graphs, and the kernels launched by the code that still runs in Python.
-  The graphs of the objects that have their own stream (those that call
-  ``build_stream()``, like the wavefront sensors) are launched on it, so that the
-  objects of a trigger level run in parallel; the default stream then waits for
-  them on the GPU. The GPU work therefore runs in the right order without the
-  host waiting for it: ``post_trigger()`` does not wait for the graph of the
-  object. The host waits only where it reads results (copies to the host for
-  MPI, or objects that read GPU values);
+  The GPU work therefore runs in the right order without the host waiting for
+  it: ``post_trigger()`` does not wait for the graph of the object. The host
+  waits only where it reads results (copies to the host for MPI, or objects
+  that read GPU values). Launching the graphs of a trigger level on separate
+  streams, to run them in parallel, gave no measurable gain (SCAO, SOUL, ANDES,
+  MORFEO), and was removed;
 * ``check_ready()``, ``prepare_trigger()`` and ``post_trigger()`` still run as
   Python code at each step. So the values computed on the host at each step,
   like the time of the generators or the time step of the atmosphere, are up
@@ -68,19 +67,20 @@ when the graph is about to be captured (see :doc:`extension_api`). This method
 declares that the graph will do the same as ``trigger_code()`` at all the
 following steps:
 
-* objects that call ``build_stream()`` in ``setup()``, like
-  ``AtmoEvolution``, ``AtmoPropagation``, ``ModulatedPyramid``, ``SH`` and
-  ``ShSlopec``, follow these rules: they are accelerated by default. The
-  instances of ``PolyChromSH`` and ``PolyCromPyramid`` are accelerated with the
-  options of their container, if it is;
-* other classes declare it after checking their ``trigger_code()``:
-  ``WaveGenerator`` (the only generator), ``IirFilter`` and its derived classes
+* the classes that declare it after checking their ``trigger_code()``:
+  ``AtmoEvolution``, ``AtmoPropagation`` (without Fresnel propagation),
+  ``ModulatedPyramid`` and its derived classes (with ``cuda_stream_enable``),
+  ``SH``, ``ShSlopec``, ``AVC``, ``WaveGenerator`` (the only generator), ``IirFilter`` and its derived classes
   (``Integrator``, ``LowPassFilter``, ``DynamicIirFilter``,
   ``DynamicIntegrator``: a new gain captures the graph again), ``BaseSlicer``,
   ``LinearCombination``, ``PyrSlopec`` (and ``DoubleRoofSlopec``),
   ``Modalrec``, ``ModalAnalysis``, ``PSF``, ``PsfCoronagraph``; ``BaseOperation`` once its delayed
   inputs have been produced; ``DM`` without force limitation; ``CCD`` when it
   reads out at every step, after its start time;
+* the internal objects of the containers (see ``internal_objects()``): the
+  slices of ``DistributedSH`` and ``DistributedExtSourcePyramid``, the
+  instances of ``PolyChromSH`` and ``PolyCromPyramid``. They are listed in the
+  report as ``<container>[i]``, and excluded with their container;
 * the others are not accelerated, for example the other generators
   (``TimeHistoryGenerator``, ``ScheduleGenerator``, ``RandomGenerator``,
   ``PushPullGenerator``...) and ``ModalrecImplicitPolc``, which choose on the
@@ -105,8 +105,7 @@ status (``accelerated``, or why not), also written to ``report_file`` if given.
 The accelerator is the only CUDA graph mechanism: with the accelerator off
 (``--no-accelerate``), or for an object that is not accelerated (on the CPU,
 excluded, or whose class does not declare that it can be), ``trigger_code()``
-runs as Python code. ``build_stream()`` only gives the object its own stream,
-where the accelerator launches its graph.
+runs as Python code.
 
 The states of an object, with the accelerator on::
 

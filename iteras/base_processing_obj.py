@@ -19,8 +19,6 @@ _PLACEHOLDER_PATTERN = re.compile(r'\{[^{}]+\}')
 
 class BaseProcessingObj(BaseTimeObj):
 
-    _streams = {}
-
     def __init__(self, target_device_idx=None, precision=None):
         """
         Initialize the base processing object.
@@ -34,8 +32,7 @@ class BaseProcessingObj(BaseTimeObj):
         self.current_time = 0
         self.current_time_seconds = 0
 
-        # Stream/input management
-        self.stream = None
+        # Input management
         self.inputs_changed = False
 
         # Set by the accelerator (iteras.accelerator.GraphRunner) if this object is accelerated
@@ -141,9 +138,9 @@ class BaseProcessingObj(BaseTimeObj):
 
     def post_trigger(self):
         '''
-        Make sure we are using the correct device and that the GPU work of
-        trigger() is ordered before what follows: when accelerated, the order
-        is kept on the GPU and the host does not wait.
+        Make sure we are using the correct device. The GPU work of trigger()
+        is on the default stream, ordered before what follows: the host does
+        not wait for it.
         '''
         # Double check that we can execute
         if not self.inputs_changed:
@@ -154,9 +151,6 @@ class BaseProcessingObj(BaseTimeObj):
 
         if self.target_device_idx>=0:
             self._target_device.use()
-            if self._accel is not None:  # pragma: gpu
-                # Accelerated: the GPU work stays in order on the GPU, the host does not wait
-                self._accel.after_trigger()
 
     def send_remote_output(self, item, dest_rank, dest_tag, first_mpi_send=True, out_name=''):
         self.logger.mpi_send_debug(f'SEND to rank {dest_rank} {dest_tag=} {(dest_tag in self.sent_valid)=} (from {self.name}.{out_name})')
@@ -246,34 +240,6 @@ class BaseProcessingObj(BaseTimeObj):
                 for item in self.outputs[out_name] if isinstance(self.outputs[out_name], list) else [self.outputs[out_name]]:
                     self.send_remote_output(item, dest_rank, dest_tag, first_mpi_send, out_name)
 
-    @classmethod
-    def device_stream(cls, target_device_idx):
-        if not target_device_idx in cls._streams:
-            cls._streams[target_device_idx] = iteras.cp.cuda.Stream(non_blocking=False)
-        return cls._streams[target_device_idx]
-
-    def build_stream(self, allow_parallel=True):
-        '''
-        Create the CUDA stream of the object. When the object is accelerated
-        (see iteras.accelerator), its CUDA graph is launched on this stream,
-        so that the objects of the same trigger level run in parallel.
-        With *allow_parallel* False, the stream is shared by all the objects
-        of the device that ask for it, which then run one after the other.
-
-        Calling it also declares that trigger_code() can be captured in a
-        CUDA graph (see can_accelerate()).
-        '''
-        if self.target_device_idx >= 0:
-            self._target_device.use()
-            # Blocking streams (non_blocking=False): their work is ordered with that
-            # of the legacy default stream, where the other objects work and where
-            # data is copied to the host (e.g. by DataStore, which does not wait)
-            if allow_parallel:
-                self.stream = iteras.cp.cuda.Stream(non_blocking=False)
-            else:
-                self.stream = self.device_stream(self.target_device_idx)
-            iteras.default_target_device.use()
-
     def invalidate_graph(self):
         '''
         Mark the CUDA graph as invalid, so that it is captured again at the next trigger().
@@ -284,6 +250,15 @@ class BaseProcessingObj(BaseTimeObj):
         '''
         if self._accel is not None:  # pragma: gpu
             self._accel.invalidate()
+
+    def internal_objects(self):
+        '''
+        Processing objects that this object creates and triggers itself (for
+        example the slices of a distributed sensor), which are not simulation
+        objects: the accelerator (iteras.accelerator) also accelerates them, if
+        they can be, unless this object is excluded. Default: none.
+        '''
+        return []
 
     def can_accelerate(self):
         '''
@@ -303,11 +278,10 @@ class BaseProcessingObj(BaseTimeObj):
         place, not reallocated). The output generation times set by
         trigger_code() are set by the accelerator at each launch.
 
-        The default is True for objects that call build_stream(), whose
-        trigger_code() follows these rules, and False otherwise. Derived
-        classes override it.
+        The default is False: derived classes whose trigger_code() follows
+        these rules override it.
         '''
-        return self.stream is not None
+        return False
 
     def check_ready(self, t):
         self.current_time = t

@@ -74,7 +74,7 @@ class Counter(BaseProcessingObj):
 
 
 class Slow(BaseProcessingObj):
-    '''Long GPU work on its own stream (see build_stream()), from its input'''
+    '''Long GPU work, from its input'''
 
     def __init__(self, target_device_idx=None, n=1 << 21):
         super().__init__(target_device_idx=target_device_idx)
@@ -83,9 +83,8 @@ class Slow(BaseProcessingObj):
         self.outputs['out_value'] = self.out
         self.ramp = self.xp.linspace(0, 1, n, dtype=self.dtype)
 
-    def setup(self):
-        super().setup()
-        self.build_stream()
+    def can_accelerate(self):
+        return True
 
     def trigger_code(self):
         x = self.out.value
@@ -99,20 +98,14 @@ class Slow(BaseProcessingObj):
 
 
 class Total(BaseProcessingObj):
-    '''Sum of its inputs, times a factor, on its own stream if *own_stream*'''
+    '''Sum of its inputs, times a factor'''
 
-    def __init__(self, target_device_idx=None, factor=1.0, own_stream=True):
+    def __init__(self, target_device_idx=None, factor=1.0):
         super().__init__(target_device_idx=target_device_idx)
         self.inputs['in_values'] = InputList(type=BaseValue)
         self.out = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=target_device_idx)
         self.outputs['out_value'] = self.out
         self.factor = factor
-        self.own_stream = own_stream
-
-    def setup(self):
-        super().setup()
-        if self.own_stream:
-            self.build_stream()
 
     def can_accelerate(self):
         return True
@@ -128,15 +121,15 @@ class Total(BaseProcessingObj):
 
 
 @unittest.skipIf(cp is None, 'Cupy not found')
-class TestOwnStreams(unittest.TestCase):
+class TestTriggerLevels(unittest.TestCase):
 
     def run_graph(self, accelerate, steps=8):
-        '''generator -> slow -> (a, b on their own streams, same level) -> total (default stream)'''
+        '''generator -> slow -> (a, b, same level) -> total, without host waits between them'''
         gen = WaveGenerator(amp=[1.0], freq=[37.0], constant=[0.5], output_size=4, target_device_idx=0)
         slow = Slow(target_device_idx=0)
         a = Total(target_device_idx=0, factor=1.0)
         b = Total(target_device_idx=0, factor=-2.0)
-        total = Total(target_device_idx=0, own_stream=False)
+        total = Total(target_device_idx=0)
         slow.inputs['in_value'].set(gen.outputs['output'])
         a.inputs['in_values'].set([slow.outputs['out_value']])
         b.inputs['in_values'].set([slow.outputs['out_value']])
@@ -155,14 +148,37 @@ class TestOwnStreams(unittest.TestCase):
         loop.finish()
         return np.array(out), objs
 
-    def test_same_results_with_own_streams(self):
+    def test_same_results_accelerated(self):
         ref, _ = self.run_graph(False)
         out, (gen, slow, a, b, total) = self.run_graph(True)
         np.testing.assert_allclose(out, ref, rtol=1e-5)
-        for obj in (slow, a, b):
+        for obj in (slow, a, b, total):
             self.assertIsNotNone(obj._accel.graph)
-            self.assertIs(obj._accel.launch_stream(), obj.stream)
-        self.assertIsNot(total._accel.launch_stream(), slow.stream)
+
+    def test_internal_objects(self):
+        '''The internal objects of a container are accelerated, and excluded with it'''
+        class Container(Doubler):
+            def __init__(self):
+                super().__init__(target_device_idx=0)
+                self.parts = [Doubler(target_device_idx=0), Doubler(target_device_idx=-1)]
+
+            def internal_objects(self):
+                return self.parts
+
+        container = Container()
+        container.name = 'cont'
+        accelerator = Accelerator(AcceleratorOptions())
+        accelerator.apply([container])
+        self.assertIsNotNone(container.parts[0]._accel)
+        self.assertIsNone(container.parts[1]._accel)
+        self.assertIn('cont[0]', accelerator.report())
+        self.assertIn('cont[1]', accelerator.report())
+
+        container = Container()
+        container.name = 'cont'
+        Accelerator(AcceleratorOptions(exclude=['cont'])).apply([container])
+        self.assertIsNone(container._accel)
+        self.assertIsNone(container.parts[0]._accel)
 
 
 @unittest.skipIf(cp is None, 'Cupy not found')
@@ -289,8 +305,7 @@ class TestAccelerator(unittest.TestCase):
     def test_accelerated_object_does_not_wait_for_the_gpu(self):
         (_, dbl, _), _ = self.check_same()
         self.assertIsNotNone(dbl._accel)
-        # post_trigger() of a accelerated object with its own stream does not wait for it
-        dbl.stream = cp.cuda.Stream()
+        # post_trigger() of a accelerated object does not wait for the GPU
         dbl.inputs_changed = True
         dbl.post_trigger()
 

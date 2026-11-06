@@ -225,5 +225,5 @@ class Coronagraph(BaseProcessingObj):
         else:
             self.phase_shift = 1.0
 
-        # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
-        # super().build_stream()
+        # Not accelerated (no can_accelerate()): self._pupil_to_focal_plane
+        # cannot be called in a CUDA graph

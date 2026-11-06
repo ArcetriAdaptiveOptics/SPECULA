@@ -1,7 +1,6 @@
 import specula
 from specula import RAD2ASEC
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
-from iteras.accelerator import GraphRunner
 from specula.connections import InputValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.intensity import Intensity
@@ -163,10 +162,6 @@ class PolyChromWFS(BaseProcessingObj):
         for i, wfs in enumerate(self._wfs_instances):
             wfs.inputs['in_ef'].set(self._modified_efs[i])
             wfs.setup()
-            # The instances are not simulation objects: accelerated with the
-            # same options as this object, if it is (see iteras.accelerator)
-            if self._accel is not None and wfs.target_device_idx >= 0:  # pragma: gpu
-                wfs._accel = GraphRunner(wfs, self._accel.options)
         self._use_device(self)
 
         # Buffer for the intensity of each SH, copied to this device
@@ -178,6 +173,9 @@ class PolyChromWFS(BaseProcessingObj):
             self.flux_factor_normalized = self.flux_factor / total_flux
         else:
             self.flux_factor_normalized = self.flux_factor
+
+    def internal_objects(self):
+        return list(self._wfs_instances)
 
     def check_ready(self, t):
         super().check_ready(t)

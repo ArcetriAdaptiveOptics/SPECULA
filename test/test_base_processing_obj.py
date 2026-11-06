@@ -161,7 +161,6 @@ class TestBaseProcessingObj(unittest.TestCase):
     def test_post_trigger_resets_inputs_changed(self, target_device_idx, xp):
         obj = BaseProcessingObj(target_device_idx=target_device_idx)
         obj.inputs_changed = True
-        obj.stream = MagicMock()
         obj._target_device = MagicMock()
 
         obj.post_trigger()
@@ -173,16 +172,6 @@ class TestBaseProcessingObj(unittest.TestCase):
         obj.inputs_changed = False
         with self.assertRaises(RuntimeError):
             obj.post_trigger()
-
-    # TODO this patch does not seem to be reverted correctly
-    #      and subsequent tests involving streams fail.
-    # @cpu_and_gpu
-    # def test_device_stream_creates_and_reuses_stream(self, target_device_idx, xp):
-    #     with patch.object(cp.cuda, "Stream", return_value="fake_stream") as mock_stream:
-    #         s1 = BaseProcessingObj.device_stream(target_device_idx)
-    #         s2 = BaseProcessingObj.device_stream(target_device_idx)
-    #         self.assertEqual(s1, s2)
-    #         mock_stream.assert_called_once()
 
     @cpu_and_gpu
     def test_check_ready_sets_inputs_changed_true(self, target_device_idx, xp):
@@ -222,20 +211,12 @@ class TestBaseProcessingObj(unittest.TestCase):
 
 # --- CUDA STREAM MANAGEMENT TESTS ---
 
-    @cpu_and_gpu
-    def test_device_stream_reuses_existing_stream(self, target_device_idx, xp):
-        # Pre-populate stream cache
-        test_device_idx = 42
-        BaseProcessingObj._streams[test_device_idx] = "cached_stream"
-        result = BaseProcessingObj.device_stream(test_device_idx)
-        self.assertEqual(result, "cached_stream")
-        del BaseProcessingObj._streams[test_device_idx]
-
     # --- CUDA GRAPH CAPTURE TESTS (through the accelerator) ---
 
     @staticmethod
     def _accelerate(obj):
         '''Accelerate *obj* as Simul does, returning its GraphRunner'''
+        obj.can_accelerate = lambda: True
         Accelerator(AcceleratorOptions()).apply([obj])
         return obj._accel
 
@@ -271,7 +252,6 @@ class TestBaseProcessingObj(unittest.TestCase):
             np.testing.assert_array_equal(cpuArray(obj.out), np.arange(n) * 2 + 1)
 
         obj = TempObj()
-        obj.build_stream(allow_parallel=False)
         runner = self._accelerate(obj)
         run(obj)        # warm-up
         run(obj)        # capture
@@ -306,7 +286,6 @@ class TestBaseProcessingObj(unittest.TestCase):
                 self.out[:] = self.inp * 2 + 1  # allocates temporaries
 
         obj = TempObj()
-        obj.build_stream(allow_parallel=False)
         runner = self._accelerate(obj)
         self._trigger(obj)
         self._trigger(obj)
@@ -340,7 +319,6 @@ class TestBaseProcessingObj(unittest.TestCase):
                 self.out[:] = cp.abs(cp.fft.fft2(self.inp))
 
         obj = FftObj()
-        obj.build_stream(allow_parallel=False)
         runner = self._accelerate(obj)
         self._trigger(obj)
         self._trigger(obj)
@@ -372,7 +350,6 @@ class TestBaseProcessingObj(unittest.TestCase):
             return float(obj.state[0])
 
         obj = Integrator()
-        obj.build_stream(allow_parallel=False)
         runner = self._accelerate(obj)
         self.assertEqual(run(obj), 1.0)     # Python code
         self.assertIsNone(runner.graph)
@@ -393,13 +370,10 @@ class TestBaseProcessingObj(unittest.TestCase):
         obj.trigger_code.assert_called_once()
 
     @cpu_and_gpu
-    def test_build_stream_only_creates_the_stream(self, target_device_idx, xp):
+    def test_not_accelerated_by_default(self, target_device_idx, xp):
         obj = BaseProcessingObj(target_device_idx=target_device_idx)
-        obj.trigger_code = MagicMock()
-        obj.build_stream()
-        obj.trigger_code.assert_not_called()
-        self.assertEqual(obj.stream is not None, target_device_idx >= 0)
-        self.assertEqual(obj.can_accelerate(), target_device_idx >= 0)
+        self.assertFalse(obj.can_accelerate())
+        self.assertEqual(obj.internal_objects(), [])
 
     # --- CUDA SYNCHRONIZATION TESTS ---
 
@@ -409,14 +383,12 @@ class TestBaseProcessingObj(unittest.TestCase):
         obj.inputs_changed = True
         obj._target_device = MagicMock()
         obj.target_device_idx = 0  # Force execution of GPU code path
-        obj.stream = MagicMock()
 
         obj.post_trigger()
 
-        # Device still selected
+        # Device still selected, and no synchronization
         obj._target_device.use.assert_called_once()
-        # Not accelerated: the work is on the default stream, no synchronization
-        obj.stream.synchronize.assert_not_called()
+        obj._target_device.synchronize.assert_not_called()
 
     def test_check_input_names_raises_if_input_missing(self):
         obj = BaseProcessingObj(target_device_idx=-1)
