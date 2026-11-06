@@ -71,8 +71,10 @@ class ExtSourcePyramid(ModulatedPyramid):
         Extended source coefficients array of shape (n_points, 4) with columns:
         [tip_coeff, tilt_coeff, focus_coeff, flux]. Typically provided by an
         ExtendedSource object. This input replaces the modulation pattern used
-        in point source mode.
-    
+        in point source mode. Each update captures the CUDA graph again: it is
+        meant for occasional changes, not for a source that changes at every
+        step.
+
     Notes
     -----
     No specific outputs for extended source pyramid, uses same outputs as ModulatedPyramid.
@@ -308,13 +310,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         return face_angles_ttf, mean_radius
 
 
-    def graph_input_ptrs(self):
-        # ext_source_coeff is copied into _coeff_valid by cache_ttexp(), outside
-        # the CUDA graph, and its producer reallocates it when the number of
-        # points changes
-        ptrs = super().graph_input_ptrs()
-        return {key: ptr for key, ptr in ptrs.items() if key[0] != 'ext_source_coeff'}
-
     def cache_ttexp(self):
         # set ext_source_coeff if not already set
         if self.ext_source_coeff is None:
@@ -425,7 +420,6 @@ class ExtSourcePyramid(ModulatedPyramid):
 
         n_valid = int(self.valid_idx.shape[0])
         n_padded = n_chunks_needed * self.max_batch_size
-        recapture_stream = False
         if self._fpsf_buffer is None or self._n_chunks != n_chunks_needed:
             self._n_chunks = n_chunks_needed
             self._fpsf_buffer = self.xp.zeros((self._n_chunks, *self.fpsf.shape),
@@ -434,7 +428,6 @@ class ExtSourcePyramid(ModulatedPyramid):
                                                 dtype=self.dtype)
             self._coeff_valid = self.xp.zeros((n_padded, 3), dtype=self.dtype)
             self._ffv_valid = self.xp.zeros(n_padded, dtype=self.dtype)
-            recapture_stream = True
         else:
             # Clear buffers
             self._fpsf_buffer[:] = 0
@@ -445,9 +438,6 @@ class ExtSourcePyramid(ModulatedPyramid):
         self._ffv_valid[:n_valid] = self.flux_factor_vector[self.valid_idx]
         self._ffv_valid[n_valid:] = 0
 
-        if recapture_stream and self.cuda_graph is not None:
-            self.logger.info('Recapturing CUDA graph as number of chunks have changed.')
-            self.build_stream()
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
@@ -457,10 +447,17 @@ class ExtSourcePyramid(ModulatedPyramid):
             # Source was updated this timestep, refresh ttexp, flux factors and ffv
             self.mod_steps = int(self.ext_source_coeff.value.shape[0])
             self.cache_ttexp()
+            # The buffers may have been reallocated (number of chunks), and the
+            # producer may reallocate the input: capture the CUDA graph again
+            self.invalidate_graph()
 
         # Reset output arrays for this frame
         self.pyr_image *= 0
         self.fpsf *= 0
+
+    def can_accelerate(self):
+        # Without stream_enable, the number of valid points changes at each step
+        return self.stream_enable
 
     def trigger_code(self):
         iu = self.xp.array(1j, dtype=self.complex_dtype)  # complex unit

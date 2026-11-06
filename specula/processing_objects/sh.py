@@ -552,8 +552,7 @@ class SH(BaseProcessingObj):
             mask_threshold=self._mask_threshold,
             use_out_ef_cache=True,  # the interpolated field is computed and used in trigger_code(),
                                     # so SH objects with the same geometry can share it
-                                    # It also needs the allow_parallel=False flag in build_stream()
-                                    # to avoid race conditions on the cache.
+                                    # (their GPU work runs in order on the default stream)
             target_device_idx=self.target_device_idx,
             precision=self.precision
         )
@@ -585,8 +584,8 @@ class SH(BaseProcessingObj):
         for view in [self._wf3_view, self._subap_cube_view] + self._out_views:
             assert view.base is not None
 
-        # The CUDA graph is captured at the first trigger(), see prepare_trigger()
-        super().build_stream(allow_parallel=False, capture=False)
+    def can_accelerate(self):
+        return True
 
     def update_interpolator_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
                                        rotAnglePhInDeg=None, magnification=None):

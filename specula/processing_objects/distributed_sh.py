@@ -109,6 +109,9 @@ class DistributedSH(SH):
                     sh.inputs[k].set(v.input_values[0].cloned_value)
             sh.setup()
 
+    def internal_objects(self):
+        return list(self.sub_sh)
+
     def check_ready(self, t):
         '''
         Skip the SH method for this object, since we do not perform
@@ -158,6 +161,10 @@ class DistributedSH(SH):
 
         # Collect results from the other SHs into our Intensity result
         for s, sh in zip(self.slices, self.sub_sh):
+            if sh.target_device_idx >= 0 and sh.target_device_idx != self.target_device_idx:  # pragma: gpu
+                # The copy below is not ordered with the work of another device
+                sh._target_device.synchronize()
+                self._target_device.use()
             y1 = self._subap_npx * s.start
             y2 = self._subap_npx * s.stop
             self._out_i.i[y1:y2] = sh._out_i.i[y1:y2]

@@ -171,16 +171,17 @@ Notes
 Accelerating objects
 ====================
 
-With ``--accelerate``, the GPU work of the objects runs as CUDA graphs chained on
-one stream per device, without the host waiting for the GPU between objects:
+By default, the GPU work of the objects runs as CUDA graphs chained on
+one stream per device, without the host waiting for the GPU between objects.
+Simulations whose time per step is set by the host, not by the GPU, run
+faster; the results agree with those of a run without the accelerator to
+rounding. ``--no-accelerate`` turns it off:
 
 .. code-block:: bash
 
-    specula --accelerate params.yml
+    specula --no-accelerate params.yml
 
-Simulations whose time per step is set by the host, not by the GPU, run
-faster; the results agree with those of the normal run to rounding. See
-:doc:`accelerator`.
+See :doc:`accelerator`.
 
 .. _running_with_mpi:
 

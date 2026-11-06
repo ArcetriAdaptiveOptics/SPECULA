@@ -9,12 +9,14 @@ kernels one by one, and some objects wait for the GPU at each step. The accelera
 removes most of this host work. It is part of the iteras framework, so it works
 for any plugin.
 
-It is enabled with ``--accelerate`` on the command line::
+It is on by default. ``--no-accelerate`` on the command line turns it off
+(also if the parameter files have an ``Accelerator`` section)::
 
-    specula --accelerate params.yml
+    specula --no-accelerate params.yml
 
-or with a section whose class is ``Accelerator`` in the parameter files, which also
-takes options:
+``--accelerate`` is accepted, and does nothing. From Python,
+``Simul(..., accelerate=False)`` turns it off. The options are given with a
+section whose class is ``Accelerator`` in the parameter files:
 
 .. code-block:: yaml
 
@@ -38,13 +40,12 @@ On each GPU, with the accelerator:
   launched, as when the accelerator is off;
 * the GPU work goes to the default stream of the device, in trigger order:
   the graphs, and the kernels launched by the code that still runs in Python.
-  The graphs of the objects that have their own stream (those that build their
-  own CUDA graph, like the wavefront sensors) are launched on it, so that the
-  objects of a trigger level run in parallel, as when the accelerator is off; the
-  default stream then waits for them on the GPU. The GPU work therefore runs in
-  the right order without the host waiting for it: ``post_trigger()`` no
-  longer waits for the graph of the object. The host waits only where it reads
-  results (copies to the host for MPI, or objects that read GPU values);
+  The GPU work therefore runs in the right order without the host waiting for
+  it: ``post_trigger()`` does not wait for the graph of the object. The host
+  waits only where it reads results (copies to the host for MPI, or objects
+  that read GPU values). Launching the graphs of a trigger level on separate
+  streams, to run them in parallel, gave no measurable gain (SCAO, SOUL, ANDES,
+  MORFEO), and was removed;
 * ``check_ready()``, ``prepare_trigger()`` and ``post_trigger()`` still run as
   Python code at each step. So the values computed on the host at each step,
   like the time of the generators or the time step of the atmosphere, are up
@@ -66,18 +67,20 @@ when the graph is about to be captured (see :doc:`extension_api`). This method
 declares that the graph will do the same as ``trigger_code()`` at all the
 following steps:
 
-* objects that build their own CUDA graph (``build_stream()``), like
-  ``AtmoEvolution``, ``AtmoPropagation``, ``ModulatedPyramid``, ``SH`` and
-  ``ShSlopec``, follow these rules already: they are accelerated by default (their
-  own graph is released and replaced by the accelerator's one);
-* other classes declare it after checking their ``trigger_code()``:
-  ``WaveGenerator`` (the only generator), ``IirFilter`` and its derived classes
+* the classes that declare it after checking their ``trigger_code()``:
+  ``AtmoEvolution``, ``AtmoPropagation`` (without Fresnel propagation),
+  ``ModulatedPyramid`` and its derived classes (with ``cuda_stream_enable``),
+  ``SH``, ``ShSlopec``, ``AVC``, ``WaveGenerator`` (the only generator), ``IirFilter`` and its derived classes
   (``Integrator``, ``LowPassFilter``, ``DynamicIirFilter``,
   ``DynamicIntegrator``: a new gain captures the graph again), ``BaseSlicer``,
   ``LinearCombination``, ``PyrSlopec`` (and ``DoubleRoofSlopec``),
   ``Modalrec``, ``ModalAnalysis``, ``PSF``, ``PsfCoronagraph``; ``BaseOperation`` once its delayed
   inputs have been produced; ``DM`` without force limitation; ``CCD`` when it
   reads out at every step, after its start time;
+* the internal objects of the containers (see ``internal_objects()``): the
+  slices of ``DistributedSH`` and ``DistributedExtSourcePyramid``, the
+  instances of ``PolyChromSH`` and ``PolyCromPyramid``. They are listed in the
+  report as ``<container>[i]``, and excluded with their container;
 * the others are not accelerated, for example the other generators
   (``TimeHistoryGenerator``, ``ScheduleGenerator``, ``RandomGenerator``,
   ``PushPullGenerator``...) and ``ModalrecImplicitPolc``, which choose on the
@@ -99,31 +102,15 @@ step later, from a copy made without waiting.
 At the end of the run, the accelerator logs a table of the objects with their
 status (``accelerated``, or why not), also written to ``report_file`` if given.
 
-Accelerator and the CUDA graphs of the objects
-----------------------------------------------
-
-Some objects capture their own CUDA graph even with the accelerator off (they
-call ``build_stream()`` in ``setup()``: the atmosphere, the propagation, the
-wavefront sensors...). The two mechanisms coexist, object by object:
-
-* with the accelerator off, nothing changes: these objects launch their own
-  graph on their own stream and ``post_trigger()`` waits for it, the other
-  objects run their ``trigger_code()`` as Python code;
-* with the accelerator on, an accelerated object never uses its own graph: it
-  is released at its first trigger, and the accelerator captures the graph of
-  the same ``trigger_code()`` instead, launched on the object's own stream if it
-  has one. Objects with their own graph are therefore accelerated by default;
-  the accelerator adds graphs for the other objects, and removes the waits of
-  the host;
-* an object that is not accelerated (on the CPU, excluded, or whose class does
-  not declare that it can be) runs as when the accelerator is off, with its own
-  graph if it built one.
+The accelerator is the only CUDA graph mechanism: with the accelerator off
+(``--no-accelerate``), or for an object that is not accelerated (on the CPU,
+excluded, or whose class does not declare that it can be), ``trigger_code()``
+runs as Python code.
 
 The states of an object, with the accelerator on::
 
-    built: own graph captured in setup() (build_stream), or no graph
+    built
       |
-      | first trigger: own graph released (accelerated objects only)
       v
     warm-up: trigger_code() as Python code, for "capture_after" triggers
       |
@@ -137,10 +124,8 @@ The states of an object, with the accelerator on::
       | invalidate_graph()                      | captured again at the next trigger
       +-----------------------------------------+
 
-In the code, ``BaseProcessingObj.trigger()`` runs the step in one of three
-ways: through the accelerator (``GraphRunner.trigger()``), with the object's own
-graph, or as Python code. Making the accelerator the only graph mechanism
-(removing ``build_stream()``) is planned for a later change.
+In the code, ``BaseProcessingObj.trigger()`` runs the step in one of two
+ways: through the accelerator (``GraphRunner.trigger()``), or as Python code.
 
 Errors
 ------
@@ -183,19 +168,14 @@ Both are deterministic and, on the matrices of MORFEO and SOUL (influence
 functions, mode-to-command and reconstruction matrices), as fast as cuBLAS,
 without copying the transposed matrix. ``Modalrec``, ``DM``, ``ModalAnalysis``
 and the slope computers use it, so their results with the accelerator on and off
-differ by rounding. Objects that build their own CUDA graph (like ``ShSlopec``
-with a reconstruction or filtering matrix) use these kernels also with the
-accelerator off: since this version, their results differ by rounding from
-those of the previous versions (reference results of tests or scripts may need
-a tolerance).
+differ by rounding.
 
 With the allocator
 ------------------
 
-With an ``Accelerator`` section (or ``--accelerate``), the allocator profiles the objects
-accelerated, as they will run: their host time is the time to launch their graph,
-and the accelerated objects with their own graph no longer wait for the GPU in
-``post_trigger()``. These costs are kept in the profile file apart from those
+Unless the accelerator is turned off, the allocator profiles the objects
+accelerated, as they will run: their host time is the time to launch their graph.
+These costs are kept in the profile file apart from those
 measured with the accelerator off, and an allocation computed with the accelerator is stale
 without it (and the reverse). Accelerating does not constrain the placement: each
 object is accelerated on the device where it is placed.

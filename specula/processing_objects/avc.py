@@ -263,11 +263,8 @@ class AVC(BaseProcessingObj):
             'out_state': OutputDesc(BaseValue, 'State [plant_re, plant_im, x3, x4] per AVC instance'),
         }
 
-    def setup(self):
-        super().setup()
-        # The CUDA graph is captured at the first trigger(): the warm-up run
-        # of capture_stream() in setup() would advance alpha by one step
-        self.build_stream(capture=False)
+    def can_accelerate(self):
+        return True
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

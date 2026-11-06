@@ -228,6 +228,9 @@ def run_once(simul_cls, params, graph, devices, workdir, steps, warmup, sync, ta
     mpi = iteras.process_comm, iteras.process_rank
     iteras.process_comm, iteras.process_rank = None, None
     sim = simul_cls(yml)
+    # Accelerated as the simulation being allocated: only if *params* kept its
+    # Accelerator section (Simul removes it when the accelerator is off)
+    sim.accelerate = bool(sim.accelerator_keys(p))
     loop_ns = n_iter = 0
     tracer.open(trace, sync=sync, skip=warmup, gpu_events=iteras.cp is not None)
     try:
@@ -394,8 +397,7 @@ def _detect_gpu_wait(name, c, totals, n_iter):  # pragma: gpu
     synchronization (*totals* of the asynchronous run), the host time of a phase
     that waits for the GPU work of the object includes that work (and, since the
     stream runs in order, all the work queued before it). Only the first object
-    waiting in a trigger level can be detected this way: objects with a CUDA graph
-    are known from the measurement.
+    waiting in a trigger level can be detected this way.
     '''
     threshold = max(0.5 * c.g, 0.2e6)
     a_trig = (totals.get((name, 'prepare_trigger'), 0.0) + totals.get((name, 'trigger'), 0.0)) / n_iter
@@ -436,9 +438,6 @@ def _measure(sim, graph, devices, totals, triggers, n_iter, checksums, gpu_model
         c._used = obj.gpu_bytes_used if dev >= 0 else 0
         if dev >= 0:  # pragma: gpu
             c.copy_gpu, c.copy_cpu = _transfer_times(obj, dev)
-        if dev >= 0 and getattr(obj, 'cuda_graph', None) is not None:  # pragma: gpu
-            c.graph = True
-            c.syncs = 'post'        # BaseProcessingObj.post_trigger() waits for the graph
         costs[name] = (kind, c)
 
     owners = {}

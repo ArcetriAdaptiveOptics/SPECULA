@@ -801,8 +801,9 @@ class ModulatedPyramid(BaseProcessingObj):
         self._make_pup_shift_interp()
 
         self._update_s0_area()
-        if self.stream_enable:
-            super().build_stream()
+
+    def can_accelerate(self):
+        return self.stream_enable
 
     def update_interpolator_parameters(self, xShiftPhInPixel=None, yShiftPhInPixel=None,
                                        rotAnglePhInDeg=None, magnification=None):

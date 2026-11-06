@@ -273,11 +273,9 @@ class Tracer:
     @staticmethod
     def _obj_stream(obj):
         '''
-        Stream where the object's trigger work is queued: its own stream
-        when a CUDA graph is launched, otherwise the current stream.
+        Stream where the object's trigger work is queued: the current stream,
+        also for the CUDA graphs of the accelerator.
         '''
-        if getattr(obj, 'cuda_graph', None) is not None:
-            return obj.stream
         return iteras.cp.cuda.get_current_stream()
 
     def _get_event(self, device_idx):

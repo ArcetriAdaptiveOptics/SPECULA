@@ -155,9 +155,9 @@ already split there (an explicit ``DistributedSH``), are kept as written. With
 With the accelerator
 --------------------
 
-With ``--accelerate`` or an ``Accelerator`` section (see :doc:`accelerator`), the objects are
-profiled as they run accelerated: the host time of an accelerated object is the time to
-launch its CUDA graph, and it does not wait for the GPU in ``post_trigger()``.
+Unless the accelerator is turned off with ``--no-accelerate`` (see :doc:`accelerator`),
+the objects are profiled as they run accelerated: the host time of an accelerated object
+is the time to launch its CUDA graph, and it does not wait for the GPU in ``post_trigger()``.
 These costs are kept apart from those measured without accelerator, and an
 allocation computed with the accelerator is stale without it, and the reverse.
 

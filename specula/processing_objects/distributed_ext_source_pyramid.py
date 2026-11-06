@@ -113,6 +113,9 @@ class DistributedExtSourcePyramid(ExtSourcePyramid):
         if self.target_device_idx >= 0:  # pragma: gpu
             self._target_device.use()
 
+    def internal_objects(self):
+        return list(self.sub_pyr)
+
     def check_ready(self, t):
         '''
         Call the BaseProcessingObj method for housekeeping, then all sub-pyramids
