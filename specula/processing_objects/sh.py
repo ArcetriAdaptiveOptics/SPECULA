@@ -196,13 +196,11 @@ class SH(BaseProcessingObj):
         self._fft_size = 0
         self._mask_threshold = 1e-3  # threshold to consider a pixel inside the mask
 
-        self.ef_row = None
         self.ef_interpolator = None
         self._ovs_np_sub = None
         self._ovs_ef_size = None
         self._wf3 = None
-        self._wf3_view = None
-        self._subap_cube_view = None
+        self._wf3_rows_view = None
         self._kernelobj = None
         self._last_sodium_values = None
         self._fov_ovs = 1
@@ -461,8 +459,9 @@ class SH(BaseProcessingObj):
         Then, for each row of dimx subapertures:
 
         1. the row of the oversampled electric field, viewed as a (dimx, n, n)
-           subap cube, is written into the top-left corner of the zero-padded
-           cube _wf3 (padding by 2, or more with a laser launch telescope);
+           subap cube, is computed directly into the top-left corner of the
+           zero-padded cube _wf3 (padding by 2, or more with a laser launch
+           telescope), with a single kernel on GPU;
         2. a batched 2D FFT and |.|^2 give the PSF samples of each subap.
            With a convolution kernel (LGS), they are convolved with the subap
            kernels in Fourier space (rfft2/irfft2, the kernels are stored as
@@ -488,12 +487,11 @@ class SH(BaseProcessingObj):
 
         for i, out_view in zip(range(rows.start, rows.stop), self._out_views):
 
-            # Extract 2D subap row and insert the subaps into the padded array
+            # Field of the 2D subap row, written directly into the padded array
             wf1.ef_at_lambda(self.wavelength_in_nm,
                              slicey=np.s_[i * n: (i + 1) * n],
                              slicex=np.s_[:],
-                             out=self.ef_row)
-            self._wf3_view[:] = self._subap_cube_view
+                             out=self._wf3_rows_view)
 
             fp4 = self.fft.fft2(self._wf3, axes=(1, 2))
             abs2(fp4, self._intensity, xp=xp)
@@ -504,7 +502,8 @@ class SH(BaseProcessingObj):
                 subap_kern_fft = self._kernelobj.kernels[i * dimx: (i + 1) * dimx]
                 psf_fft = self.fft.rfft2(self._intensity)
                 psf_fft *= subap_kern_fft
-                psf = self.fft.irfft2(psf_fft, s=(self._fft_size, self._fft_size), norm='forward')
+                psf = self.fft.irfft2(psf_fft, s=(self._fft_size, self._fft_size), norm='forward',
+                                      overwrite_x=True)
                 g = self._pix_int_matrix_kernel
 
             # Detector pixels: G @ PSF @ G.T for each subaperture
@@ -563,15 +562,12 @@ class SH(BaseProcessingObj):
         npx = self._subap_npx
         rows = range(self.subap_rows_slice.start, self.subap_rows_slice.stop)
 
-        # Electric field of a single row of subaps. Only one row at a time is
-        # computed, because the whole oversampled field can be very large (8k x 8k)
-        self.ef_row = self._zeros_common((n, self._ovs_ef_size), dtype=self.complex_dtype)
-
-        # Views used by trigger_code(), built once since the buffers never change
-        self._wf3_view = self._wf3[:, :n, :n]
-
-        # The field row, as a (dimx, n, n) subap cube
-        self._subap_cube_view = self.ef_row.reshape(n, dimx, n).swapaxes(0, 1)
+        # Views used by trigger_code(), built once since the buffers never change.
+        # Only one row of subaps is computed at a time, because the whole oversampled
+        # field can be very large (8k x 8k). The top-left corners of the padded cube,
+        # as (n, dimx, n): the row of the field, n x (dimx * n), reshaped to it gives
+        # the subap cube
+        self._wf3_rows_view = self._wf3[:, :n, :n].swapaxes(0, 1)
 
         # Each row of the output image, as a (dimx, npx, npx) subap cube
         self._out_views = [self._out_i.i[i * npx: (i + 1) * npx]
@@ -579,7 +575,7 @@ class SH(BaseProcessingObj):
                            for i in rows]
 
         # Assert that our views are actually views and not temporary allocations
-        for view in [self._wf3_view, self._subap_cube_view] + self._out_views:
+        for view in [self._wf3_rows_view] + self._out_views:
             assert view.base is not None
 
         # The CUDA graph is captured at the first trigger(), see prepare_trigger()
