@@ -58,19 +58,17 @@ class TestLoadFitsArray(unittest.TestCase):
         np.testing.assert_array_equal(cpuArray(out64), data64)
         self.assertEqual(out64.dtype, np.float64)
 
-    @cpu_and_gpu
-    def test_staging_chunks_not_cached(self, target_device_idx, xp):
+    @unittest.skipIf(specula.cp is None, 'GPU upload only')
+    def test_staging_chunks_not_cached(self):
         '''On GPU, the default memory pool grows only by the result: the chunks
         used for the upload come from a temporary pool'''
-        if xp is np:
-            self.skipTest('GPU upload only')
         data = np.arange(2 * 1024 * 1024, dtype=np.float32).reshape(2048, 1024)   # 8 MB
         self._write(data)
-        pool = xp.get_default_memory_pool()
+        pool = specula.cp.get_default_memory_pool()
         pool.free_all_blocks()
         before = pool.total_bytes()
         with patch.object(fits_io, '_CHUNK_BYTES', 1 << 20):
-            out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx, precision=1)
+            out = load_fits_array(self.filename, ext=1, target_device_idx=0, precision=1)
         self.assertLessEqual(pool.total_bytes() - before, out.nbytes + 1024)
         np.testing.assert_array_equal(cpuArray(out), data)
 
