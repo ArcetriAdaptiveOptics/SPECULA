@@ -580,7 +580,7 @@ class IirFilterData(BaseDataObj):
                                   fs=1000.0, freq=None, unity_plant=False, transfer_function='rtf'):
         """Frequency and value of the peak of a closed-loop transfer function.
         
-        The peak of the rejection transfer function |RTF| = |1 / (1 + C P)| is where
+        The peak of the rejection transfer function ``|RTF| = |1 / (1 + C P)|`` is where
         the loop amplifies the disturbances most; it is 1 / (minimum distance of C P
         from -1), the inverse of the modulus margin.
         

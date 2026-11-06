@@ -10,7 +10,7 @@ class DoubleRoofSlopec(PyrSlopec):
     customized for the double-roof case.
 
     Parameters: as PyrSlopec (clamp_negative and the Slopec parameters are
-    passed through **kwargs).
+    passed through ``**kwargs``).
     '''
     def __init__(self,
                  pupdata: PupData,

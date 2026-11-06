@@ -17,13 +17,14 @@ class BaseFilter(BaseProcessingObj):
                  target_device_idx=None,
                  precision=None):
         """
-        Note
-        ----
+        Notes
+        -----
         Provides common functionality for:
-            - Delay buffer management
-            - Interpolation for fractional delays
-            - Gain modulation
-            - Synchronous (no-delay) outputs for POLC
+
+        - Delay buffer management
+        - Interpolation for fractional delays
+        - Gain modulation
+        - Synchronous (no-delay) outputs for POLC
         """
 
         super().__init__(target_device_idx=target_device_idx, precision=precision)

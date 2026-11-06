@@ -50,9 +50,8 @@ class DisplayServer(BaseProcessingObj):
                  mode: str = 'image',
     ):
         """
-        Note
-        ----
-            
+        Notes
+        -----
         This object must *not* be run concurrently with any other in the simulation,
         because it can in some cases temporarily modify the data objects (removing references
         to the xp module to allow pickling)

@@ -466,7 +466,7 @@ class SH(BaseProcessingObj):
         1. the row of the oversampled electric field, viewed as a (dimx, n, n)
            subap cube, is written into the top-left corner of the zero-padded
            cube _wf3 (padding by 2, or more with a laser launch telescope);
-        2. a batched 2D FFT and |.|^2 give the PSF samples of each subap.
+        2. a batched 2D FFT and ``|.|^2`` give the PSF samples of each subap.
            With a convolution kernel (LGS), they are convolved with the subap
            kernels in Fourier space (rfft2/irfft2, the kernels are stored as
            half spectra);

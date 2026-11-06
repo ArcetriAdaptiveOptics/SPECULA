@@ -38,25 +38,24 @@ class SpotMonitor(BaseProcessingObj):
     precision : int [1], optional
         Numerical precision
         
-    Attributes
-    ----------
-    outputs['out_sum_pixels'] : Pixels
-        Summed subaperture image (np_sub x np_sub)
-    outputs['out_model_pixels'] : Pixels
-        Fitted Moffat model image
-    outputs['out_residual_pixels'] : Pixels
-        Residuals (data - model)
-    outputs['out_params'] : BaseValue
-        Array with 9 parameters:
-        [0] amplitude - Moffat amplitude
-        [1] x0 - centroid x position
-        [2] y0 - centroid y position
-        [3] gamma - Moffat gamma parameter
-        [4] alpha - Moffat alpha parameter
-        [5] sky - constant background level
-        [6] fwhm - Full Width Half Maximum
-        [7] chi2 - mean squared residual
-        [8] success - 1.0 if fit converged, 0.0 otherwise
+    Notes
+    -----
+    Outputs:
+
+    - ``out_sum_pixels`` (Pixels): summed subaperture image (np_sub x np_sub)
+    - ``out_model_pixels`` (Pixels): fitted Moffat model image
+    - ``out_residual_pixels`` (Pixels): residuals (data - model)
+    - ``out_params`` (BaseValue): array with 9 parameters:
+
+      [0] amplitude - Moffat amplitude,
+      [1] x0 - centroid x position,
+      [2] y0 - centroid y position,
+      [3] gamma - Moffat gamma parameter,
+      [4] alpha - Moffat alpha parameter,
+      [5] sky - constant background level,
+      [6] fwhm - Full Width Half Maximum,
+      [7] chi2 - mean squared residual,
+      [8] success - 1.0 if fit converged, 0.0 otherwise
     """
 
     def __init__(self,
