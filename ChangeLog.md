@@ -28,6 +28,7 @@
 
 ### Other
 
+- API documentation: the page of `specula.lib` now lists the functions and classes of each module with their docstrings (before, only the module docstrings). The docstrings that did not render (`calc_psf`, `n_phot`, `compute_zonal_ifunc`, `EFInterpolator`, `avc_plant_model`, `pixel_integration`, `zernike_generator`, `iteras.lib.utils.import_class`) are reformatted, with unchanged content.
 - `calc_noise_cov_elong()`: when the 1D Gaussian fit of a sub-aperture spot failed (with `user_pofile_xy` or `eta_is_not_one`), a typo in the warning (`logger.waring`) raised `AttributeError` instead of logging it and treating the spot as non-elongated.
 - `ZwfsSlopec` and `CurWfsSlopec`: `Slopes.get2d()` and the `out_slopes_map` output did not work (full-frame pixel indices on a single-quadrant mask, so `out_slopes_map` stayed empty with a warning); the slopes are now displayed on the whole detector frame. `Slopes.array_for_display()` returned a 1d array for slopes with one value per position; it now returns the 2d frame. The 2d interaction matrix plots of `SprintPyr` use the layout of the slopes of the internal slope computer.
 - New `display_lgs_geometry()` in `specula.lib.plot_utils`: draws the pupil, the launcher, the guide star direction and the elongated spots of a few sub-apertures (2x2 by default) of an LGS SH, in the telescope frame and in the frame of the rotated WFS. It uses the geometry of `calc_noise_cov_elong()`, whose sub-aperture centres and elongation are now the functions `sub_aperture_centres()` and `geometric_elongation()`.

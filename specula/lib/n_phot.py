@@ -14,6 +14,8 @@ def n_phot(
         model='default',
         ):
     '''
+    Number of photons of a source and of the sky background.
+
     This routine computes from a source magnitude the corresponding
     number of photons for a given band, a given surface and a given time
     interval. This is returned together with the number of photons from
@@ -22,132 +24,121 @@ def n_phot(
     a default Na-band), or a user-defined one (specifying the central
     wavelength and the bandwidth).
     The routine can also return the model used for calculations, if the
-    attribute get_model() is called (see examples #4 and #5).
+    attribute get_model() is called (see examples 4 and 5).
 
     TODO c in the code is approximated as 3e8
 
-    INPUTS:
+    Parameters
+    ----------
+    mag : float
+        Magnitude.
+    band : str, optional
+        Wavelength Johnson band or Na default band.
+    surf : float [m^2], optional
+        Integrating surface, default is 1 m^2.
+    delta_t : float [s], optional
+        Integrating time, default is 1 s.
+    lambda_ : float [m], optional
+        Central wavelength of the chosen band.
+    width : float [m], optional
+        Bandwidth of the chosen band.
+    e0 : float [J/s/m^2/um], optional
+        A0 0-magnitude star brightness in the chosen band.
+    back_mag : float, optional
+        Sky background default magnitude.
+    model : str, optional
+        Use the specified model instead of the default one (Lena 96).
+        Available models are: 'MAORY-1' (phase A of Maory MCAO-EELT).
 
-     mag  = magnitude [float]
+    Returns
+    -------
+    nb_of_photons : float
+        The computed source number of photons.
+    background : float
+        The computed sky background number of photons per arcsec^2.
 
-    KEYWORDS:
+    Notes
+    -----
+    In the case that user-defined bandwidth (keyword width) and
+    wavelength (keyword ``lambda_``) are set, it cannot extend beyond a
+    routine-defined band, otherwise the results (nb_of_photons and
+    background) are wrong.
 
-     band     = wavelength Johnson band or Na default band [str].
-     delta_t  = integrating time [s] [float], default is 1s.
-     surf     = integrating surface [m^2] [float], default is 1m^2.
-     lambda_   = central wavelenght of the choosen band [m] [float].
-     width    = bandwidth of the choosen band [m] [float].
-     e0       = A0 0-magnitude star brightness in the choosen band,
-                [J/s/m^2/um] [float].
-     back_mag = sky background default magnitude [FLOAT].
-     model    = use the specified model instead the the default one (Lena 96).
-                     Available model are: 'MAORY-1'   (phase A of Maory MCAO-EELT)
+    Modification history::
 
-    OUTPUTS:
-
-     Tuple with 2 elements:
-
-     nb_of_photons = the computed source number of photons [float]
-     background    = the computed sky background nb of photons per arcsec^2 [float]
-
-    SIDE EFFECTS:
-     none.
-
-    RESTRICTIONS:
-     none.
-
-    EXAMPLES:
-     [1]: compute the number of photons coming from a 5-mag star
-          observed in V-band, with 8m-diameter telescope and an integration
-          time of 12s:
- 
-          nb_of_photons, background = n_phot(5.,
-                                             band='V',
-                                             surf=math.pi*(8.**2)/4,
-                                             delta_t=12.)
- 
-          returns:
-             nb_of_photons = 5.9521160e+10 photons
-             background    = 63581.948     photons
- 
-     [2]: compute the same stuff but with a user-defined sky background
-          of 19.5-mag:
- 
-          nb_of_photons, background = n_phot(5.,
-                                             band='V',
-                                             surf=math.pi*(8.**2)/4,
-                                             delta_t=12.,
-                                             back_mag=19.5)
-          returns:
-             nb_of_photons = 5.9521160e+10 photons
-             background    = 100549.18     photons
- 
-     [3]: compute the same stuff but with a user-defined band of
-          central wavelength 0.54um and a narrow bandwidth of 0.01um:
- 
-          nb_of_photons, background = n_phot(5.,
-                                             lambda_=5.4E-7,
-                                             width=1E-8,
-                                             surf=math.pi*(8.**2)/4,
-                                             delta_t=12.,
-                                             back_mag=19.5)
-          returns:
-             nb_of_photons = 6.5661736e+09 photons
-             background    = 11092.246     photons
- 
-     [4]: get the sky background default magnitudes table:
-
-          model = n_phot.getmodel()
-          model.back_mag_table
- 
- 
-          returns:
-             back_mag_table= [22.,21.,20.,19.,17.5,16.,14.,12.,10.,6.,23.5]
-
- 
-     [5]: get the bands, central wavelengths, bandwidths, A0 0-mag. star
-          brightnesses, and sky background default magnitudes tables:
-
-          model = n_phot.getmodel()
- 
-          returns:
-             model.band_table    =
- [   "U",   "B",   "V",   "R",   "I",   "J",   "H",   "K",   "L",   "M",    "Na"]
-             model.lambda_table  =
- [3.6e-7,4.4e-7,5.5e-7,  7e-7,  9e-7,1.3e-6,1.7e-6,2.2e-6,3.4e-6,  5e-06,5.89e-7]
-             model.width_table   =
- [6.8e-8,9.8e-8,8.9e-8,2.2e-7,2.4e-7,  3e-7,3.5e-7,  4e-7,5.5e-7,   3e-7,   1e-8]
-             model.e0_table      =
- [4.4e-8,7.2e-8,3.9e-8,1.8e-8,8.3e-9,3.4e-9, 7e-10, 4e-10, 8e-11,2.2e-11, 3.9e-8]
-             model.back_mag_table=
- [   23.,   22.,   21.,   20.,  19.5,   14.,  13.5,  12.5,    3.,     0.,    23.]
- 
-    RESTRICTIONS:
-     in the case that user-defined bandwidth (keyword width) and
-     wavelength (keyword lambda_) are set, it cannot extend beyond a
-     routine-defined band. otherwise the results (nb_of_photons and
-     background) are wrong.
- 
-    MODIFICATION HISTORY:
-     program written: october 1998,
-                        Marcel Carbillet (OAA) [marcel@arcetri.astro.it].
-     modifications  : march 1999,
-                        Marcel Carbillet (OAA) [marcel@arcetri.astro.it]:
-                         - help completed.
-                         - background output stuff added.
-                      august 2015
-                        Guido Agapito (OAA) [agapito@arcetri.astro.it]
-                         - added DOUBLE keyword
-                         - added verbose keyword
-                         - where and closest like function to find the band/lambda
-                      may 2019
-                        Alfio Puglisi (OAA) [alfio.puglisi@inaf.it]
-                         - translated to Python
-                         - removed DOUBLE keyword
-                      apr 2026
-                         Alfio Puglisi (OAA) [alfio.puglisi@inaf.it]
+        program written: october 1998,
+                           Marcel Carbillet (OAA) [marcel@arcetri.astro.it].
+        modifications  : march 1999,
+                           Marcel Carbillet (OAA) [marcel@arcetri.astro.it]:
+                            - help completed.
+                            - background output stuff added.
+                         august 2015
+                           Guido Agapito (OAA) [agapito@arcetri.astro.it]
+                            - added DOUBLE keyword
+                            - added verbose keyword
+                            - where and closest like function to find the band/lambda
+                         may 2019
+                           Alfio Puglisi (OAA) [alfio.puglisi@inaf.it]
+                            - translated to Python
+                            - removed DOUBLE keyword
+                         apr 2026
+                           Alfio Puglisi (OAA) [alfio.puglisi@inaf.it]
                             - added logging and replaced print statements with logger calls
 
+    Examples
+    --------
+    1. Number of photons coming from a 5-mag star observed in V-band, with
+       an 8m-diameter telescope and an integration time of 12s::
+
+           nb_of_photons, background = n_phot(5.,
+                                              band='V',
+                                              surf=math.pi*(8.**2)/4,
+                                              delta_t=12.)
+           # nb_of_photons = 5.9521160e+10 photons
+           # background    = 63581.948     photons
+
+    2. The same with a user-defined sky background of 19.5-mag::
+
+           nb_of_photons, background = n_phot(5.,
+                                              band='V',
+                                              surf=math.pi*(8.**2)/4,
+                                              delta_t=12.,
+                                              back_mag=19.5)
+           # nb_of_photons = 5.9521160e+10 photons
+           # background    = 100549.18     photons
+
+    3. The same with a user-defined band of central wavelength 0.54um and a
+       narrow bandwidth of 0.01um::
+
+           nb_of_photons, background = n_phot(5.,
+                                              lambda_=5.4E-7,
+                                              width=1E-8,
+                                              surf=math.pi*(8.**2)/4,
+                                              delta_t=12.,
+                                              back_mag=19.5)
+           # nb_of_photons = 6.5661736e+09 photons
+           # background    = 11092.246     photons
+
+    4. The sky background default magnitudes table::
+
+           model = n_phot.getmodel()
+           model.back_mag_table
+           # [22.,21.,20.,19.,17.5,16.,14.,12.,10.,6.,23.5]
+
+    5. The bands, central wavelengths, bandwidths, A0 0-mag. star
+       brightnesses, and sky background default magnitudes tables::
+
+           model = n_phot.getmodel()
+           # model.band_table    =
+           # [   "U",   "B",   "V",   "R",   "I",   "J",   "H",   "K",   "L",   "M",    "Na"]
+           # model.lambda_table  =
+           # [3.6e-7,4.4e-7,5.5e-7,  7e-7,  9e-7,1.3e-6,1.7e-6,2.2e-6,3.4e-6,  5e-06,5.89e-7]
+           # model.width_table   =
+           # [6.8e-8,9.8e-8,8.9e-8,2.2e-7,2.4e-7,  3e-7,3.5e-7,  4e-7,5.5e-7,   3e-7,   1e-8]
+           # model.e0_table      =
+           # [4.4e-8,7.2e-8,3.9e-8,1.8e-8,8.3e-9,3.4e-9, 7e-10, 4e-10, 8e-11,2.2e-11, 3.9e-8]
+           # model.back_mag_table=
+           # [   23.,   22.,   21.,   20.,  19.5,   14.,  13.5,  12.5,    3.,     0.,    23.]
     '''
     logger = get_specula_logger(__name__)
 

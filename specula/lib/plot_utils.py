@@ -1,3 +1,8 @@
+"""
+Plotting utilities: influence functions and modes (``display_ifunc_2d``),
+MCAO geometry (``display_mcao_geom``) and LGS geometry seen by a
+Shack-Hartmann WFS (``display_lgs_geometry``).
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import patches

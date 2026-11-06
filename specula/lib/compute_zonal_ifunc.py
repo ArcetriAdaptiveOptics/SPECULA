@@ -36,10 +36,11 @@ def compute_zonal_ifunc(dim, n_act, xp=np, dtype=np.float32, circ_geom:bool=Fals
     geom : str or None
         Geometry type: 'circular', 'alpao', 'hexagonal' or 'square'. 
         If None, defaults to 'square' unless circ_geom is True.
-            - 'circular': radial-grid actuator disposition
-            - 'square': cartesian-grid actuator disposition
-            - 'hexagonal': hexagonal-grid actuator disposition
-            - 'alpao': cartesian-grid actuator disposition, cut on a circular pupil
+
+        - 'circular': radial-grid actuator disposition
+        - 'square': cartesian-grid actuator disposition
+        - 'hexagonal': hexagonal-grid actuator disposition
+        - 'alpao': cartesian-grid actuator disposition, cut on a circular pupil
     angle_offset : float
         Angular offset in degrees for the circular geometry actuator placement.
     do_mech_coupling : bool
