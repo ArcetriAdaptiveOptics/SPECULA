@@ -11,15 +11,44 @@ def clamp_generic_less(x, c, y, xp):
     y[:] = xp.where(y < x, c, y)
 
 
-@fuse(kernel_name='clamp_generic_more')
-def clamp_generic_more(x, c, y, xp):
-    y[:] = xp.where(y > x, c, y)
-
-
 class PyrSlopec(Slopec):
     """
     Pyramid slopes computer processing object. 
     Computes pyramid slopes from pixel data using the 4 pupil intensities.
+
+    clamp_negative (see Slopec): the negative pixels are set to zero after
+    the subtraction of thr_value. With shlike, subapertures with zero or
+    negative flux (possible with clamp_negative=False) get zero slopes; with
+    the default global normalization, all the slopes are zero if the total
+    flux is zero or negative.
+
+    Parameters
+    ----------
+    pupdata : PupData
+        Indices of the pixels of the 4 pupils on the detector.
+    sn : Slopes, optional
+        Slope null (see Slopec).
+    shlike : bool, optional
+        Normalize the slopes of each subaperture by its own flux
+        A + B + C + D (Shack-Hartmann-like). Default False: all the slopes
+        are normalized by the mean flux per subaperture.
+    norm_factor : float [counts], optional
+        If set, constant normalization of the slopes instead of the flux.
+        Not compatible with shlike.
+    thr_value : float [counts], optional
+        Subtracted from all the pixels before the slopes. Default 0.
+    slopes_from_intensity : bool, optional
+        Output the intensities of the 4 pupils, normalized by the mean
+        intensity per pupil pixel, instead of the slopes. Not compatible
+        with shlike.
+    clamp_negative : bool, optional
+        Set the negative pixels to zero (see Slopec). Default True.
+    target_device_idx : int, optional
+        Device index (-1 for CPU). Default: global setting.
+    precision : int, optional
+        0 for double, 1 for single precision. Default: global setting.
+    **kwargs
+        Passed to Slopec (e.g. filtmat, interleave).
     """
 
     def __init__(self,
@@ -29,6 +58,7 @@ class PyrSlopec(Slopec):
                  norm_factor: float=None,
                  thr_value: float=0,
                  slopes_from_intensity: bool=False,
+                 clamp_negative: bool=True,
                  target_device_idx: int=None,
                  precision: int=None,
                 **kwargs): # is this needed??
@@ -38,7 +68,8 @@ class PyrSlopec(Slopec):
         self.pupdata = pupdata
         self.slopes_from_intensity = slopes_from_intensity
 
-        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision, **kwargs)
+        super().__init__(sn=sn, clamp_negative=clamp_negative,
+                         target_device_idx=target_device_idx, precision=precision, **kwargs)
 
         if shlike and slopes_from_intensity:
             raise ValueError('Both SHLIKE and SLOPES_FROM_INTENSITY parameters are set. Only one of these should be used.')
@@ -80,11 +111,7 @@ class PyrSlopec(Slopec):
         self.outputs['out_pixels_subap'] = self.pixels_subap
         self.outputs['out_pixels_subap_sum'] = self.pixels_subap_sum
 
-        if self.slopes_from_intensity:
-            self.slopes.single_mask = self.pupdata.complete_mask()
-        else:
-            self.slopes.single_mask = self.pupdata.single_mask()
-        self.slopes.display_map = self.pupdata.display_map
+        self.slopes.layout = self.pupdata.slopes_layout(from_intensity=self.slopes_from_intensity)
 
     @classmethod
     def output_names(cls):
@@ -130,7 +157,8 @@ class PyrSlopec(Slopec):
 
         self.flat_pixels -= self.threshold
 
-        clamp_generic_less(0,0,self.flat_pixels, xp=self.xp)
+        if self.clamp_negative:
+            clamp_generic_less(0,0,self.flat_pixels, xp=self.xp)
         A = self.flat_pixels[self.pup_idx0].astype(self.xp.float32)
         B = self.flat_pixels[self.pup_idx1].astype(self.xp.float32)
         C = self.flat_pixels[self.pup_idx2].astype(self.xp.float32)
@@ -162,17 +190,17 @@ class PyrSlopec(Slopec):
                 # sh_like: normalize per subaperture using flux_per_subap (vectorial normalization)
                 self.sx, self.sy = self._compute_pyr_slopes(A, B, C, D, 1.0)
                 # Avoid division by zero
+                # (zero slopes where the flux is zero or, without clamp, negative)
                 flux_clamped = self.xp.where(flux_per_subap > 0, flux_per_subap, 1.0)
-                self.sx /= flux_clamped
-                self.sy /= flux_clamped
+                self.sx = self.xp.where(flux_per_subap > 0, self.sx / flux_clamped, 0)
+                self.sy = self.xp.where(flux_per_subap > 0, self.sy / flux_clamped, 0)
             else:
-                # Default: global normalization
+                # Default: global normalization. Zero slopes if the total
+                # flux is not positive (possible with clamp_negative=False)
                 inv_factor[0] = self.total_intensity / self.nsubaps()
-                factor = 1.0 / inv_factor[0]
-                self.sx, self.sy = self._compute_pyr_slopes(A, B, C, D, factor)
-                clamp_generic_more(0, 1, inv_factor, xp=self.xp)
-                self.sx *= inv_factor[0]
-                self.sy *= inv_factor[0]
+                positive = inv_factor > 0
+                factor = self.xp.where(positive, 1.0 / self.xp.where(positive, inv_factor, 1), 0)
+                self.sx, self.sy = self._compute_pyr_slopes(A, B, C, D, factor[0])
 
         self.slopes.xslopes = self.sx
         self.slopes.yslopes = self.sy

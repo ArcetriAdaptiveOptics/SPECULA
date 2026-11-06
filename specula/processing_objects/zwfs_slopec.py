@@ -16,6 +16,32 @@ class ZwfsSlopec(Slopec):
     """
     Zernike WFS slopes computer processing object. 
     Computes Zernike WFS slopes from pixel data using the pupil intensity.
+
+    clamp_negative (see Slopec): the negative pixels are set to zero after
+    the subtraction of thr_value. If the total intensity is zero or negative
+    (possible with clamp_negative=False), the slopes are zero.
+
+    Parameters
+    ----------
+    pup_diam : float [pixels]
+        Pupil diameter on the detector.
+    ccd_size : int [pixels]
+        Detector size (square); the pupil is centred on it.
+    obsratio : float, optional
+        Central obstruction, as a fraction of the pupil diameter.
+    sn : Slopes, optional
+        Slope null (see Slopec).
+    target_device_idx : int, optional
+        Device index (-1 for CPU). Default: global setting.
+    thr_value : float [counts], optional
+        Subtracted from all the pixels. Default 0.
+    clamp_negative : bool, optional
+        Set the negative pixels to zero (see Slopec). Default True.
+    precision : int, optional
+        0 for double, 1 for single precision. Default: global setting.
+
+    The output signal is the intensity of each pupil pixel divided by the
+    mean intensity per pupil pixel.
     """
     
     def __init__(self,
@@ -25,6 +51,7 @@ class ZwfsSlopec(Slopec):
                  sn: Slopes=None,
                  target_device_idx: int=None,
                  thr_value: float=0.0,
+                 clamp_negative: bool=True,
                  precision: int=None):
 
         cx = ccd_size/2
@@ -42,13 +69,14 @@ class ZwfsSlopec(Slopec):
         )
         self.pupdata.set_slopes_from_intensity()
 
-        super().__init__(sn=sn, target_device_idx=target_device_idx, precision=precision)
+        super().__init__(sn=sn, clamp_negative=clamp_negative,
+                         target_device_idx=target_device_idx, precision=precision)
         self.threshold = thr_value
 
         self.outputs['out_pupdata'] = self.pupdata
         
-        self.slopes.single_mask = self.pupdata.single_mask() # unsure if this is needed
-        self.slopes.display_map = self.pupdata.display_map # unsure if this is needed
+        # One value per valid pixel, displayed on the whole frame
+        self.slopes.layout = self.pupdata.slopes_layout(from_intensity=True)
 
         all_idx = self.pupdata.pupil_idx(0).astype(self.xp.int64)
         self.pup_idx  = all_idx[all_idx >= 0]
@@ -74,7 +102,8 @@ class ZwfsSlopec(Slopec):
     def compute_slopes(self):
         self.flat_pixels -= self.threshold
 
-        # clamp_generic_less(0,0,self.flat_pixels, xp=self.xp) # unsure wheter this is required
+        if self.clamp_negative:
+            clamp_generic_less(0, 0, self.flat_pixels, xp=self.xp)
         metaintensity = self.flat_pixels[self.pup_idx].astype(self.dtype)
         self.flux_per_subaperture_vector.value[:] = metaintensity
 
@@ -84,7 +113,8 @@ class ZwfsSlopec(Slopec):
         self.subap_counts.value[0] = self.total_intensity / self.nsubaps()
 
         norm_factor = self.xp.sum(metaintensity) / self.nsubaps()
-        self.slopes.slopes = metaintensity / norm_factor
+        # zero slopes if the total intensity is not positive
+        self.slopes.slopes = metaintensity / self.xp.where(norm_factor > 0, norm_factor, self.xp.inf)
 
     def post_trigger(self):
         super().post_trigger()

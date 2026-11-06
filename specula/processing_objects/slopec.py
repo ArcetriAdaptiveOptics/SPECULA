@@ -30,6 +30,47 @@ class Slopec(BaseProcessingObj):
     Slope Computer abstract processing object.
     Base class for processing objects that compute slopes from pixel data, 
     such as Shack-Hartmann or Pyramid slopes.
+
+    clamp_negative (default True): the derived classes set the negative
+    pixels to zero (after their threshold subtraction, if any), as in the
+    RTCs that subtract the dark (and possibly the background) and clamp. At
+    low flux, when the noise makes pixels negative, this lowers the gain of
+    signal and noise together: for a pixel with flux f and noise sigma
+    (read-out noise, plus the photon noise of the background if it is
+    subtracted) the signal sensitivity is about Phi(f / sigma), and the
+    rectified noise adds about sigma * phi(f / sigma) to the normalization
+    (Plantet et al. 2018, SPIE 10703, 1070346, App. A). With
+    clamp_negative=False the pixels are used as they are (linear noise
+    propagation, as in RTCs that do not clamp).
+
+    Parameters
+    ----------
+    sn : Slopes, optional
+        Slope null, subtracted from the slopes.
+    recmat : Recmat, optional
+        If set, the output is the slopes multiplied by this matrix (e.g.
+        modal coefficients) instead of the slopes.
+    filt_intmat, filt_recmat : Intmat, Recmat, optional
+        Slope filter: the slopes s are replaced by s - I R s, with I and R
+        these interaction and reconstruction matrices (e.g. to remove
+        tip-tilt or focus). Both or none must be set.
+    filtmat : array_like, optional
+        Slope filter given as one array: filtmat[0] is the interaction
+        matrix, filtmat[1] the reconstruction matrix. Alternative to
+        filt_intmat / filt_recmat.
+    weight_int_pixel_dt : float [s], optional
+        If > 0, the pixels are accumulated over this time and the derived
+        classes that support it use the accumulated image to weight the
+        pixels. Default 0 (no weighting).
+    interleave : bool, optional
+        Slope order: x0, y0, x1, y1, ... if True, all x then all y if False
+        (default).
+    clamp_negative : bool, optional
+        Set the negative pixels to zero (see above). Default True.
+    target_device_idx : int, optional
+        Device index (-1 for CPU). Default: global setting.
+    precision : int, optional
+        0 for double, 1 for single precision. Default: global setting.
     """
     def __init__(self,
                  sn: Slopes=None,
@@ -39,10 +80,13 @@ class Slopec(BaseProcessingObj):
                  filtmat=None,
                  weight_int_pixel_dt: float=0,
                  interleave: bool=False,
+                 clamp_negative: bool=True,
                  target_device_idx: int=None,
                  precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        self.clamp_negative = clamp_negative
 
         self.sn = sn
         self.slopes = Slopes(
@@ -63,9 +107,9 @@ class Slopec(BaseProcessingObj):
                                       precision=precision)
         # 2d view of the slopes, e.g. shape (2, size_x, size_y) for a single
         # subaperture-sized x/y slope map. Allocated lazily on the first
-        # apply_slopes_corrections() call, once a derived class has set self.slopes.single_mask
-        # and self.slopes.display_map (see Slopes.get2d()). Its exact shape depends
-        # on those, and it is not duplicated data: it is recomputed from self.slopes
+        # apply_slopes_corrections() call, once a derived class has set self.slopes.layout
+        # (see Slopes.get2d()). Its exact shape depends on the layout,
+        # and it is not duplicated data: it is recomputed from self.slopes
         # at every step, not accumulated separately.
         self.slopes_map = BaseValue(target_device_idx=self.target_device_idx,
                                     precision=precision)
@@ -211,12 +255,10 @@ class Slopec(BaseProcessingObj):
             self.slopes.slopes -= sl0
 
         # Not duplicated storage: recomputed from self.slopes at every step
-        # via the existing single_mask/display_map machinery (see Slopes.get2d()).
-        # Some Slopec subclasses set up single_mask/display_map in a way that is
-        # not (yet) compatible with get2d(); rather than crashing the whole
-        # simulation, out_slopes_map is simply left unset for those, and a
-        # warning is logged once.
-        if self.slopes.single_mask is not None and self.slopes.display_map is not None:
+        # using the slopes layout (see Slopes.get2d()). If the layout does not
+        # match the slopes, rather than crashing the whole simulation,
+        # out_slopes_map is simply left unset, and a warning is logged once.
+        if self.slopes.layout is not None:
             if not self._slopes_map_unavailable:
                 self.update_slopes_map()
 
@@ -224,8 +266,7 @@ class Slopec(BaseProcessingObj):
         '''
         Update slopes_map from self.slopes. The first call uses Slopes.get2d(),
         the following ones scatter the slopes into the existing map with a
-        single operation, using the same geometry. Geometries not handled
-        here keep using get2d().
+        single operation, using the same layout.
         '''
         if self._slopes_map_idx is not None:
             self.xp.put(self.slopes_map.value, self._slopes_map_idx, self.slopes.slopes)
@@ -240,19 +281,8 @@ class Slopec(BaseProcessingObj):
             )
             return
 
-        # Same geometry as Slopes.get2d()
-        idx = self.slopes.display_map
-        mask_shape = self.slopes.single_mask.shape
-        flat_idx = idx if len(idx.shape) == 1 else idx[0] * mask_shape[1] + idx[1]
-        if self.slopes.slopes.size == len(idx):
-            # slopes from intensity case
-            if len(idx.shape) == 1:
-                self._slopes_map_idx = flat_idx
-        elif self.slopes.slopes.size == 2 * len(flat_idx):
-            map_idx = self.xp.zeros(self.slopes.slopes.size, dtype=flat_idx.dtype)
-            map_idx[self.slopes.indx()] = flat_idx
-            map_idx[self.slopes.indy()] = flat_idx + mask_shape[0] * mask_shape[1]
-            self._slopes_map_idx = map_idx
+        # Same layout as Slopes.get2d()
+        self._slopes_map_idx = self.slopes.layout.value_idx(self.xp, self.slopes.interleave)
 
     def post_trigger(self):
         super().post_trigger()

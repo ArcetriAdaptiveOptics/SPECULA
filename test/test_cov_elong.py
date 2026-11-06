@@ -4,6 +4,7 @@ specula.init(0)  # Default target device
 
 import unittest
 import logging
+from unittest import mock
 
 from specula import np
 from specula import cpuArray
@@ -32,6 +33,13 @@ class TestCovTRunc(unittest.TestCase):
         sigma_noise2 = 1.0
         t_g_parameter = 0.0
         h_in_m = 90e3
+
+        # The IDL reference used the sub-aperture corners, i.e. positions
+        # shifted by -d/2 from the centres used now (d = diameter / n_sub_aps):
+        # the same as the centres with the launcher shifted by +d/2.
+        half_sa = diameter_in_m / n_sub_aps / 2
+        launcher_coord_in_m = [launcher_coord_in_m[0] + half_sa,
+                               launcher_coord_in_m[1] + half_sa, 0.]
 
         # Compute covariance matrix with Python function
         cov = calc_noise_cov_elong(
@@ -318,7 +326,7 @@ class TestCovTRunc(unittest.TestCase):
         zenith_angle_in_deg = 30.
         na_thickness_in_m = 10e3
         launcher_coord_in_m = [5.0, 0.0, 0.0] # Launcher purely on X-axis
-        n_sub_aps = 4
+        n_sub_aps = 5  # odd: the centres of the middle row are on the X axis
         mask_sub_aps = make_mask(n_sub_aps, xp=xp)
         sub_aps_index = xp.where(mask_sub_aps)
         sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
@@ -334,8 +342,8 @@ class TestCovTRunc(unittest.TestCase):
         # Y coordinates of sub-apertures. unravel_index returns (Y, X) coordinates.
         y_coords, x_coords = xp.unravel_index(sub_aps_index_1D, (n_sub_aps, n_sub_aps))
 
-        # Look for sub-apertures that are on the horizontal center line (Y-axis) of the grid.
-        # For n_sub_aps=4, the center Y would be between indices 1 and 2 (0-based), so we can check for those.
+        # Sub-apertures of the middle row: their centres are on the X axis
+        # (y = 0), like the launcher, so their elongation is along X only.
         center_y_idx = n_sub_aps // 2
         on_axis_mask = y_coords == center_y_idx
 
@@ -371,3 +379,37 @@ class TestCovTRunc(unittest.TestCase):
                 t_g_parameter, only_diag=False, display=False, log_level=logging.INFO
         )
 
+
+    @cpu_and_gpu
+    def test_gaussian_fit_failure_logs_warning(self, target_device_idx, xp):
+        """A failing 1D Gaussian fit must log a warning and fall back to
+        non-elongated spots (beta1 = beta2 = 0), not raise."""
+        n_sub_aps = 4
+        mask_sub_aps = make_mask(n_sub_aps, xp=xp)
+        sub_aps_index = xp.where(mask_sub_aps)
+        sub_aps_index_1D = xp.ravel_multi_index(sub_aps_index, mask_sub_aps.shape)
+        n_valid = len(cpuArray(sub_aps_index_1D))
+
+        failing_fitter = mock.Mock(side_effect=RuntimeError('forced failure'))
+        module_name = 'specula.lib.calc_noise_cov_elong'
+        with mock.patch(f'{module_name}.fitting.LevMarLSQFitter',
+                        return_value=failing_fitter):
+            with self.assertLogs(module_name, level=logging.WARNING) as logs:
+                cov = cpuArray(calc_noise_cov_elong(
+                    8, 30., 10e3, [3.0, 3.0, 0.], sub_aps_index_1D, n_sub_aps,
+                    sub_aps_fov=5.0, sh_spot_fwhm=1.0, sigma_noise2=1.0,
+                    t_g_parameter=0.0, h_in_m=90e3, eta_is_not_one=True,
+                    only_diag=False
+                ))
+
+        self.assertTrue(any('1D Gaussian fit failed' in m for m in logs.output))
+        self.assertTrue(failing_fitter.called)
+        self.assertTrue(np.all(np.isfinite(cov)))
+
+        # beta1 = beta2 = 0: x and y precisions are equal (eta / sigma_noise2)
+        # and there is no x-y coupling.
+        diag = np.diag(cov)
+        np.testing.assert_allclose(diag[:n_valid], diag[n_valid:])
+        self.assertTrue(np.all(diag > 0))
+        np.testing.assert_array_equal(np.diag(cov, k=n_valid), 0.0)
+        np.testing.assert_array_equal(np.diag(cov, k=-n_valid), 0.0)

@@ -13,11 +13,70 @@ def psf_abs2(v, xp):
 PsfGeometry = namedtuple('PsfGeometry', 'pixel_size_mas nd')
 
 
-def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normalize=False, nocenter=False, return_total=False):
+def calc_psf_from_ef(u_ef, xp=np, out=None, normalize=False, nocenter=False, return_total=False):
+    """
+    Calculates a PSF from an (already zero-padded, if needed) complex electric field.
+
+    Parameters
+    ----------
+    u_ef : ndarray
+        2D complex electric field. It is overwritten by the calculation.
+    xp : module, optional
+       numpy-like module to use (usually np or cp). Default to standard numpy
+    out : ndarray, optional
+        Real array with the same shape as u_ef where the PSF is stored.
+        If not given, a new array is allocated.
+    normalize : bool, optional
+        If set, the PSF is normalized to total(psf).
+    nocenter : bool, optional
+        If set, avoids centering the PSF and leaves the maximum pixel at [0,0].
+    return_total: bool, optional
+        If set, return a (psf, total) tuple instead of just the psf.
+
+    Returns
+    -------
+    psf : ndarray
+        2D PSF (same dimensions as u_ef)
+    (psf, total): tuple of (ndarray, scalar)
+        2D PSF  (same dimensions as u_ef) and PSF total intensity as a scalar number
+    """
+    # Compute FFT (forward)
+    u_fp = xp_fft(xp).fft2(u_ef, overwrite_x=True)
+    if out is None:
+        out = xp.empty(u_fp.shape, dtype=u_fp.real.dtype)
+
+    # Compute the PSF as the square modulus of the Fourier transform
+    if nocenter:
+        out[...] = psf_abs2(u_fp, xp=xp)
+    else:
+        # Center the PSF, doing the fftshift one quadrant at a time
+        # to avoid a full-size complex temporary
+        ny, nx = u_fp.shape
+        hy, hx = ny // 2, nx // 2
+        ay, ax = ny - hy, nx - hx
+        out[:hy, :hx] = psf_abs2(u_fp[ay:, ax:], xp=xp)
+        out[:hy, hx:] = psf_abs2(u_fp[ay:, :ax], xp=xp)
+        out[hy:, :hx] = psf_abs2(u_fp[:ay, ax:], xp=xp)
+        out[hy:, hx:] = psf_abs2(u_fp[:ay, :ax], xp=xp)
+
+    # Normalize if required
+    total_psf = xp.sum(out)
+    if normalize:
+        out /= total_psf
+
+    if return_total:
+        return out, total_psf
+    else:
+        return out
+
+
+def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normalize=False, nocenter=False,
+             return_total=False, out=None):
     """
     Calculates a PSF from an electrical field phase and amplitude.
 
-    Parameters:
+    Parameters
+    ----------
     phase : ndarray
         2D phase array.
     amp : ndarray
@@ -35,8 +94,11 @@ def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normal
         If set, avoids centering the PSF and leaves the maximum pixel at [0,0].
     return_total: bool, optional
         If set, return a (psf, total) tuple instead of just the psf.
+    out : ndarray, optional
+        Real array where the PSF is stored. If not given, a new array is allocated.
 
-    Returns:
+    Returns
+    -------
     psf : ndarray
         2D PSF (same dimensions as phase)
     (psf, total): tuple of (ndarray, scalar)
@@ -51,23 +113,9 @@ def calc_psf(phase, amp, xp=np, complex_dtype=np.complex64, imwidth=None, normal
         u_ef[:s[0], :s[1]] = result
     else:
         u_ef = amp * xp.exp(complex_dtype(1j) * phase)
-    # Compute FFT (forward)
-    u_fp = xp_fft(xp).fft2(u_ef)
-    # Center the PSF if required
-    if not nocenter:
-        u_fp = xp_fft(xp).fftshift(u_fp)
-    # Compute the PSF as the square modulus of the Fourier transform
-    psf = psf_abs2(u_fp, xp=xp)
 
-    # Normalize if required
-    total_psf = xp.sum(psf)
-    if normalize:
-        psf /= total_psf
-
-    if return_total:
-        return psf, total_psf
-    else:
-        return psf
+    return calc_psf_from_ef(u_ef, xp=xp, out=out, normalize=normalize,
+                            nocenter=nocenter, return_total=return_total)
 
 
 def calc_psf_geometry(pixel_pupil: int,

@@ -1,3 +1,8 @@
+"""
+Plotting utilities: influence functions and modes (``display_ifunc_2d``),
+MCAO geometry (``display_mcao_geom``) and LGS geometry seen by a
+Shack-Hartmann WFS (``display_lgs_geometry``).
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import patches
@@ -378,3 +383,232 @@ def display_mcao_geom(diam, no_gs, gs_height, dm_height, gs_fov_diam_asec,
         'figure': fig,
         'axes': ax,
     }
+
+
+def display_lgs_geometry(diameter_in_m: float, n_sub_aps: int, launcher_coord_in_m,
+                         sub_aps_fov: float, sh_spot_fwhm: float,
+                         na_thickness_in_m: float, h_in_m: float = 90e3,
+                         zenith_angle_in_deg: float = 0.0,
+                         wfs_rotation_in_deg: float = None, sub_aps_index=None,
+                         gs_polar_coordinates=None, n_show: int = 2,
+                         title: str = None, figsize=None,
+                         show_plot: bool = True):
+    """
+    Display the LGS geometry seen by a Shack-Hartmann WFS: pupil, launcher
+    and the elongated spots of a few sub-apertures.
+
+    The geometry (sub-aperture centres, elongation) is the one of the
+    geometric branch of ``calc_noise_cov_elong``. In the WFS frame x is along
+    the columns and y along the rows of the pupil arrays.
+
+    Left panel, in the telescope frame (WFS frame if wfs_rotation_in_deg is
+    None), with the WFS axes drawn at the centre: pupil, launcher, GS
+    direction and the n_show x n_show sub-apertures shown
+    (the valid ones closest to a regular grid of points spanning the pupil,
+    for n_show = 2 the four pupil edges at 45 deg). Right panel: the field of
+    view of those sub-apertures with the spot as an ellipse of axes
+    sh_spot_fwhm and sqrt(sh_spot_fwhm**2 + beta**2), beta being the
+    elongation.
+
+    Parameters
+    ----------
+    diameter_in_m : float [m]
+        Pupil diameter.
+    n_sub_aps : int
+        Number of sub-apertures across the diameter.
+    launcher_coord_in_m : array_like [m]
+        Launcher position [x, y(, z)], in the WFS frame, or in the telescope
+        frame if wfs_rotation_in_deg is given.
+    sub_aps_fov : float [arcsec]
+        Sub-aperture field of view.
+    sh_spot_fwhm : float [arcsec]
+        FWHM of the short axis of the spot.
+    na_thickness_in_m : float [m]
+        Sodium layer FWHM.
+    h_in_m : float [m], optional
+        Sodium layer altitude. Default 90 km.
+    zenith_angle_in_deg : float [deg], optional
+        Zenith angle.
+    wfs_rotation_in_deg : float [deg], optional
+        If given, the launcher is in the telescope frame and is rotated into
+        the WFS frame (``launcher_in_wfs_frame``). Launcher, GS and shown
+        sub-apertures are drawn both at their WFS-frame coordinates (filled)
+        and at their telescope-frame position (hollow / dashed).
+    sub_aps_index : array_like of int, optional
+        Valid sub-apertures (flattened indices). Default: the sub-apertures
+        whose centre is inside the pupil.
+    gs_polar_coordinates : array_like [arcsec, deg], optional
+        Guide star direction, as ``Source.polar_coordinates``. Drawn as an
+        arrow from the pupil centre. With wfs_rotation_in_deg it is taken in
+        the telescope frame and also drawn rotated into the WFS frame;
+        without, it is drawn as given, i.e. it must already be in the WFS
+        frame.
+    n_show : int, optional
+        Number of sub-apertures shown per side. Default 2.
+    title : str, optional
+        Figure title.
+    figsize : tuple, optional
+        Matplotlib figure size in inches.
+    show_plot : bool, optional
+        If True, display the figure.
+
+    Returns
+    -------
+    dict
+        'fig', 'launcher_wfs' [m], 'n_valid', 'shown_index' (flattened
+        indices, top-left to bottom-right), 'beta1', 'beta2' [arcsec] and
+        'orientation_deg' (long axis angle from x) of the shown sub-apertures.
+    """
+    # Local import: calc_noise_cov_elong imports astropy.modeling
+    from specula.lib.calc_noise_cov_elong import sub_aperture_centres, geometric_elongation
+    from specula.data_objects.laser_launch_telescope import launcher_in_wfs_frame
+
+    launcher = np.zeros(3)
+    launcher[:len(launcher_coord_in_m)] = np.asarray(cpuArray(launcher_coord_in_m), dtype=float)
+    if wfs_rotation_in_deg is not None:
+        launcher_wfs = np.asarray(launcher_in_wfs_frame(launcher, [0.0, 0.0],
+                                                        wfs_rotation_in_deg)[0])
+    else:
+        launcher_wfs = launcher
+
+    pitch = diameter_in_m / n_sub_aps
+    if sub_aps_index is None:
+        all_centres = sub_aperture_centres(np.arange(n_sub_aps**2), n_sub_aps, diameter_in_m)
+        sub_aps_index = np.flatnonzero(np.hypot(all_centres[:, 0], all_centres[:, 1])
+                                       <= diameter_in_m / 2)
+    sub_aps_index = np.asarray(cpuArray(sub_aps_index), dtype=np.int64)
+    centres = sub_aperture_centres(sub_aps_index, n_sub_aps, diameter_in_m)
+
+    # Target points: n_show x n_show grid, top row first (as seen on the plot)
+    r_target = diameter_in_m / 2 / np.sqrt(2) if n_show > 1 else 0.0
+    t = np.linspace(-r_target, r_target, n_show)
+    shown = []
+    for ty in t[::-1]:
+        for tx in t:
+            shown.append(int(np.argmin(np.hypot(centres[:, 0] - tx, centres[:, 1] - ty))))
+    shown = np.array(shown)
+
+    airmass = 1 / np.cos(np.radians(zenith_angle_in_deg))
+    beta1, beta2 = geometric_elongation(centres[shown] - launcher_wfs[:2],
+                                        h_in_m * airmass, na_thickness_in_m * airmass)
+    beta = np.hypot(beta1, beta2)
+    orientation_deg = np.degrees(np.arctan2(beta2, beta1))
+
+    fig, (ax_p, ax_s) = plt.subplots(1, 2, figsize=figsize or (12, 7.5), layout='constrained')
+    # More room [inches] between titles, panels, x labels and legend than the default 0.04
+    fig.get_layout_engine().set(h_pad=0.15, w_pad=0.1)
+
+    # --- Left: pupil, launcher, GS, shown sub-apertures ---
+    # Outer axes: telescope frame (WFS frame if wfs_rotation_in_deg is None).
+    # Filled/solid markers: coordinates in the WFS frame; hollow/dashed:
+    # coordinates in the telescope frame, i.e. where the object physically is.
+    # A point at WFS coordinates c is at R(-rotation) c in the telescope frame.
+    rotated = wfs_rotation_in_deg is not None
+    rot = np.radians(wfs_rotation_in_deg) if rotated else 0.0
+    to_tel = np.array([[np.cos(rot), np.sin(rot)],
+                       [-np.sin(rot), np.cos(rot)]])  # R(-rotation)
+
+    ax_p.add_patch(patches.Circle((0, 0), diameter_in_m / 2, fill=False, color='k'))
+    square = 0.5 * pitch * np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]])
+    for k, i in enumerate(shown):
+        c = centres[i]
+        ax_p.plot([launcher_wfs[0], c[0]], [launcher_wfs[1], c[1]], ':', color='gray', lw=0.8)
+        ax_p.add_patch(patches.Polygon(c + square, color='C0'))
+        ax_p.annotate(str(k + 1), c, xytext=(4, 4), textcoords='offset points', color='C0')
+        if rotated:
+            # (n, 2) row vectors: p_tel = R c  ->  p_tel = c @ R.T
+            ax_p.add_patch(patches.Polygon((c + square) @ to_tel.T, fill=False, color='C0'))
+    # Outline joining the corner sub-apertures of the n_show x n_show set
+    # (shown is ordered row by row, top row first)
+    corners = centres[shown[[0, n_show - 1, n_show**2 - 1, n_show**2 - n_show]]]
+    ax_p.add_patch(patches.Polygon(corners, fill=False, color='C0', lw=0.8))
+    if rotated:
+        ax_p.add_patch(patches.Polygon(corners @ to_tel.T, fill=False, color='C0', lw=0.8,
+                                       ls='--'))
+    ax_p.plot([], [], 's', color='C0', label='sub-apertures (WFS frame)')
+    if rotated:
+        ax_p.plot([], [], 's', mfc='none', color='C0', label='sub-apertures (telescope frame)')
+
+    if gs_polar_coordinates is not None:
+        gs_r, gs_angle = (float(v) for v in cpuArray(gs_polar_coordinates))
+        gs_angle_wfs = gs_angle + np.degrees(rot)
+        arrow_len = 0.6 * diameter_in_m / 2
+        for angle, style in ([(gs_angle_wfs, {'lw': 2})]
+                             + ([(gs_angle, {'ls': '--'})] if rotated else [])):
+            ax_p.annotate('', xytext=(0, 0),
+                          xy=(arrow_len * np.cos(np.radians(angle)),
+                              arrow_len * np.sin(np.radians(angle))),
+                          arrowprops={'arrowstyle': '->', 'color': 'C2', **style})
+        ax_p.plot([], [], '-', color='C2', lw=2, label='GS direction (WFS frame)')
+        if rotated:
+            ax_p.plot([], [], '--', color='C2', label='GS direction (telescope frame)')
+
+    ax_p.plot(*launcher_wfs[:2], '*', color='C3', ms=14, label='launcher (WFS frame)')
+    if rotated:
+        ax_p.plot(*launcher[:2], '*', mfc='none', color='C3', ms=14,
+                  label='launcher (telescope frame)')
+        # WFS axes (x = columns, y = rows) drawn in the telescope frame
+        axis_len = 0.375 * diameter_in_m / 2
+        for axis, name in zip(to_tel.T, ('x WFS', 'y WFS')):
+            ax_p.annotate('', xytext=(0, 0), xy=axis_len * axis,
+                          arrowprops={'arrowstyle': '->', 'color': 'gray', 'lw': 1.5})
+            ax_p.text(*(1.2 * axis_len * axis), name, color='gray', ha='center',
+                      va='center', fontsize='small')
+
+    lim = 1.1 * max(diameter_in_m / 2, np.max(np.abs(launcher_wfs[:2])),
+                    np.max(np.abs(launcher[:2])))
+    ax_p.set_xlim(-lim, lim)
+    ax_p.set_ylim(-lim, lim)
+    ax_p.set_aspect('equal')
+    frame = 'telescope frame' if rotated else 'WFS frame, columns'
+    ax_p.set_xlabel(f'x [m] ({frame})')
+    ax_p.set_ylabel(f'y [m] ({"telescope frame" if rotated else "WFS frame, rows"})')
+    # Figure legend and x label: both included in the constrained layout
+    fig.legend(*ax_p.get_legend_handles_labels(), loc='outside lower left', ncol=3,
+               fontsize='small')
+    info = (f'{n_sub_aps}x{n_sub_aps} sub-apertures, {len(sub_aps_index)} valid\n'
+            f'shown: {len(shown)} ({n_show}x{n_show}), pitch {pitch:.3f} m\n'
+            f'launcher (WFS frame): ({launcher_wfs[0]:.2f}, {launcher_wfs[1]:.2f}) m, '
+            f'{np.degrees(np.arctan2(launcher_wfs[1], launcher_wfs[0])):.1f} deg')
+    if rotated:
+        info += (f'\nlauncher (telescope frame): ({launcher[0]:.2f}, {launcher[1]:.2f}) m, '
+                 f'{np.degrees(np.arctan2(launcher[1], launcher[0])):.1f} deg')
+    if gs_polar_coordinates is not None:
+        info += f'\nGS: {gs_r:g}" at {gs_angle_wfs:g} deg (WFS frame)'
+        if rotated:
+            info += f', {gs_angle:g} deg (telescope frame)'
+    if rotated:
+        info += f'\nWFS rotation {wfs_rotation_in_deg:g} deg'
+    ax_s.set_xlabel(info, loc='left', fontsize='small', labelpad=12)
+
+    # --- Right: field of view of the shown sub-apertures with the spots ---
+    gap = 0.15 * sub_aps_fov
+    step = sub_aps_fov + gap
+    for k, i in enumerate(shown):
+        row, col = divmod(k, n_show)
+        x0 = col * step
+        y0 = (n_show - 1 - row) * step
+        ax_s.add_patch(patches.Rectangle((x0 - sub_aps_fov / 2, y0 - sub_aps_fov / 2),
+                                         sub_aps_fov, sub_aps_fov, fill=False, color='C0'))
+        ax_s.add_patch(patches.Ellipse((x0, y0), np.hypot(sh_spot_fwhm, beta[k]),
+                                       sh_spot_fwhm, angle=orientation_deg[k],
+                                       color='C3', alpha=0.6))
+        ax_s.text(x0 - sub_aps_fov / 2 + 0.03 * sub_aps_fov,
+                  y0 + sub_aps_fov / 2 - 0.03 * sub_aps_fov,
+                  f'{k + 1}: beta {beta[k]:.2f}"', va='top', fontsize='small')
+    ax_s.set_xlim(-sub_aps_fov / 2 - gap, (n_show - 1) * step + sub_aps_fov / 2 + gap)
+    ax_s.set_ylim(-sub_aps_fov / 2 - gap, (n_show - 1) * step + sub_aps_fov / 2 + gap)
+    ax_s.set_aspect('equal')
+    ax_s.set_xticks([])
+    ax_s.set_yticks([])
+    ax_s.set_title(f'spots (FWHM ellipses, WFS frame), FoV {sub_aps_fov:g}" per sub-aperture',
+                   fontsize='medium')
+
+    if title is not None:
+        fig.suptitle(title)
+    if show_plot:
+        plt.show()
+
+    return {'fig': fig, 'launcher_wfs': launcher_wfs, 'n_valid': len(sub_aps_index),
+            'shown_index': sub_aps_index[shown], 'beta1': beta1, 'beta2': beta2,
+            'orientation_deg': orientation_deg}

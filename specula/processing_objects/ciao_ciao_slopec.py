@@ -3,6 +3,7 @@ from specula.lib.interp2d import Interp2D
 from specula.data_objects.pupilstop import Pupilstop
 from specula.processing_objects.slopec import Slopec
 from specula.data_objects.slopes import Slopes
+from specula.lib.slopes_layout import SlopesLayout
 from skimage.restoration import unwrap_phase
 
 class CiaoCiaoSlopec(Slopec):
@@ -17,6 +18,9 @@ class CiaoCiaoSlopec(Slopec):
     5. Extracts the phase (arctan2) and (optionally) unwraps it.
     6. Converts the phase to OPD.
     7. Exports the OPD map as a flattened output vector.
+
+    clamp_negative (see Slopec): the negative pixels of the interferogram are
+    set to zero before the FFT.
     """
     def __init__(self,
                  wavelength_in_nm: float,
@@ -52,6 +56,11 @@ class CiaoCiaoSlopec(Slopec):
         unwrap : bool, optional
             If True, performs 2D phase unwrapping using skimage (runs on CPU).
             Default is False.
+        sn : Slopes, optional
+            Slope null (see Slopec).
+        **kwargs
+            Passed to Slopec (e.g. clamp_negative, default True: the negative
+            pixels of the interferogram are set to zero before the FFT).
         """
         self.wavelength = float(wavelength_in_nm)
         self.window_x = float(window_x_in_pix)
@@ -93,11 +102,9 @@ class CiaoCiaoSlopec(Slopec):
             self.slopes.resize(nslopes)
         self._nslopes = nslopes
 
-        # CiaoCiao exports a flattened 2D OPD map rather than X/Y subap slopes.
-        # Populate the Slopes remapping metadata so the standard display can
-        # reconstruct the original 2D image.
-        self.slopes.single_mask = self.xp.ones(shape, dtype=self.dtype)
-        self.slopes.display_map = self.xp.arange(nslopes)
+        # CiaoCiao exports a flattened 2D OPD map rather than X/Y subap slopes:
+        # the layout lets the standard display reconstruct the original 2D image.
+        self.slopes.layout = SlopesLayout.full_frame(shape)
 
         if self._input_pupil_mask is not None:
             mask = self.to_xp(self._input_pupil_mask.A, dtype=self.dtype)
@@ -134,6 +141,8 @@ class CiaoCiaoSlopec(Slopec):
     def compute_slopes(self):
         # 1. Retrieve the interferogram (current pixels from the CCD)
         pixels = self.local_inputs['in_pixels'].pixels
+        if self.clamp_negative:
+            pixels = self.xp.maximum(pixels, 0)   # a copy: the input is not modified
 
         # 2. Fourier Transform and shift
         ft_intensity = self.fft.fftshift(self.fft.fft2(pixels, norm='ortho'))

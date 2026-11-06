@@ -1,4 +1,4 @@
-
+from specula import fuse
 from specula.lib.calc_psf import calc_psf, calc_psf_geometry
 from specula.lib.radial_profile import (
     compute_radial_profile,
@@ -11,7 +11,6 @@ from iteras.lib.utils import get_async
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
-from specula.data_objects.intensity import Intensity
 from specula.connections import InputValue
 from specula.data_objects.simul_params import SimulParams
 
@@ -20,11 +19,17 @@ import logging
 import numpy as np
 
 
+@fuse(kernel_name='psf_accumulate')
+def psf_accumulate(psf, int_psf, sum_psf_squared, xp):
+    int_psf += psf
+    sum_psf_squared += psf ** 2
+
+
 class PSF(BaseProcessingObj):
-    """ 
-    Point Spread Function (PSF) processing object. 
-    Computes PSF, Strehl ratio (SR), integrated PSF and SR, 
-    and PSF standard deviation over time from an input ElectricField.    
+    """
+    Point Spread Function (PSF) processing object.
+    Computes PSF, Strehl ratio (SR), integrated PSF and SR,
+    and PSF standard deviation over time from an input ElectricField.
 
     Parameters
     ----------
@@ -85,35 +90,25 @@ class PSF(BaseProcessingObj):
         self.compute_metrics_in_trigger = compute_metrics_in_trigger
         self.ee_radius_in_lambda_d = ee_radius_in_lambda_d
 
-        self.sr = BaseValue(target_device_idx=self.target_device_idx,
-                            precision=precision)
-        self.int_sr = BaseValue(target_device_idx=self.target_device_idx,
-                                precision=precision)
-        self.psf = BaseValue(target_device_idx=self.target_device_idx,
-                             precision=precision)
-        self.int_psf = BaseValue(target_device_idx=self.target_device_idx,
-                                precision=precision)
-        self.std_psf = BaseValue(target_device_idx=self.target_device_idx,
-                                precision=precision)
-        self.psf_profile = BaseValue(target_device_idx=self.target_device_idx,
-                                     precision=precision)
-        self.psf_fwhm = BaseValue(target_device_idx=self.target_device_idx,
-                                  precision=precision)
-        self.encircled_energy = BaseValue(target_device_idx=self.target_device_idx,
-                                          precision=precision)
-        self.encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
-                                                    precision=precision)
-        self.int_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
-                                         precision=precision)
-        self.int_psf_fwhm = BaseValue(target_device_idx=self.target_device_idx,
-                                      precision=precision)
-        self.int_encircled_energy = BaseValue(target_device_idx=self.target_device_idx,
-                                              precision=precision)
-        self.int_encircled_energy_at_radius = BaseValue(target_device_idx=self.target_device_idx,
-                                                        precision=precision)
-        self.ref = None
+        def new_value():
+            return BaseValue(target_device_idx=self.target_device_idx, precision=precision)
+
+        self.sr = new_value()
+        self.int_sr = new_value()
+        self.psf = new_value()
+        self.int_psf = new_value()
+        self.std_psf = new_value()
+        self.psf_profile = new_value()
+        self.psf_fwhm = new_value()
+        self.encircled_energy = new_value()
+        self.encircled_energy_at_radius = new_value()
+        self.int_psf_profile = new_value()
+        self.int_psf_fwhm = new_value()
+        self.int_encircled_energy = new_value()
+        self.int_encircled_energy_at_radius = new_value()
         self.count = 0
-        self.first = True
+        self.total_psf = None
+        self._ref_peak = None       # Peak of the diffraction-limited PSF, set at the first trigger
         # Strehl ratio being copied to the host for the log: (buffer, event)
         self._sr_log = None
         self._sr_buffer = None
@@ -159,40 +154,40 @@ class PSF(BaseProcessingObj):
     def setup(self):
         super().setup()
         in_ef = self.local_inputs['in_ef']
-        s = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
-        self.int_psf.value = self.xp.zeros(s, dtype=self.dtype)
-        self._sum_psf_squared = self.xp.zeros(s, dtype=self.dtype)
-        self.std_psf.value = self.xp.zeros(s, dtype=self.dtype)
+        self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
+        # The PSF is computed on a square (imwidth x imwidth) grid
+        imwidth = self.out_size[0]
+        self.psf.value = self.xp.zeros((imwidth, imwidth), dtype=self.dtype)
+        self.int_psf.value = self.xp.zeros(self.out_size, dtype=self.dtype)
+        self._sum_psf_squared = self.xp.zeros(self.out_size, dtype=self.dtype)
+        self.std_psf.value = self.xp.zeros(self.out_size, dtype=self.dtype)
         self.int_sr.value = 0
 
-        self.out_size = [int(np.around(dim * self.nd/2)*2) for dim in in_ef.size]
-        self.ref = Intensity(self.out_size[0], self.out_size[1],
-                             target_device_idx=self.target_device_idx)
+    def _calc_psf(self, phase, amp, out=None):
+        """
+        Compute the normalized PSF, stored in *out* if given.
+        Returns a (psf, total) tuple, where total is the PSF total before normalization
+        """
+        return calc_psf(phase, amp, imwidth=self.out_size[0], normalize=True,
+                        xp=self.xp, complex_dtype=self.complex_dtype,
+                        return_total=True, out=out)
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)
 
-        in_ef = self.local_inputs['in_ef']
-
-        # First time, calculate reference PSF.
-        if self.first:
-            self.ref.i[:] = calc_psf(in_ef.A * 0.0,
-                                     in_ef.A,
-                                     imwidth=self.out_size[0],
-                                     normalize=True,
-                                     xp=self.xp,
-                                     complex_dtype=self.complex_dtype)
-            self.first = False
+        # First time, calculate the diffraction-limited PSF peak.
+        if self._ref_peak is None:
+            in_ef = self.local_inputs['in_ef']
+            # self.psf.value is used as scratch buffer, overwritten in trigger_code()
+            ref_psf, _ = self._calc_psf(self.xp.zeros_like(in_ef.A), in_ef.A, out=self.psf.value)
+            self._ref_peak = ref_psf[self.out_size[0] // 2, self.out_size[1] // 2].copy()
 
     def trigger_code(self):
         in_ef = self.local_inputs['in_ef']
-        self.psf.value, self.total_psf = calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm),
-                                                  in_ef.A, imwidth=self.out_size[0], normalize=True,
-                                                  xp=self.xp, complex_dtype=self.complex_dtype,
-                                                  return_total=True)
-        self.sr.value = self.psf.value[self.out_size[0] // 2, \
-                                       self.out_size[1] // 2] / self.ref.i[self.out_size[0] // 2, \
-                                       self.out_size[1] // 2]
+        psf, self.total_psf = self._calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A,
+                                             out=self.psf.value)
+        # 0-d array division, stays on the device
+        self.sr.value = psf[self.out_size[0] // 2, self.out_size[1] // 2] / self._ref_peak
 
     def can_accelerate(self):
         # trigger_code() only launches GPU work (the Strehl ratio is logged in post_trigger())
@@ -246,9 +241,7 @@ class PSF(BaseProcessingObj):
         return profile, radial_dist, n_px_in_bin
 
     def _compute_profile_metrics(self, psf):
-        radial_profile_data = self._compute_radial_profile_data(psf)
-
-        profile, radial_dist, n_px_in_bin = radial_profile_data
+        profile, radial_dist, n_px_in_bin = self._compute_radial_profile_data(psf)
         fwhm = compute_fwhm_from_profile(profile, radial_dist, xp=self.xp, dtype=self.dtype)
         ee = compute_encircled_energy(profile, n_px_in_bin, xp=self.xp, dtype=self.dtype)
 
@@ -264,17 +257,13 @@ class PSF(BaseProcessingObj):
         return profile, radial_dist, fwhm, ee, ee_at_radius
 
     def _set_radial_profile_output(self, psf, profile_output, norm_peak=None):
-        radial_profile_data = self._compute_radial_profile_data(psf, peak=norm_peak)
-
-        profile, radial_dist, _ = radial_profile_data
+        profile, radial_dist, _ = self._compute_radial_profile_data(psf, peak=norm_peak)
         profile_output.value = self.xp.vstack([radial_dist, profile])
         profile_output.generation_time = self.current_time
 
     def _set_profile_outputs(self, psf, profile_output, fwhm_output,
                              ee_output, ee_at_radius_output):
-        metrics = self._compute_profile_metrics(psf)
-
-        profile, radial_dist, fwhm, ee, ee_at_radius = metrics
+        profile, radial_dist, fwhm, ee, ee_at_radius = self._compute_profile_metrics(psf)
         profile_output.value = self.xp.vstack([radial_dist, profile])
         fwhm_output.value = fwhm
         ee_output.value = self.xp.vstack([radial_dist, ee])
@@ -290,8 +279,7 @@ class PSF(BaseProcessingObj):
         if self.current_time_seconds >= self.start_time:
             self.count += 1
             self.int_sr.value += self.sr.value
-            self.int_psf.value += self.psf.value
-            self._sum_psf_squared += self.psf.value ** 2
+            psf_accumulate(self.psf.value, self.int_psf.value, self._sum_psf_squared, xp=self.xp)
         self.psf.generation_time = self.current_time
         self.sr.generation_time = self.current_time
         self._log_sr()

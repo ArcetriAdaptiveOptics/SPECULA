@@ -47,12 +47,15 @@ class DataSource(BaseProcessingObj):
         self.random_seeds = random_seeds
         self.headers = {}
         self.obj_type = {}
+        self.metadata = {}
 
         for aout in outputs:
             self.loadFromFile(aout)
         for k in self.storage.keys():
             if self.obj_type[k] not in ['BaseValue', 'BaseDataObj']:
                 self.outputs[k] = import_class(self.obj_type[k]).from_header(self.headers[k])
+                if self.metadata.get(k):
+                    self.outputs[k].set_metadata_arrays(self.metadata[k])
             else:
                 self.outputs[k] = BaseValue(target_device_idx=self.target_device_idx)
 
@@ -80,6 +83,9 @@ class DataSource(BaseProcessingObj):
             self.obj_type[name] = self.headers[name]['OBJ_TYPE']
             data = f.read('data', 0)
             times = f.read('times', 1)
+            # Other arrays: metadata of the data object (see BaseDataObj.get_metadata_arrays())
+            self.metadata[name] = {key: f.read(key) for key in f.names()
+                                   if key.lower() not in ('data', 'times')}
         self.storage[name] = {t: data[i] for i, t in enumerate(times.tolist())}
 
     def load_pickle(self, name):
@@ -92,6 +98,7 @@ class DataSource(BaseProcessingObj):
         if 'hdr' in unserialized_data:
             self.headers[name] = unserialized_data['hdr']
             self.obj_type[name] = self.headers[name]['OBJ_TYPE']
+        self.metadata[name] = unserialized_data.get('metadata', {})
 
         self.storage[name] = { t:data[i] for i, t in enumerate(times.tolist())}
 
