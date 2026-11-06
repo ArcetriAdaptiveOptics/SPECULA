@@ -144,7 +144,7 @@ def import_class(classname, additional_modules=None):
 
     Returns
     -------
-    type
+    class
         The class object corresponding to `classname`.
 
     Raises
@@ -174,7 +174,7 @@ def get_type_hints(type):
 
     Parameters
     ----------
-    type : type
+    type : class
         The class whose __init__ type hints are to be collected.
 
     Returns

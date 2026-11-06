@@ -281,17 +281,17 @@ class Slopes(BaseDataObj):
         """
         Save the :class:`~specula.data_objects.slopes.Slopes` object to a FITS file.
 
+        The method writes the slopes data and relevant metadata to a FITS file.
+        The main HDU contains only the header, and the slopes data is stored
+        in an image extension named 'SLOPES'. The :attr:`layout`, if set, is
+        stored in the following extensions (see :meth:`get_metadata_arrays`).
+
         Parameters
         ----------
         filename : str
             The path to the FITS file where the :class:`~specula.data_objects.slopes.Slopes` object will be saved.
         overwrite : bool, optional
             If True, overwrite the existing file if it exists (default: True).
-
-        The method writes the slopes data and relevant metadata to a FITS file.
-        The main HDU contains only the header, and the slopes data is stored
-        in an image extension named 'SLOPES'. The :attr:`layout`, if set, is
-        stored in the following extensions (see :meth:`get_metadata_arrays`).
         """
         storage.write_object(filename, self.get_fits_header(),
                              {'slopes': self.slopes, **self.get_metadata_arrays()},

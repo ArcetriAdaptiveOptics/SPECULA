@@ -117,9 +117,9 @@ class BaseOperation(BaseProcessingObj):
         As a result:
 
         - Broadcasting is supported only if it does not change the shape of the
-        left-hand side (`value1`).
+          left-hand side (`value1`).
         - Shape-expanding broadcasts (e.g. from shape ``(1,)`` to ``(N,)``) are not
-        allowed and will raise an exception.
+          allowed and will raise an exception.
 
         Examples::
 

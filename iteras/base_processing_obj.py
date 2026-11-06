@@ -684,17 +684,18 @@ class BaseProcessingObj(BaseTimeObj):
         Check that all output names declared in self.output_names are present in self.outputs
 
         Supported declaration grammar for output names:
+
         - Exact names, e.g. ``out_ef``
-                - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
-                    (``ModalrecMultirate``)
-                - Placeholder patterns, e.g. ``out_{source_name_}layer``
-                    (``AtmoRandomPhase``)
+        - Placeholder patterns, e.g. ``out_modes_{sensor_idx}``
+          (``ModalrecMultirate``)
+        - Placeholder patterns, e.g. ``out_{source_name_}layer``
+          (``AtmoRandomPhase``)
 
         Notes
         -----
         - Placeholder segments ``{...}`` are treated as wildcards.
-                                - In project classes, placeholder-style declarations are mandatory;
-                                    do not use raw ``*`` declarations in ``output_names()``.
+        - In project classes, placeholder-style declarations are mandatory;
+          do not use raw ``*`` declarations in ``output_names()``.
         - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'output_names'):

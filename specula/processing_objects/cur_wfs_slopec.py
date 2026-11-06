@@ -26,9 +26,8 @@ class CurWfsSlopec(Slopec):
                  target_device_idx: int = None,
                  precision: int = None):
         """
-        Parameters:
+        Parameters
         ----------
-
         diameter: int [pixels]
             Diameter of the pupil in pixels (used to define valid pupil indices).
         ccd_size: tuple [pixels]

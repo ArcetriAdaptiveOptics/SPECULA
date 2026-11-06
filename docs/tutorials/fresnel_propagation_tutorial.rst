@@ -30,7 +30,7 @@ We'll simulate a simple Fresnel propagation with:
 
 
 System Configuration and Running the Simulation
------------------
+-----------------------------------------------
 
 Create a YAML configuration file, for example ``params_fresnel_propagation.yml``:
 
