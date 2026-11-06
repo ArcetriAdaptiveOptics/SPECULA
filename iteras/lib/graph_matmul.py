@@ -22,6 +22,8 @@ simply return `a @ b`.
 """
 import numpy as np
 
+import iteras
+
 # CuPy 12 requires an explicit C++ standard for template kernels (name_expressions);
 # CuPy >= 13 uses this one by default
 _CXX_STD = ('-std=c++17',)
@@ -318,7 +320,7 @@ class SparseColumns:
         # First pass: count, so that a dense matrix is rejected before extracting its elements
         counts = np.zeros(n, dtype=np.int64)
         for r0 in range(0, r, chunk_rows):
-            counts += _to_host((m[r0:r0 + chunk_rows] != 0).sum(axis=0, dtype=np.int32), xp)
+            counts += iteras.cpuArray((m[r0:r0 + chunk_rows] != 0).sum(axis=0, dtype=np.int32))
             if counts.max() > limit:
                 return None
         # Second pass: extract the non-zero elements
@@ -326,8 +328,8 @@ class SparseColumns:
         for r0 in range(0, r, chunk_rows):
             chunk = m[r0:r0 + chunk_rows]
             nz_r, nz_c = xp.nonzero(chunk)
-            vals.append(_to_host(chunk[nz_r, nz_c], xp))
-            nz_r, nz_c = _to_host(nz_r, xp), _to_host(nz_c, xp)
+            vals.append(iteras.cpuArray(chunk[nz_r, nz_c]))
+            nz_r, nz_c = iteras.cpuArray(nz_r), iteras.cpuArray(nz_c)
             rows.append(nz_r + r0)
             cols.append(nz_c)
         rows = np.concatenate(rows).astype(np.int32)
@@ -349,7 +351,12 @@ class SparseColumns:
         """v @ M for a vector v (r,)"""
         xp = self.xp
         if xp is np:
-            return (self.w * v[self.idx]).sum(axis=0)
+            # One row of w at a time, in the order of the GPU kernel:
+            # the temporaries have n elements instead of kmax * n
+            y = self.w[0] * v[self.idx[0]]
+            for k in range(1, self.kmax):
+                y += self.w[k] * v[self.idx[k]]
+            return y
         return self._vecmat_gpu(v)  # pragma: gpu
 
     def _vecmat_gpu(self, v):  # pragma: gpu
@@ -365,7 +372,3 @@ class SparseColumns:
         _sparse_columns_kernels[key](xp.ascontiguousarray(v), self.idx, self.w,
                           np.int32(self.kmax), np.int32(self.n), y)
         return y
-
-
-def _to_host(a, xp):
-    return a if xp is np else a.get()  # pragma: gpu

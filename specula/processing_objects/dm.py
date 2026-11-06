@@ -374,6 +374,8 @@ class DM(BaseProcessingObj):
             raise ValueError(f'ifunc has shape {value.shape}, but '
                              f'{self._ifunc.influence_function.shape} is expected')
         self._ifunc.influence_function = value
+        # This also builds again the sparse form of a mostly zero influence
+        # function (about 1 s for the 4520 x 172988 M4 one)
         self._apply_mode_selection()
 
     @property
