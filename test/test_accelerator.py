@@ -1,3 +1,4 @@
+import re
 import unittest
 
 import specula
@@ -83,7 +84,7 @@ class Slow(BaseProcessingObj):
         self.outputs['out_value'] = self.out
         self.ramp = self.xp.linspace(0, 1, n, dtype=self.dtype)
 
-    def can_accelerate(self):
+    def can_accelerate(self):  # pragma: gpu
         return True
 
     def trigger_code(self):
@@ -154,31 +155,6 @@ class TestTriggerLevels(unittest.TestCase):
         np.testing.assert_allclose(out, ref, rtol=1e-5)
         for obj in (slow, a, b, total):
             self.assertIsNotNone(obj._accel.graph)
-
-    def test_internal_objects(self):
-        '''The internal objects of a container are accelerated, and excluded with it'''
-        class Container(Doubler):
-            def __init__(self):
-                super().__init__(target_device_idx=0)
-                self.parts = [Doubler(target_device_idx=0), Doubler(target_device_idx=-1)]
-
-            def internal_objects(self):
-                return self.parts
-
-        container = Container()
-        container.name = 'cont'
-        accelerator = Accelerator(AcceleratorOptions())
-        accelerator.apply([container])
-        self.assertIsNotNone(container.parts[0]._accel)
-        self.assertIsNone(container.parts[1]._accel)
-        self.assertIn('cont[0]', accelerator.report())
-        self.assertIn('cont[1]', accelerator.report())
-
-        container = Container()
-        container.name = 'cont'
-        Accelerator(AcceleratorOptions(exclude=['cont'])).apply([container])
-        self.assertIsNone(container._accel)
-        self.assertIsNone(container.parts[0]._accel)
 
 
 @unittest.skipIf(cp is None, 'Cupy not found')
@@ -429,6 +405,47 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         self.assertEqual(AcceleratorOptions(exclude=['b', 'a']).as_dict(),
                          {'exclude': ['a', 'b'], 'capture_after': 1, 'check_pointers': True})
 
+    def test_internal_objects(self):
+        '''
+        The internal objects of a container are accelerated, listed as <container>[i],
+        and excluded with it. The objects are on the CPU, made to look on a GPU:
+        apply() only reads target_device_idx.
+        '''
+        class OwnTrigger(Doubler):
+            def trigger(self):
+                '''Not called: the accelerator only checks that the class overrides it'''
+
+        class Container(Doubler):
+            def __init__(self):
+                super().__init__(target_device_idx=-1)
+                self.parts = [Doubler(target_device_idx=-1), Doubler(target_device_idx=-1),
+                              OwnTrigger(target_device_idx=-1), TripleDoubler(target_device_idx=-1)]
+                for obj in [self, self.parts[0], self.parts[2], self.parts[3]]:
+                    obj.target_device_idx = 0
+
+            def internal_objects(self):
+                return self.parts
+
+        container = Container()
+        container.name = 'cont'
+        accelerator = Accelerator(AcceleratorOptions())
+        accelerator.apply([container])
+        self.assertIsNotNone(container._accel)
+        self.assertEqual([p._accel is not None for p in container.parts], [True, False, False, False])
+        report = accelerator.report()
+        self.assertIn('5 objects', report)
+        for i, reason in enumerate(['not captured yet', 'on the CPU', 'overrides trigger()',
+                                    'is not covered']):
+            self.assertRegex(report, rf'cont\[{i}\] .*{re.escape(reason)}')
+
+        container = Container()
+        container.name = 'cont'
+        accelerator = Accelerator(AcceleratorOptions(exclude=['cont']))
+        accelerator.apply([container])
+        self.assertIsNone(container._accel)
+        self.assertIsNone(container.parts[0]._accel)
+        self.assertRegex(accelerator.report(), r'cont\[0\] .*excluded')
+
     def test_declarations_of_the_classes(self):
         from types import SimpleNamespace
         from iteras.processing_objects.base_operation import BaseOperation
@@ -459,6 +476,38 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         self.assertIs(BaseOperation.can_accelerate(op), True)
         op.local_inputs['in_value1'].generation_time = -1
         self.assertIn('in_value1', BaseOperation.can_accelerate(op))
+
+        # The classes that called build_stream() before
+        from specula.processing_objects.atmo_evolution import AtmoEvolution
+        from specula.processing_objects.atmo_propagation import AtmoPropagation
+        from specula.processing_objects.avc import AVC
+        from specula.processing_objects.ext_source_pyramid import ExtSourcePyramid
+        from specula.processing_objects.modulated_double_roof import ModulatedDoubleRoof
+        from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+        from specula.processing_objects.sh import SH
+        from specula.processing_objects.sh_slopec import ShSlopec
+        for klass in (AtmoEvolution, AVC, SH):
+            self.assertIs(klass.can_accelerate(None), True, klass)
+        self.assertIs(AtmoPropagation.can_accelerate(SimpleNamespace(doFresnel=False)), True)
+        self.assertIs(AtmoPropagation.can_accelerate(SimpleNamespace(doFresnel=True)), False)
+        for klass in (ModulatedPyramid, ExtSourcePyramid, ModulatedDoubleRoof):
+            for enable in (True, False):
+                self.assertIs(klass.can_accelerate(SimpleNamespace(stream_enable=enable)), enable, klass)
+        # ShSlopec: not its derived classes, which may compute on the host
+        self.assertIs(ShSlopec.can_accelerate(object.__new__(ShSlopec)), True)
+        derived = type('Derived', (ShSlopec,), {'compute_slopes': lambda self: None})
+        self.assertIs(ShSlopec.can_accelerate(object.__new__(derived)), False)
+
+    def test_internal_objects_of_the_containers(self):
+        from types import SimpleNamespace
+        from specula.processing_objects.distributed_sh import DistributedSH
+        from specula.processing_objects.distributed_ext_source_pyramid import DistributedExtSourcePyramid
+        from specula.processing_objects.poly_chrom_wfs import PolyChromWFS
+        parts = [object(), object()]
+        self.assertEqual(DistributedSH.internal_objects(SimpleNamespace(sub_sh=parts)), parts)
+        self.assertEqual(DistributedExtSourcePyramid.internal_objects(SimpleNamespace(sub_pyr=parts)), parts)
+        self.assertEqual(PolyChromWFS.internal_objects(SimpleNamespace(_wfs_instances=parts)), parts)
+        self.assertEqual(BaseProcessingObj(target_device_idx=-1).internal_objects(), [])
 
     def test_helpers(self):
         import iteras

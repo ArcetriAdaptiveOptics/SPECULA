@@ -749,7 +749,7 @@ class TestShSlopec(unittest.TestCase):
                         slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx,
                                                              use_setup, sn=sn, **kwargs)
                         results[(target_device_idx, use_setup)] = res
-                        if use_setup:
+                        if use_setup:  # pragma: gpu
                             self.assertTrue(graph_captured(slopec))
 
                 msg = f'{kwargs=} {interleave_sn=}'
@@ -786,7 +786,7 @@ class TestShSlopec(unittest.TestCase):
                 super().compute_slopes()
 
         class GraphShSlopec(DerivedShSlopec):
-            def can_accelerate(self):
+            def can_accelerate(self):  # pragma: gpu
                 return True
 
         subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)

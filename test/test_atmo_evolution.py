@@ -585,7 +585,7 @@ class TestAtmoEvolution(unittest.TestCase):
         loop.add(atmo, idx=2)
         loop.start(run_time=0.03, dt=simul_params.time_step)
         accelerate(atmo)
-        if target_device_idx >= 0:
+        if target_device_idx >= 0:  # pragma: gpu
             with self.assertRaisesRegex(AcceleratorError, 'was reallocated'):
                 for _ in range(3):
                     loop.iter()

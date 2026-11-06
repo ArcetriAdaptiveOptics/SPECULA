@@ -214,14 +214,14 @@ class TestBaseProcessingObj(unittest.TestCase):
     # --- CUDA GRAPH CAPTURE TESTS (through the accelerator) ---
 
     @staticmethod
-    def _accelerate(obj):
+    def _accelerate(obj):  # pragma: gpu
         '''Accelerate *obj* as Simul does, returning its GraphRunner'''
         obj.can_accelerate = lambda: True
         Accelerator(AcceleratorOptions()).apply([obj])
         return obj._accel
 
     @staticmethod
-    def _trigger(obj):
+    def _trigger(obj):  # pragma: gpu
         obj.inputs_changed = True
         obj.trigger()
         obj.post_trigger()

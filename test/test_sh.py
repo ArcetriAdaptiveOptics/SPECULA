@@ -541,7 +541,7 @@ class TestSH(unittest.TestCase):
                 step1(t)
                 step2(t)
             self.assertIs(sh1._kernelobj.kernels, sh2._kernelobj.kernels)
-            if target_device_idx >= 0:
+            if target_device_idx >= 0:  # pragma: gpu
                 self.assertTrue(graph_captured(sh2))
             out1 = out(sh1)
 
