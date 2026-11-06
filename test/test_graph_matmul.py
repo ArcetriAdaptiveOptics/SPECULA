@@ -6,7 +6,7 @@ import unittest
 from specula import np
 from specula import cpuArray
 
-from specula.lib.graph_matmul import left_mul, matmul, matvec, vecmat
+from specula.lib.graph_matmul import left_mul, matmul, matvec, vecmat, SparseColumns
 from test.specula_testlib import cpu_and_gpu
 
 
@@ -141,3 +141,54 @@ class TestMatmul(unittest.TestCase):
                     stream.synchronize()
                 np.testing.assert_allclose(cpuArray(out), cpuArray(a @ b), rtol=1e-4, atol=1e-4)
 
+
+class TestSparseColumns(unittest.TestCase):
+
+    @staticmethod
+    def sparse_matrix(rng, r=50, n=300):
+        '''Each column has non-zeros only in a band of up to 4 rows (like zonal influence
+        functions), the last column is all zero'''
+        m = np.zeros((r, n))
+        for j in range(n - 1):
+            r0 = (j * r) // n
+            k = min(1 + j % 4, r - r0)
+            m[r0:r0 + k, j] = rng.standard_normal(k)
+        return m
+
+    @cpu_and_gpu
+    def test_matches_vecmat(self, target_device_idx, xp):
+        rng = np.random.default_rng(7)
+        m = self.sparse_matrix(rng)
+        v = rng.standard_normal(m.shape[0])
+        for dtype, tol in ((np.float64, 1e-12), (np.float32, 1e-5)):
+            with self.subTest(dtype=dtype):
+                sc = SparseColumns.from_dense(xp.asarray(m.astype(dtype)), xp, chunk_rows=16)
+                self.assertEqual(sc.kmax, 4)
+                y = sc.vecmat(xp.asarray(v.astype(dtype)))
+                self.assertEqual(y.dtype, dtype)
+                np.testing.assert_allclose(cpuArray(y), v @ m, rtol=tol, atol=tol)
+
+    @cpu_and_gpu
+    def test_dense_matrix_is_rejected(self, target_device_idx, xp):
+        rng = np.random.default_rng(8)
+        m = xp.asarray(rng.standard_normal((50, 300)))
+        self.assertIsNone(SparseColumns.from_dense(m, xp))
+
+    @cpu_and_gpu
+    def test_captured_in_cuda_graph(self, target_device_idx, xp):  # pragma: gpu
+        if xp is np:
+            self.skipTest('CUDA graphs are GPU only')
+        rng = np.random.default_rng(9)
+        m = self.sparse_matrix(rng)
+        stream = xp.cuda.Stream(non_blocking=True)
+        with stream:
+            sc = SparseColumns.from_dense(xp.asarray(m), xp)
+            v = xp.asarray(rng.standard_normal(m.shape[0]))
+            sc.vecmat(v)    # compiles the kernel outside the capture
+            stream.begin_capture()
+            out = sc.vecmat(v)
+            graph = stream.end_capture()
+            v *= 2           # the graph uses the current values
+            graph.launch(stream)
+            stream.synchronize()
+        np.testing.assert_allclose(cpuArray(out), cpuArray(v) @ m, rtol=1e-12, atol=1e-12)

@@ -11,7 +11,7 @@ from specula.data_objects.layer import Layer
 from specula.data_objects.pupilstop import Pupilstop
 from specula.base_processing_obj import BaseProcessingObj, InputDesc, OutputDesc
 from specula.data_objects.simul_params import SimulParams
-from specula.lib.graph_matmul import matmul
+from specula.lib.graph_matmul import matmul, SparseColumns
 
 class DM(BaseProcessingObj):
     """
@@ -270,7 +270,11 @@ class DM(BaseProcessingObj):
         if self.stroke is not None:
             cmd = self.xp.minimum(self.xp.maximum(-self.stroke, cmd), self.stroke)
 
-        self.layer.phaseInNm[self._ifunc.idx_inf_func] = matmul(self.sign * cmd, self._ifunc_act, self.xp)
+        if self._ifunc_sparse is not None:
+            shape = self._ifunc_sparse.vecmat(self.sign * cmd)
+        else:
+            shape = matmul(self.sign * cmd, self._ifunc_act, self.xp)
+        self.layer.phaseInNm[self._ifunc.idx_inf_func] = shape
         self.layer.generation_time = self.current_time
         self.clip_command.value[:] = cmd
         self.clip_command.generation_time = self.current_time
@@ -308,6 +312,9 @@ class DM(BaseProcessingObj):
             self._m2c_sel = None
             self._ifunc_act = self.xp.ascontiguousarray(
                 self.to_xp(self._ifunc.influence_function[self._sel]))
+        # Zonal or segmented influence functions are mostly zeros: then only
+        # the non-zero elements are read by the trigger (None if dense)
+        self._ifunc_sparse = SparseColumns.from_dense(self._ifunc_act, self.xp)
 
     # Getters and Setters for the attributes
     @property
@@ -367,6 +374,8 @@ class DM(BaseProcessingObj):
             raise ValueError(f'ifunc has shape {value.shape}, but '
                              f'{self._ifunc.influence_function.shape} is expected')
         self._ifunc.influence_function = value
+        # This also builds again the sparse form of a mostly zero influence
+        # function (about 1 s for the 4520 x 172988 M4 one)
         self._apply_mode_selection()
 
     @property

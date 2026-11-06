@@ -123,7 +123,40 @@ class TestDM(unittest.TestCase):
         with self.assertRaises(ValueError):
             dm4 = DM(simul_params, height=0, type_str='zernike', start_mode=3, idx_modes=idx_modes, target_device_idx=target_device_idx)
 
-    
+
+    @cpu_and_gpu
+    def test_dm_sparse_ifunc(self, target_device_idx, xp):
+        '''Segment-like influence functions (each actuator moves a 2x2 block) use
+        the sparse product, with and without m2c, and give the dense result'''
+        simul_params = SimulParams(time_step=1, pixel_pupil=6, pixel_pitch=1)
+        rng = np.random.default_rng(3)
+        ifunc_np = np.zeros((9, 6, 6))
+        for a in range(9):
+            y, x = divmod(a, 3)
+            ifunc_np[a, 2 * y:2 * y + 2, 2 * x:2 * x + 2] = rng.uniform(0.5, 1.5, (2, 2))
+        ifunc_np = ifunc_np.reshape(9, 36)
+        m2c_np = rng.standard_normal((9, 5))
+        t = 1
+        for use_m2c in (False, True):
+            with self.subTest(use_m2c=use_m2c):
+                ifunc = IFunc(xp.asarray(ifunc_np), mask=xp.ones((6, 6)), target_device_idx=target_device_idx)
+                m2c = M2C(xp.asarray(m2c_np), target_device_idx=target_device_idx) if use_m2c else None
+                nmodes = 5 if use_m2c else 9
+                cmd = rng.standard_normal(nmodes)
+                in_dm = BaseValue(value=xp.asarray(cmd), target_device_idx=target_device_idx)
+                in_dm.generation_time = t
+                dm = DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, nmodes=nmodes,
+                        target_device_idx=target_device_idx)
+                dm.inputs['in_command'].set(in_dm)
+                dm.setup()
+                self.assertIsNotNone(dm._ifunc_sparse)
+                dm.check_ready(t)
+                dm.trigger()
+                dm.post_trigger()
+                act = m2c_np @ cmd if use_m2c else cmd
+                expected = (-act @ ifunc_np).reshape(6, 6)
+                assert_array_almost_equal(cpuArray(dm.outputs['out_layer'].phaseInNm), expected, decimal=5)
+
     @cpu_and_gpu
     def test_dm_stroke_clipping(self, target_device_idx, xp):
         """ Test command clipping """
