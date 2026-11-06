@@ -1,24 +1,14 @@
-import functools
-
 from astropy.io import fits
 import numpy as np
 
-import specula
+from specula import fuse
 from specula.base_data_obj import BaseDataObj
 from iteras.lib import storage
 
 
-@functools.cache
-def _ef_kernel():  # pragma: gpu
-    '''
-    amp * exp(i * phase * k) in a single kernel, with the same operations
-    as the numpy code in ElectricField.ef_at_lambda(). Created at the first
-    GPU call, so that this module can be imported before init().
-    '''
-    return specula.cp.ElementwiseKernel(
-        'T amp, T phase, T k', 'C ef',
-        'ef = exp(C(0, phase * k)) * amp',
-        'ef_at_lambda')
+@fuse(kernel_name='ef_at_lambda')
+def _ef_at_lambda(amp, phase, k, out, xp):
+    out[...] = xp.exp(1j * (phase * k)) * amp
 
 
 class ElectricField(BaseDataObj):
@@ -243,26 +233,15 @@ class ElectricField(BaseDataObj):
             slicey = np.s_[:]
         if slicex is None:
             slicex = np.s_[:]
-        if self.xp is not np:
-            # GPU: a single kernel instead of four, writing directly into out
-            self._check_wavelength_compatibility(wavelengthInNm)
-            amp = self.field[0, slicey, slicex]
-            phase = self.field[1, slicey, slicex]
-            if out is None:
-                out = self.xp.empty(amp.shape, dtype=self.complex_dtype)
-            elif out.shape != amp.shape:
-                amp = amp.reshape(out.shape)
-                phase = phase.reshape(out.shape)
-            k = self.dtype((2 * np.pi) / wavelengthInNm)
-            return _ef_kernel()(amp, phase, k, out)
-        phi = self.phi_at_lambda(wavelengthInNm, slicey=slicey, slicex=slicex)
+        self._check_wavelength_compatibility(wavelengthInNm)
         amp = self.field[0, slicey, slicex]
-        if out is not None and out.shape != phi.shape:
-            phi = phi.reshape(out.shape)
-            amp = amp.reshape(out.shape)
-        ef = self.xp.exp(1j * phi, dtype=self.complex_dtype, out=out)
-        ef *= amp
-        return ef
+        phase = self.field[1, slicey, slicex]
+        if out is None:
+            out = self.xp.empty(amp.shape, dtype=self.complex_dtype)
+        k = self.dtype((2 * np.pi) / wavelengthInNm)
+        # A single kernel on GPU. Reshaping to out does nothing if the shapes are the same.
+        _ef_at_lambda(amp.reshape(out.shape), phase.reshape(out.shape), k, out, xp=self.xp)
+        return out
 
     def area(self):
         """
