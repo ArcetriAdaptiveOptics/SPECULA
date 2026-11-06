@@ -572,6 +572,18 @@ class TestComputeIfsCovmat(unittest.TestCase):
                                    rtol=1e-10, atol=1e-10 * np.abs(cov).max())
 
     @cpu_and_gpu
+    def test_symmetric_product_tiles(self, target_device_idx, xp):
+        """The tiled F F^T (lower tiles, mirrored) equals a single product."""
+        from specula.lib.modal_base_generator import _symmetric_product
+        rng = np.random.default_rng(11)
+        for n in (100, 1100, 4100):  # 1 (single product), 2 and 8 tiles
+            f = xp.asarray(rng.standard_normal((n, 300)))
+            out = cpuArray(_symmetric_product(f, xp))
+            f = cpuArray(f)
+            np.testing.assert_allclose(out, f @ f.T, rtol=1e-12, atol=1e-12 * 300)
+            np.testing.assert_array_equal(out, out.T)
+
+    @cpu_and_gpu
     def test_rectangular_mask(self, target_device_idx, xp):
         """Test with non-square pupil mask."""
         mask = xp.ones((20, 30), dtype=xp.float32)
