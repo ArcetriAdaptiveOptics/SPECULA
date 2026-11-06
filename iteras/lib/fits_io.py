@@ -101,27 +101,37 @@ def upload_from_file(filename, offset, shape, src_dtype, out_dtype, target_devic
         with cp.cuda.Device(target_device_idx):
             return cp.empty(shape, dtype=out_dtype)
     chunk = max(1, min(_CHUNK_BYTES // src_dtype.itemsize, size))
+    # The device chunks come from a pool used only for this upload, emptied at the end.
+    # In the default pool their blocks would stay cached: results smaller than a chunk
+    # are carved out of them, so that the next upload needs new chunks (1 GB of cached
+    # blocks after the setup of MORFEO). A deleted pool does not free its memory.
+    staging = cp.cuda.MemoryPool()
     with cp.cuda.Device(target_device_idx), cp.cuda.Stream(non_blocking=True) as stream:
         out = cp.empty(shape, dtype=out_dtype)
         out_flat = out.reshape(-1)
         # Double buffering: a chunk is read while the previous one is uploaded and converted
         host = [np.frombuffer(cp.cuda.alloc_pinned_memory(chunk * src_dtype.itemsize),
                               dtype=src_dtype, count=chunk) for _ in range(2)]
-        dev = [cp.empty(chunk, dtype=src_dtype) for _ in range(2)]
+        with cp.cuda.using_allocator(staging.malloc):
+            dev = [cp.empty(chunk, dtype=src_dtype) for _ in range(2)]
         done = [cp.cuda.Event() for _ in range(2)]
-        with open(filename, 'rb') as f:
-            f.seek(offset)
-            for i, start in enumerate(range(0, size, chunk)):
-                k = i % 2
-                n = min(chunk, size - start)
-                done[k].synchronize()
-                if f.readinto(host[k][:n]) != n * src_dtype.itemsize:
-                    raise EOFError(f'Unexpected end of file reading {filename}')
-                dev[k][:n].set(host[k][:n], stream=stream)
-                if byteswap:
-                    _swap_kernel()(dev[k][:n], out_flat[start:start + n])
-                else:
-                    out_flat[start:start + n] = dev[k][:n]
-                done[k].record(stream)
-        stream.synchronize()
+        try:
+            with open(filename, 'rb') as f:
+                f.seek(offset)
+                for i, start in enumerate(range(0, size, chunk)):
+                    k = i % 2
+                    n = min(chunk, size - start)
+                    done[k].synchronize()
+                    if f.readinto(host[k][:n]) != n * src_dtype.itemsize:
+                        raise EOFError(f'Unexpected end of file reading {filename}')
+                    dev[k][:n].set(host[k][:n], stream=stream)
+                    if byteswap:
+                        _swap_kernel()(dev[k][:n], out_flat[start:start + n])
+                    else:
+                        out_flat[start:start + n] = dev[k][:n]
+                    done[k].record(stream)
+        finally:
+            stream.synchronize()
+            del dev
+            staging.free_all_blocks()
     return out
