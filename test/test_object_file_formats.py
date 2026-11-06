@@ -479,7 +479,9 @@ class TestRestore(unittest.TestCase):
                                              spot_size=spot_size, pupil_size_m=8.0,
                                              data_dir=self.tmp.name, target_device_idx=-1)
         kernel = make()
-        kernel.prepare_for_sh(current_time=1)       # computes and saves the file
+        kernel.build()
+        kernel.calculate_lgs_map()
+        kernel.save(os.path.join(self.tmp.name, 'kernel.fits'))
         files = [p for p in Path(self.tmp.name).iterdir() if storage.object_format(p)]
         self.assertEqual(len(files), 1)
         restored = GaussianConvolutionKernel.restore(files[0], target_device_idx=-1)

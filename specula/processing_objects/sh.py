@@ -27,31 +27,6 @@ def abs2(u_fp, out, xp):
     out[:] = xp.real(u_fp * xp.conj(u_fp))
 
 
-def kernel_sampling_factor(sample, band_edge, fwhm, tol=1e-6, max_factor=16):
-    """
-    Smallest integer factor r (up to max_factor) by which the sampling `sample`
-    [arcsec] of a Gaussian kernel of the given FWHM [arcsec] must be refined, so
-    that the Fourier coefficients of the sampled (and unit-sum normalized) kernel
-    differ from the true ones by less than tol at all frequencies up to
-    `band_edge` [1/arcsec], i.e. in the band of the PSF it is convolved with.
-
-    Sampling at s / r makes the spectrum periodic with period r / s: the error
-    is the sum of the aliased copies. It is small both for kernels much wider
-    than the sample (well sampled) and much narrower (close to a delta, whose
-    spectrum is flat in the band), and largest in between.
-    """
-    sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
-    khat = lambda f: np.exp(-2 * np.pi ** 2 * sigma ** 2 * f ** 2)
-    f = np.linspace(0, band_edge, 65)
-    m = np.arange(-64, 65)
-    for r in range(1, max_factor + 1):
-        period = r / sample
-        sampled = khat(f[:, None] - m[None, :] * period).sum(axis=1) / khat(m * period).sum()
-        if np.max(np.abs(sampled - khat(f))) < tol:
-            return r
-    return max_factor
-
-
 class SH(BaseProcessingObj):
     """
     Shack-Hartmann wavefront sensor processing object.
@@ -297,17 +272,11 @@ class SH(BaseProcessingObj):
         self._fov_ovs = self._ovs_ef_size / ef_size
         self._ovs_np_sub = self._ovs_ef_size // n_lenses
 
-        # Zero padding by 2: enough for the band-limited PSF (see pixel_integration_matrix())
+        # Zero padding by 2: enough for the band-limited PSF (see pixel_integration_matrix()),
+        # and for the LGS convolution kernels, whose Fourier coefficients are computed in
+        # closed form (see lgs_kernel_spectrum()), so they are exact in the band of the PSF
         self._fft_size = 2 * self._ovs_np_sub
         self._fft_period_arcsec = native_period * self._fov_ovs
-        # The LGS convolution kernels are not band limited: sampled on the FFT grid,
-        # their Fourier coefficients in the PSF band can be wrong by aliasing. The FFT
-        # size is multiplied by the smallest integer factor that makes them accurate
-        # (any FFT size >= 2 * n is exact for the PSF itself).
-        if self._laser_launch_tel is not None and self._laser_launch_tel.spot_size > 0:
-            self._fft_size *= kernel_sampling_factor(self._fft_period_arcsec / self._fft_size,
-                                                     (self._ovs_np_sub - 1) / self._fft_period_arcsec,
-                                                     self._laser_launch_tel.spot_size)
         self._fov_resolution_arcsec = self._fft_period_arcsec / self._fft_size
 
         self.logger.info('-->     FFT pix. sc. [asec],   {}'.format(self._fov_resolution_arcsec))

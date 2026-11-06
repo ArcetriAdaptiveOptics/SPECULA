@@ -8,8 +8,10 @@ import unittest.mock
 from specula import np
 from specula import cpuArray
 
+from specula.base_value import BaseValue
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.laser_launch_telescope import LaserLaunchTelescope
+from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.sh import SH
 from specula.lib.pixel_integration import pixel_integration_matrix, integrate_pixels
 from test.specula_testlib import cpu_and_gpu
@@ -171,10 +173,9 @@ class TestSHPixelIntegration(unittest.TestCase):
     @cpu_and_gpu
     def test_lgs_gaussian_kernel_vs_analytic_reference(self, target_device_idx, xp):
         """
-        LGS path: the kernel convolution, the N/2 roll of the integration matrix and the
-        kernel sampling factor, against an analytic Gaussian spot. Spot sizes from much
-        wider than the FFT sample to comparable with it (where aliasing would matter).
-        The tolerance is limited by issue #837 (kernels narrower by (N-1)/N).
+        LGS path: the kernel convolution and the N/2 roll of the integration matrix,
+        against an analytic Gaussian spot. Spot sizes from much wider than the FFT
+        sample to comparable with it, where sampled kernels would be aliased.
         """
         npx, pxscale, fov = 4, 1.275, 5.1
         phase = self._phase_nm()
@@ -186,9 +187,78 @@ class TestSHPixelIntegration(unittest.TestCase):
                                       laser_launch_tel=llt, data_dir=data_dir)
                 img = self._normalized(self._subaps(self._run(sh), npx))
                 ref = self._normalized(self._subaps(self._gaussian_reference(sh, npx, pxscale, fwhm), npx))
-                # The kernels are narrower than requested by (N-1)/N (issue #837): the
-                # error is ~1/N. With that fixed it is below 1e-7: then use 1e-6 here.
-                self.assertLess(self._rel_l2(img, ref), 1.5 / sh._fft_size)
+                self.assertEqual(sh._fft_size, 2 * sh._ovs_np_sub)
+                self.assertLess(self._rel_l2(img, ref), 1e-6)
+
+    def _make_elongated_lgs_sh(self, target_device_idx, spot_size=1.2, fft_factor=None):
+        """
+        LGS SH with asymmetric elongated spots: off-axis launcher, uneven sodium
+        profile and a beacon tilt. With fft_factor, the FFT size is fft_factor * n.
+        """
+        llt = LaserLaunchTelescope(simul_params=SimulParams(zenithAngleInDeg=0.0),
+                                   spot_size=spot_size, tel_position=[3.0, -2.0, 0.0],
+                                   beacon_tt=[0.3, -0.2], target_device_idx=target_device_idx,
+                                   precision=0)
+        original = SH._set_in_ef
+
+        def set_in_ef(self_, in_ef):
+            original(self_, in_ef)
+            if fft_factor is not None:
+                self_._fft_size = fft_factor * self_._ovs_np_sub
+                self_._fov_resolution_arcsec = self_._fft_period_arcsec / self_._fft_size
+
+        sh = SH(wavelengthInNm=WAVELENGTH_NM, subap_wanted_fov=5.1, sensor_pxscale=1.275,
+                subap_on_diameter=N_LENSES, subap_npx=4, laser_launch_tel=llt,
+                target_device_idx=target_device_idx, precision=0)
+        ef = ElectricField(PUPIL_PX, PUPIL_PX, PITCH, S0=100, target_device_idx=target_device_idx,
+                           precision=0)
+        ef.phaseInNm[:] = ef.to_xp(self._phase_nm())
+        altitude = BaseValue(value=ef.xp.array([85e3, 89e3, 92e3, 96e3]),
+                             target_device_idx=target_device_idx, precision=0)
+        intensity = BaseValue(value=ef.xp.array([0.1, 0.5, 0.3, 0.1]),
+                              target_device_idx=target_device_idx, precision=0)
+        for obj in (ef, altitude, intensity):
+            obj.generation_time = 1
+        sh.inputs['in_ef'].set(ef)
+        sh.inputs['sodium_altitude'].set(altitude)
+        sh.inputs['sodium_intensity'].set(intensity)
+        SH._set_in_ef = set_in_ef
+        try:
+            sh.setup()
+        finally:
+            SH._set_in_ef = original
+        return sh
+
+    @cpu_and_gpu
+    def test_lgs_elongated_spots_match_sampled_kernels(self, target_device_idx, xp):
+        """
+        Asymmetric elongated spots with a beacon tilt, through the SH: closed-form
+        kernels against the FFT of the sampled ones of lgs_map_sh(), accurate here
+        because the spots are much wider than the FFT sample (with a 1.2 arcsec spot,
+        about 2.6 FFT samples, the sampled kernels are aliased by ~6e-6).
+        """
+        sh = self._make_elongated_lgs_sh(target_device_idx, spot_size=2.4)
+        img = self._run(sh)
+        closed = sh._kernelobj.kernels
+        sh._kernelobj.calculate_lgs_map()  # same parameters, sampled kernels
+        self.assertIsNot(sh._kernelobj.kernels, closed)
+        sh.invalidate_graph()
+        sampled = self._run(sh, t=1)
+        self.assertLess(self._rel_l2(img, sampled), 1e-6)
+        # Mirrored spots would differ by much more
+        sh._kernelobj.kernels = sh._kernelobj.kernels.conj()
+        sh.invalidate_graph()
+        self.assertGreater(self._rel_l2(self._run(sh, t=1), sampled), 1e-2)
+
+    @cpu_and_gpu
+    def test_lgs_result_independent_of_fft_size(self, target_device_idx, xp):
+        """The closed-form kernels are exact in the PSF band for any FFT size >= 2n"""
+        sh = self._make_elongated_lgs_sh(target_device_idx)
+        self.assertEqual(sh._fft_size, 2 * sh._ovs_np_sub)
+        default = self._run(sh)
+        sh4 = self._make_elongated_lgs_sh(target_device_idx, fft_factor=4)
+        self.assertEqual(sh4._fft_size, 4 * sh4._ovs_np_sub)
+        self.assertLess(self._rel_l2(self._run(sh4), default), 1e-10)
 
     @cpu_and_gpu
     def test_negative_pixels_are_clipped(self, target_device_idx, xp):
