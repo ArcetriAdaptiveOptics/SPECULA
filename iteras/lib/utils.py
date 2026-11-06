@@ -110,6 +110,7 @@ def import_class(classname, additional_modules=None):
 
     Given a class name in CamelCase, this function looks for the class
     in all the following packages:
+
         - iteras.processing_objects
         - iteras.data_objects
         - iteras.display
@@ -123,6 +124,7 @@ def import_class(classname, additional_modules=None):
 
     The class name can be qualified, to choose one of several classes with the same
     name or to avoid searching all packages:
+
         - "<prefix>.FooBar", where <prefix> is a plugin (e.g. "specula.FooBar") or
           one of the searched packages: the class is searched only in the packages
           equal to <prefix> or contained in it;
@@ -142,7 +144,7 @@ def import_class(classname, additional_modules=None):
 
     Returns
     -------
-    type
+    class
         The class object corresponding to `classname`.
 
     Raises
@@ -172,7 +174,7 @@ def get_type_hints(type):
 
     Parameters
     ----------
-    type : type
+    type : class
         The class whose __init__ type hints are to be collected.
 
     Returns

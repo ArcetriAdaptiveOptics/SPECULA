@@ -230,9 +230,9 @@ class EFInterpolator():
             If True, enables caching of output ElectricField objects to save memory and
             allocation time (default: False).
             WARNING: when enabled, output ElectricField objects are cached and saving them
-                     with dataStore (or similar mechanisms) will not work. Only the last
-                     output ElectricField created with a specific shape and parameters will
-                     be valid, all the others will be overwritten by the cache.
+            with dataStore (or similar mechanisms) will not work. Only the last
+            output ElectricField created with a specific shape and parameters will
+            be valid, all the others will be overwritten by the cache.
         target_device_idx : int, optional
             Target device index for GPU computation (default: None).
         precision : int, optional

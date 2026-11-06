@@ -54,11 +54,11 @@ class ZernikeGenerator():
     .. [1] Noll, R. J., “Zernike polynomials and atmospheric
        turbulence.”, Journal of the Optical Society of America
        (1917-1983), vol. 66, pp. 207–211, 1976.
-    .. [2] Born, M. and Wolf, E., "Principles of Optics", 7th edition,
-       Cambridge University Press, 1999.
-    .. [3] Magnus W., Oberhettinger F., and Soni R.P., "Formulas and
-       Theorems for the Special Functions of Mathematical Physics",
-       Springer-Verlag, New York, 1966.
+
+    See also Born, M. and Wolf, E., "Principles of Optics", 7th edition,
+    Cambridge University Press, 1999, and Magnus W., Oberhettinger F., and
+    Soni R.P., "Formulas and Theorems for the Special Functions of
+    Mathematical Physics", Springer-Verlag, New York, 1966.
 
     Examples
     --------

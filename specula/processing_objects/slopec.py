@@ -30,6 +30,47 @@ class Slopec(BaseProcessingObj):
     Slope Computer abstract processing object.
     Base class for processing objects that compute slopes from pixel data, 
     such as Shack-Hartmann or Pyramid slopes.
+
+    clamp_negative (default True): the derived classes set the negative
+    pixels to zero (after their threshold subtraction, if any), as in the
+    RTCs that subtract the dark (and possibly the background) and clamp. At
+    low flux, when the noise makes pixels negative, this lowers the gain of
+    signal and noise together: for a pixel with flux f and noise sigma
+    (read-out noise, plus the photon noise of the background if it is
+    subtracted) the signal sensitivity is about Phi(f / sigma), and the
+    rectified noise adds about sigma * phi(f / sigma) to the normalization
+    (Plantet et al. 2018, SPIE 10703, 1070346, App. A). With
+    clamp_negative=False the pixels are used as they are (linear noise
+    propagation, as in RTCs that do not clamp).
+
+    Parameters
+    ----------
+    sn : Slopes, optional
+        Slope null, subtracted from the slopes.
+    recmat : Recmat, optional
+        If set, the output is the slopes multiplied by this matrix (e.g.
+        modal coefficients) instead of the slopes.
+    filt_intmat, filt_recmat : Intmat, Recmat, optional
+        Slope filter: the slopes s are replaced by s - I R s, with I and R
+        these interaction and reconstruction matrices (e.g. to remove
+        tip-tilt or focus). Both or none must be set.
+    filtmat : array_like, optional
+        Slope filter given as one array: filtmat[0] is the interaction
+        matrix, filtmat[1] the reconstruction matrix. Alternative to
+        filt_intmat / filt_recmat.
+    weight_int_pixel_dt : float [s], optional
+        If > 0, the pixels are accumulated over this time and the derived
+        classes that support it use the accumulated image to weight the
+        pixels. Default 0 (no weighting).
+    interleave : bool, optional
+        Slope order: x0, y0, x1, y1, ... if True, all x then all y if False
+        (default).
+    clamp_negative : bool, optional
+        Set the negative pixels to zero (see above). Default True.
+    target_device_idx : int, optional
+        Device index (-1 for CPU). Default: global setting.
+    precision : int, optional
+        0 for double, 1 for single precision. Default: global setting.
     """
     def __init__(self,
                  sn: Slopes=None,
@@ -39,10 +80,13 @@ class Slopec(BaseProcessingObj):
                  filtmat=None,
                  weight_int_pixel_dt: float=0,
                  interleave: bool=False,
+                 clamp_negative: bool=True,
                  target_device_idx: int=None,
                  precision: int=None
                 ):
         super().__init__(target_device_idx=target_device_idx, precision=precision)
+
+        self.clamp_negative = clamp_negative
 
         self.sn = sn
         self.slopes = Slopes(

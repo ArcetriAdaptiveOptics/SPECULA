@@ -24,12 +24,9 @@ Getting Started
    Simulation parameters <simulation_parameters>
    Running simulations <running_simulations>
    Profiling and timing <profiling>
-   Automatic allocation <allocator>
-   Accelerating objects (CUDA graphs) <accelerator>
    Displays <simul_displays>
    Diagrams <simul_diagrams>
    Calibration manager <calibration_manager>
-   Nonlinear modal reconstructor <nonlinear_modalrec>
 
 Tutorials
 ---------
@@ -38,7 +35,7 @@ Tutorials
 
    tutorials/index
 
-Developer Guide  
+Developer Guide
 ---------------
 .. toctree::
    :maxdepth: 1
@@ -47,23 +44,50 @@ Developer Guide
    Processing objects <processing_objects>
    Data objects <data_objects>
    Base classes <base_classes>
-   Plugins <plugins>
-   Extension API <extension_api>
 
 Reference
 ---------
 
-Detailed API documentation:
+Detailed API documentation of SPECULA:
 
 .. toctree::
    :maxdepth: 1
 
-   Base Classes API <api/base_classes>
+   Core Modules API <api/core>
    Processing Objects Summary <api/processing_objects_summary>
    Processing Objects API <api/processing_objects>
    Data Objects Summary <api/data_objects_summary>
    Data Objects API <api/data_objects>
    Utility Functions API <api/lib>
+
+The iteras framework
+--------------------
+
+SPECULA is built on iteras, a generic simulation framework: base classes,
+simulation loop, generic objects (filters, generators, data storage...),
+accelerator, allocator, displays and plugins.
+
+.. toctree::
+   :maxdepth: 1
+
+   Overview <iteras>
+   Accelerating objects (CUDA graphs) <accelerator>
+   Automatic allocation <allocator>
+   Plugins <plugins>
+   Extension API <extension_api>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: iteras API
+
+   Core API <api/iteras_core>
+   Processing Objects Summary <api/iteras_processing_objects_summary>
+   Processing Objects API <api/iteras_processing_objects>
+   Data Objects Summary <api/iteras_data_objects_summary>
+   Data Objects API <api/iteras_data_objects>
+   Utility Functions API <api/iteras_lib>
+   Allocator API <api/iteras_allocator>
+   Displays API <api/iteras_display>
 
 Indices and tables
 ==================

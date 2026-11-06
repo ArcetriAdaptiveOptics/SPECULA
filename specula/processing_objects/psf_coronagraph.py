@@ -118,8 +118,9 @@ class PsfCoronagraph(PSF):
         """
         Calculate coronagraph PSF using perfect coronagraph theory.
         The perfect coronagraph subtracts the average electric field over the pupil.
-        
-        Parameters:
+
+        Parameters
+        ----------
         phase : ndarray
             2D phase array
         amp : ndarray
@@ -133,7 +134,8 @@ class PsfCoronagraph(PSF):
         out : ndarray, optional
             Real array where the PSF is stored. If not given, a new array is allocated.
 
-        Returns:
+        Returns
+        -------
         coronagraph_psf : ndarray
             2D coronagraph PSF
         """

@@ -55,9 +55,8 @@ class Intmat(Matrix):
                  target_device_idx: int=None,
                  precision: int=None):
         """
-        Note
-        ----
-        
+        Notes
+        -----
         axes are [slopes, modes]
 
         Members .modes and .slopes allow numpy-like access, for example:

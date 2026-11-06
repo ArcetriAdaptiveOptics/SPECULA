@@ -8,6 +8,9 @@ class DoubleRoofSlopec(PyrSlopec):
     Double roof slope computer processing object.
     A DoubleRoofSlopec is a standard pyramid slope computer,
     customized for the double-roof case.
+
+    Parameters: as PyrSlopec (clamp_negative and the Slopec parameters are
+    passed through ``**kwargs``).
     '''
     def __init__(self,
                  pupdata: PupData,

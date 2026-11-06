@@ -42,11 +42,11 @@ class AtmoPropagation(BaseProcessingObj):
                  target_device_idx=None,
                  precision=None):
         """
-        Note
-        ----
+        Notes
+        -----
         - By default, all atmospheric phase screens are referenced to a wavelength of 500 nm.
         - Layer heights are always defined at zenith and projected according to the simulation
-        zenith angle (coming from simul_params).
+          zenith angle (coming from simul_params).
 
         Parameters
         ----------
@@ -587,6 +587,7 @@ class AtmoPropagation(BaseProcessingObj):
 
         self.interpolators = {}
         self.chromatic_shifts_m = {}
+        self._footprints = {source: {} for source in self.source_dict.values()}
         layer_list = self.common_layer_list + self.atmo_layer_list
         for source in self.source_dict.values():
             self.interpolators[source] = {}
@@ -614,6 +615,9 @@ class AtmoPropagation(BaseProcessingObj):
                                          f' Layer height: {layer.height} m, size: {layer.size}.')
                     else:
                         self.interpolators[source][layer] = li
+                        if self._fused_propagation():  # pragma: gpu
+                            self._footprints[source][layer] = footprint(li, layer, self.pixel_pupil)
+                            li.xx = li.yy = None
                 else:
                     raise ValueError('Invalid layer/source geometry')
 
@@ -748,9 +752,10 @@ class AtmoPropagation(BaseProcessingObj):
         The interpolators then release their coordinates, which take as much
         memory as the fields of all the sources on all the layers.
         '''
-        if self.fused_kernel and self.target_device_idx >= 0 and self.mergeLayersContrib:  # pragma: gpu
+        if self._fused_propagation():  # pragma: gpu
             layer_list = self.propagation_layers()
-            footprints = [[footprint(self.interpolators[source][layer], layer, self.pixel_pupil)
+            footprints = [[self._footprints[source].get(layer) or
+                           footprint(self.interpolators[source][layer], layer, self.pixel_pupil)
                            for layer in layer_list]
                           for source in self.source_dict.values()]
             outputs = [self.outputs['out_' + name + '_ef'] for name in self.source_dict]
@@ -759,6 +764,12 @@ class AtmoPropagation(BaseProcessingObj):
                 for interpolator in interpolators.values():
                     if interpolator is not None:
                         interpolator.xx = interpolator.yy = None
+        # GeometricPropagation keeps its own copy of the coordinates
+        self._footprints = None
+
+    def _fused_propagation(self):
+        return (self.fused_kernel and self.target_device_idx >= 0 and self.mergeLayersContrib
+                and not self.doFresnel)
 
     def check_output_names(self):
         # AtmoPropagation outputs are created dynamically from stored data files;

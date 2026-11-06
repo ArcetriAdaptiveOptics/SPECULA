@@ -168,9 +168,10 @@ class Simul():
     def build_trigger_order(self, params_orig):
         '''
         Work on a copy of the parameter file.
+
         1. Find leaves, add them to trigger
-        2. Remove leaves, remove their inputs from other objects
-          2a. Objects will become a leaf when all their inputs have been removed
+        2. Remove leaves, remove their inputs from other objects.
+           Objects will become a leaf when all their inputs have been removed
         3. Repeat from step 1. until there is no change
         4. Check if any objects have been skipped
         '''

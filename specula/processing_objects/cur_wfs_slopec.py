@@ -12,18 +12,22 @@ class CurWfsSlopec(Slopec):
     Slope Computer for Curvature Wavefront Sensor processing object.
     Computes the normalized difference between intra-focal and extra-focal fluxes
     on a pixel-by-pixel basis using PupData indices.
+
+    clamp_negative (see Slopec): the negative pixels of the two images are
+    set to zero. Pixels whose summed flux is below 1e-9 (negative included,
+    possible with clamp_negative=False) give a zero signal.
     """
     def __init__(self,
                  diameter: int,
                  ccd_size: tuple,
                  sn: Slopes = None,
                  interleave: bool = False,
+                 clamp_negative: bool = True,
                  target_device_idx: int = None,
                  precision: int = None):
         """
-        Parameters:
+        Parameters
         ----------
-
         diameter: int [pixels]
             Diameter of the pupil in pixels (used to define valid pupil indices).
         ccd_size: tuple [pixels]
@@ -32,6 +36,8 @@ class CurWfsSlopec(Slopec):
             Slopes object for reference subtraction (if needed).
         interleave: bool, optional
             Whether to interleave slopes (not used in this implementation).
+        clamp_negative: bool, optional
+            Set the negative pixels to zero (see Slopec). Default is True.
         target_device_idx : int [1], optional
             Target device index for computation (CPU/GPU). Default is None (uses global setting).
         precision : int [1], optional
@@ -61,7 +67,7 @@ class CurWfsSlopec(Slopec):
         all_idx = self.pupdata.pupil_idx(0).astype(self.pupdata.xp.int64)
         self.pup_idx = all_idx[all_idx >= 0]
 
-        super().__init__(sn=sn, interleave=interleave,
+        super().__init__(sn=sn, interleave=interleave, clamp_negative=clamp_negative,
                          target_device_idx=target_device_idx, precision=precision)
 
         # Modify Inputs: CWFS requires two images (Intra/Extra focal)
@@ -112,13 +118,16 @@ class CurWfsSlopec(Slopec):
         i1 = self.flat_p1[self.pup_idx].astype(self.xp.float32)
         i2 = self.flat_p2[self.pup_idx].astype(self.xp.float32)
 
+        if self.clamp_negative:
+            i1 = self.xp.maximum(i1, 0)
+            i2 = self.xp.maximum(i2, 0)
+
         # Compute Curvature Signal: S = (I1 - I2) / (I1 + I2)
         sum_i = i1 + i2
 
-        # Avoid division by zero
-        sum_i = self.xp.where(sum_i < 1e-9, 1.0, sum_i)
-
-        signal = (i1 - i2) / sum_i
+        # Zero signal where the flux is (almost) zero or negative
+        valid = sum_i >= 1e-9
+        signal = self.xp.where(valid, (i1 - i2) / self.xp.where(valid, sum_i, 1.0), 0)
 
         # Store results
         self.slopes.slopes[:] = signal

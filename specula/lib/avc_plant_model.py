@@ -105,14 +105,15 @@ def avc_command_to_residual_tf(f, T, loop_gain, loop_delay,
     """Transfer function ``P_avc(f)`` from an AVC command, summed to the
     main loop's DM command, to the measured residual.
 
+    Parameters other than ``avc_extra_delay`` as in
+    :py:func:`open_loop_transfer_function`.
+
     Parameters
     ----------
     avc_extra_delay : float [s], optional
         Delay of the AVC command path in excess of ``loop_delay``.
         Negative if the AVC command skips part of it: ``-Integrator.delay * T``
         when it is summed to the integrator output. Default 0.0.
-
-    Other parameters as in :py:func:`open_loop_transfer_function`.
 
     Returns
     -------

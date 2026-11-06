@@ -30,9 +30,8 @@ class CurvatureSensor(BaseProcessingObj):
                  target_device_idx: int = None,
                  precision: int = None):
         """
-        Parameters:
+        Parameters
         ----------
-
         wavelengthInNm: float [nm]
             Wavelength of the light in nanometers.
         wanted_fov: float [arcsec]
