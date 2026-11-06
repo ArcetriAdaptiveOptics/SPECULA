@@ -52,6 +52,10 @@ class ModalrecImplicitPolc(BasePolcModalrec):
         '''
         if self.xp is np or not isinstance(b, np.ndarray):
             return a @ self.to_xp(b, dtype=self.dtype)
+        return self._matmul_host_blocks(a, b)  # pragma: gpu
+
+    def _matmul_host_blocks(self, a, b):  # pragma: gpu
+        '''a @ b, with *a* on the GPU and *b* on the host, uploaded in blocks of columns'''
         out = self.xp.empty((a.shape[0], b.shape[1]), dtype=self.dtype)
         cols = max(1, _BLOCK_BYTES // (b.shape[0] * out.itemsize))
         for j0 in range(0, b.shape[1], cols):

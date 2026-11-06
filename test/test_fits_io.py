@@ -46,6 +46,15 @@ class TestLoadFitsArray(unittest.TestCase):
             np.testing.assert_array_equal(cpuArray(out), data.astype(dtype))
 
     @cpu_and_gpu
+    def test_truncated_file(self, target_device_idx, xp):
+        data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
+        self._write(data)
+        with open(self.filename, 'r+b') as f:
+            f.truncate(os.path.getsize(self.filename) - 2880 - 4096)
+        with self.assertRaises(EOFError):
+            load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx)
+
+    @cpu_and_gpu
     def test_multiple_chunks(self, target_device_idx, xp):
         data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
         data64 = data.astype(np.float64) + 0.25
