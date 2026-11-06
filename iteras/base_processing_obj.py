@@ -23,6 +23,12 @@ class BaseProcessingObj(BaseTimeObj):
 
     _streams = {}
 
+    # Parameters given as "<name>_object" (data objects restored from calibration
+    # files) that are restored on the CPU instead of the device of the object:
+    # for large inputs used only once, e.g. to compute a smaller matrix in
+    # __init__, which the object can then build on its device in blocks.
+    host_data_objects = ()
+
     def __init__(self, target_device_idx=None, precision=None):
         """
         Initialize the base processing object.
