@@ -160,7 +160,6 @@ class TestSH(unittest.TestCase):
         # Test 1: sh1 and sh2 should share arrays (same geometry, same rank)
         assert id(sh1._wf3) == id(sh2._wf3), "sh1 and sh2 should share _wf3"
         assert id(sh1._intensity) == id(sh2._intensity), "sh1 and sh2 should share _intensity"
-        assert id(sh1.ef_row) == id(sh2.ef_row), "sh1 and sh2 should share ef_row"
 
         # Test 2: sh3 should NOT share with sh1/sh2 (different geometry)
         assert id(sh1._wf3) != id(sh3._wf3), "sh3 should have different _wf3 (different geometry)"
@@ -172,9 +171,9 @@ class TestSH(unittest.TestCase):
         # We should have entries for:
         # - sh1/sh2 (shared, rank 0, geometry 20)
         # - sh3 (separate, rank 0, geometry 30)
-        # Each geometry allocates 5 arrays (_wf3, ef_row, _intensity, _int_tmp, _int_img)
-        # So expected: 2 geometries × 5 arrays = 10 entries
-        assert cache_size == 10
+        # Each geometry allocates 4 arrays (_wf3, _intensity, _int_tmp, _int_img)
+        # So expected: 2 geometries × 4 arrays = 8 entries
+        assert cache_size == 8
         print(f"Cache has {cache_size} entries")
 
     @cpu_and_gpu
@@ -425,7 +424,6 @@ class TestSH(unittest.TestCase):
 
         sh.setup()
         self.assertEqual(sh._ovs_ef_size, 96)
-        self.assertEqual(sh.ef_row.shape[1], 96)
 
         sh.check_ready(t)
         sh.trigger()

@@ -453,7 +453,27 @@ class TestElectricField(unittest.TestCase):
 
         assert ef.field.dtype == np.float64
         assert ef.ef_at_lambda(500.0).dtype == np.complex128
-        
+
+    @cpu_and_gpu
+    def test_ef_at_lambda_reshaped_out(self, target_device_idx, xp):
+        '''A slice written into a strided out of a different shape (as in the SH)'''
+        ef = ElectricField(12, 12, 0.1, target_device_idx=target_device_idx)
+        rng = np.random.default_rng(0)
+        ef.field[0] = xp.asarray(rng.uniform(size=(12, 12)), dtype=ef.dtype)
+        ef.field[1] = xp.asarray(rng.normal(0, 200, size=(12, 12)), dtype=ef.dtype)
+        amp, phase = cpuArray(ef.field[0]), cpuArray(ef.field[1])
+        expected = amp * np.exp(1j * phase * 2 * np.pi / 500.0)
+
+        # Rows 3:6 as 4 cubes of 3x3, in the corners of a zero-padded array
+        padded = xp.zeros((4, 6, 6), dtype=ef.complex_dtype)
+        out = padded[:, :3, :3].swapaxes(0, 1)
+        ef.ef_at_lambda(500.0, slicey=np.s_[3:6], out=out)
+
+        padded = cpuArray(padded)
+        cubes = expected[3:6].reshape(3, 4, 3).swapaxes(0, 1)
+        np.testing.assert_allclose(padded[:, :3, :3], cubes, rtol=1e-5, atol=1e-6)
+        assert np.all(padded[:, 3:, :] == 0) and np.all(padded[:, :, 3:] == 0)
+
     @cpu_and_gpu
     def test_ef_resize(self, target_device_idx, xp):
         pixel_pupil = 10
