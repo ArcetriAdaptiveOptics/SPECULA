@@ -73,6 +73,24 @@ class TestLoadFitsArray(unittest.TestCase):
         np.testing.assert_array_equal(cpuArray(out), data)
 
     @cpu_and_gpu
+    def test_transpose(self, target_device_idx, xp):
+        '''Transposed in C order: chunks of whole rows (with a partial last chunk), and
+        the astropy path for scaled data; 3D data is rejected'''
+        data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
+        scaled = np.arange(12, dtype=np.uint16).reshape(3, 4)
+        self._write(data, scaled, np.zeros((2, 3, 4), dtype=np.float32))
+        with patch.object(fits_io, '_CHUNK_BYTES', 4096):
+            out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx,
+                                  precision=1, transpose=True)
+        self.assertTrue(out.flags.c_contiguous)
+        np.testing.assert_array_equal(cpuArray(out), data.T)
+        out = load_fits_array(self.filename, ext=2, target_device_idx=target_device_idx, transpose=True)
+        self.assertTrue(out.flags.c_contiguous)
+        np.testing.assert_array_equal(cpuArray(out), scaled.T)
+        with self.assertRaises(ValueError):
+            load_fits_array(self.filename, ext=3, target_device_idx=target_device_idx, transpose=True)
+
+    @cpu_and_gpu
     def test_integer_data_with_precision(self, target_device_idx, xp):
         # Plain int16 (fast path on GPU) and uint16 (BZERO-scaled, astropy path)
         for data in (np.arange(6, dtype=np.int16).reshape(2, 3),
