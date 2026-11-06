@@ -229,6 +229,29 @@ class TestGpuMemTrack(unittest.TestCase):
         titles = [call.args[0] for call in loop.mem_report.call_args_list]
         self.assertEqual(titles, ['after setup', 'after the first trigger of all objects'])
 
+    def test_loop_releases_cached_memory_after_reports(self):
+        obj = LazyTrigger()
+        obj.name = 'lazy'
+        loop = LoopControl()
+        loop.mem_report = MagicMock()
+        loop.add(obj, 0)
+        with patch('iteras.loop_control.release_cached_gpu_memory') as release:
+            loop.run(run_time=0.002, dt=0.001)
+        # After setup and after the first trigger of all objects
+        self.assertEqual(release.call_count, 2)
+
+    def test_release_cached_gpu_memory(self):
+        pool = cp.get_default_memory_pool()
+        kept = alloc(1 * MB)
+        kept[:] = 7
+        tmp = alloc(64 * MB)
+        del tmp
+        cached = pool.total_bytes()
+        self.assertGreaterEqual(cached - pool.used_bytes(), 64 * MB)
+        bto.release_cached_gpu_memory()
+        self.assertLessEqual(pool.total_bytes(), cached - 64 * MB)
+        self.assertTrue(bool((kept == 7).all()))
+
     def test_gpu_mem_report(self):
         parent = Parent()
         other = DataWithArray(4 * MB)

@@ -30,6 +30,23 @@ def _pool_used_bytes(device_idx):
         return iteras.cp.get_default_memory_pool().used_bytes()
 
 
+def release_cached_gpu_memory():
+    '''
+    Give back to the GPUs the freed blocks cached by the default cupy memory
+    pools (e.g. the temporaries of setup: matrices loaded only to compute
+    others), and the pinned host blocks, so that the process does not hold
+    them for the whole run. Only the GPUs already used are touched. The
+    arrays allocated while capturing CUDA graphs are in separate pools
+    (see BaseProcessingObj.build_stream()) and are not affected.
+    '''
+    if iteras.cp is None:
+        return
+    for device_idx in sorted(_used_devices):  # pragma: gpu
+        with iteras.cp.cuda.Device(device_idx):
+            iteras.cp.get_default_memory_pool().free_all_blocks()
+    iteras.cp.get_default_pinned_memory_pool().free_all_blocks()  # pragma: gpu
+
+
 def mem_registry_mark():
     '''Current position in the registry of top-level objects, see top_level_objs().'''
     return _top_level_counter
