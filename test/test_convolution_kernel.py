@@ -1,3 +1,4 @@
+import gc
 import unittest
 import os
 import numpy as np
@@ -1141,8 +1142,12 @@ class TestKernel(unittest.TestCase):
         (off-axis launcher, uneven profile, nonzero tilt), so that a wrong sign or centre
         of the coefficients would not go unnoticed.
         '''
+        for dimension in (64, 63):
+            with self.subTest(dimension=dimension):
+                self._check_spectrum_against_sampled(target_device_idx, dimension)
+
+    def _check_spectrum_against_sampled(self, target_device_idx, dimension):
         dimx = dimy = 4
-        dimension = 64
 
         def kernel():
             k = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.25, pupil_size_m=8.0,
@@ -1213,3 +1218,51 @@ class TestKernel(unittest.TestCase):
                                    rtol=0, atol=1e-6 / n ** 2)
         # Nyquist column: real valued, as for any real kernel
         np.testing.assert_allclose(coeffs[:, 0, n // 2].imag, 0, atol=1e-12)
+
+    def test_kernel_spectrum_edge_cases(self):
+        from specula.data_objects.convolution_kernel import lgs_kernel_spectrum
+        args = dict(nsh=2, diam=8.0, rl=[1.0, 0.0, 0.0], zb=90e3, fwhmb=1.0, ps=0.2, n=8)
+        # No emitting layer: zero kernels
+        out = lgs_kernel_spectrum(dz=[0.0, 1e3], profz=[0.0, -1.0], **args)
+        self.assertEqual(out.shape, (4, 8, 5))
+        self.assertFalse(np.any(out))
+        # A layer at the telescope would have an infinite width and flux
+        with np.errstate(divide='ignore', invalid='ignore'):
+            with self.assertRaisesRegex(ValueError, 'non-finite'):
+                lgs_kernel_spectrum(dz=[-90e3], profz=[1.0], **args)
+        # The same check for real space kernels
+        kernel = ConvolutionKernel(dimx=2, dimy=2, pxscale=0.2, pupil_size_m=8.0, dimension=8,
+                                   return_fft=False, target_device_idx=-1)
+        with self.assertRaisesRegex(ValueError, 'non-finite'):
+            kernel.set_value(np.full((4, 8, 8), np.nan, dtype=kernel.dtype))
+
+    def test_real_kernels_file_cache(self):
+        '''
+        Real space kernels are saved in the current directory without data_dir, and
+        loaded from the file by an object that does not share them in memory.
+        '''
+        sodium = dict(sodium_altitude=[88e3, 92e3], sodium_intensity=[0.4, 0.6])
+
+        def kernel():
+            return ConvolutionKernel(dimx=3, dimy=3, pxscale=0.2, pupil_size_m=8.0,
+                                     dimension=16, launcher_pos=[4.0, 0.0, 0.0],
+                                     launcher_size=1.0, return_fft=False, target_device_idx=-1)
+
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            try:
+                first = kernel()
+                first.prepare_for_sh(current_time=1, **sodium)
+                self.assertEqual(os.listdir(tmp), [first.build() + '.fits'])
+                expected = cpuArray(first.kernels).copy()
+                del first
+                gc.collect()  # the kernels are no longer shared in memory
+
+                second = kernel()
+                with patch.object(second, 'calculate_lgs_map',
+                                  side_effect=AssertionError('kernels recomputed')):
+                    second.prepare_for_sh(current_time=2, **sodium)
+                np.testing.assert_allclose(cpuArray(second.kernels), expected, rtol=1e-6)
+            finally:
+                os.chdir(cwd)
