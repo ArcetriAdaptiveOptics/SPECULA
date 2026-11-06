@@ -97,7 +97,6 @@ def main():
             "package": "specula.lib",
             "description": "Utility functions and libraries.",
             "filename": "lib",
-            "include_members": False,
         }
     }
 

@@ -1,7 +1,7 @@
 """
 Exact integration of a band-limited periodic intensity over detector pixels.
 
-The intensity |DTFT(E)|^2 of a field E with n samples is band limited: it has
+The intensity ``|DTFT(E)|^2`` of a field E with n samples is band limited: it has
 frequencies up to n - 1 per period T (T = lambda / pixel pitch of the field).
 Its samples on an FFT grid with N >= 2n - 1 points per period therefore give
 its Fourier coefficients exactly, and its integral over any interval is a
@@ -19,7 +19,7 @@ def pixel_integration_matrix(n_fft, period, pxscale, npx, stop=None):
     intensity over the detector pixels, from its samples on the FFT grid.
 
     I(theta) has period `period` [arcsec] and frequencies up to
-    n_fft / 2 - 1 per period (true for |FFT|^2 of a field with
+    n_fft / 2 - 1 per period (true for ``|FFT|^2`` of a field with
     n_fft / 2 pixels zero-padded to n_fft). Its samples I_j at
     theta_j = j * period / n_fft (FFT order, axis at j = 0) give its
     Fourier coefficients exactly, c = ifft(I), with
