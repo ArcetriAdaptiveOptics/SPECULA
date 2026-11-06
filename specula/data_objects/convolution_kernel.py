@@ -131,6 +131,12 @@ def lgs_kernel_spectrum(nsh, diam, rl, zb, dz, profz, fwhmb, ps, n, theta=[0.0, 
     aliasing of a sampled kernel, so they are exact in the band of the PSFs they
     are convolved with, for any n.
 
+    Evaluated at the frequencies k / n, the transform gives the coefficients of the
+    periodized kernel: the light of a spot beyond half the FFT period wraps to the
+    other side, where a sampled kernel would have cut it. It reaches the detector
+    field, about the central half of the period (e.g. MORFEO: period ~40 arcsec,
+    field 16 arcsec), only if it is more than 3/4 of a period from the centre.
+
     They follow the convention of ConvolutionKernel.process_kernels(): ifft2() of
     the unit-sum kernel sampled at (j - (n - 1) / 2) * ps, j = 0 ... n - 1 (positive
     phase, scale 1 / n**2), without the aliased copies. For even n, the Nyquist
