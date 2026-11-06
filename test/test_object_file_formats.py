@@ -5,6 +5,7 @@ FITS (see iteras.lib.storage).
 import specula
 specula.init(0)  # Default target device
 
+import contextlib
 import os
 import re
 import subprocess
@@ -12,7 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import numpy as np
 
@@ -273,9 +274,15 @@ class TestStorageAPI(unittest.TestCase):
         path = self._path('obj', 'fits')
         storage.write_object(path, self.header, {'a': self.a, 'none': None})
         with storage.read_object(path) as f:
-            self.assertTrue(f.has('a'))
-            self.assertFalse(f.has('none'))
-            self.assertFalse(f._hdul[1]._data_loaded)
+            # any access to the HDU data fails while has() runs
+            hdu_types = {type(hdu) for hdu in f._hdul}
+            with contextlib.ExitStack() as stack:
+                for t in hdu_types:
+                    stack.enter_context(patch.object(
+                        t, 'data', new_callable=PropertyMock,
+                        side_effect=AssertionError('has() read the HDU data')))
+                self.assertTrue(f.has('a'))
+                self.assertFalse(f.has('none'))
 
     def test_load_on_device(self):
         targets = [-1] + ([0] if specula.cp is not None else [])
