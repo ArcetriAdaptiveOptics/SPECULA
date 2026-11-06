@@ -1,7 +1,10 @@
 
 import logging
 
+import numpy as np
+
 from specula.lib.calc_psf import calc_psf_from_ef
+from specula.lib.radial_profile import compute_radial_profile
 from specula.processing_objects.psf import PSF, psf_accumulate
 from specula.base_processing_obj import OutputDesc
 from specula.base_value import BaseValue
@@ -32,8 +35,19 @@ class PsfCoronagraph(PSF):
     start_time : float [s], optional
         Time (in seconds) after which to start integrating PSF and SR. Default is 0.0.
     compute_profile_metrics : bool
-        If True, compute coronagraph radial-profile outputs for the instantaneous,
-        integrated and standard-deviation coronagraph PSFs.
+        If True, compute coronagraph radial-profile outputs, in contrast units
+        (divided by the peak of the non-coronagraphic PSF: the instantaneous one
+        for the instantaneous profile, the time-averaged one for the others):
+
+        - out_coronagraph_psf_profile: azimuthal mean of the instantaneous
+          coronagraph PSF;
+        - out_int_coronagraph_psf_profile: azimuthal mean of the time-averaged
+          coronagraph PSF (raw contrast);
+        - out_std_coronagraph_psf_profile: azimuthal mean of the temporal
+          standard deviation of the coronagraph PSF;
+        - out_int_coronagraph_psf_azstd_profile: azimuthal standard deviation
+          of the time-averaged coronagraph PSF (1-sigma contrast). Close to
+          the centre the rings have few pixels, so it is a poor estimate there.
     compute_metrics_in_trigger : bool
         If True, update those metrics after each trigger as well.
     ee_radius_in_lambda_d : float or array-like [lambda/D], optional
@@ -83,6 +97,8 @@ class PsfCoronagraph(PSF):
                                                      precision=precision)
         self.std_coronagraph_psf_profile = BaseValue(target_device_idx=self.target_device_idx,
                                                      precision=precision)
+        self.int_coronagraph_psf_azstd_profile = BaseValue(target_device_idx=self.target_device_idx,
+                                                           precision=precision)
 
         self.outputs['out_coronagraph_psf'] = self.coronagraph_psf
         self.outputs['out_int_coronagraph_psf'] = self.int_coronagraph_psf
@@ -90,6 +106,7 @@ class PsfCoronagraph(PSF):
         self.outputs['out_coronagraph_psf_profile'] = self.coronagraph_psf_profile
         self.outputs['out_int_coronagraph_psf_profile'] = self.int_coronagraph_psf_profile
         self.outputs['out_std_coronagraph_psf_profile'] = self.std_coronagraph_psf_profile
+        self.outputs['out_int_coronagraph_psf_azstd_profile'] = self.int_coronagraph_psf_azstd_profile
 
         self._sum_coronagraph_psf_squared = None # For std dev calculation
 
@@ -103,6 +120,8 @@ class PsfCoronagraph(PSF):
             'out_coronagraph_psf_profile': OutputDesc(BaseValue, 'Radial profile of the instantaneous coronagraph PSF'),
             'out_int_coronagraph_psf_profile': OutputDesc(BaseValue, 'Radial profile of the integrated coronagraph PSF'),
             'out_std_coronagraph_psf_profile': OutputDesc(BaseValue, 'Radial profile of the std dev coronagraph PSF'),
+            'out_int_coronagraph_psf_azstd_profile': OutputDesc(
+                BaseValue, 'Azimuthal std dev of the integrated coronagraph PSF (1-sigma contrast)'),
         })
         return result
 
@@ -226,16 +245,42 @@ class PsfCoronagraph(PSF):
             variance = self._sum_coronagraph_psf_squared / self.count - self.int_coronagraph_psf.value ** 2
             self.std_coronagraph_psf.value = self.xp.sqrt(self.xp.maximum(variance, 0))
             if self.compute_profile_metrics:
+                # Contrast: divided by the peak of the time-averaged PSF without coronagraph
+                # (both PSFs are normalized to the total flux of the PSF without coronagraph)
+                peak = self.int_psf.value.max()
                 self._set_radial_profile_output(
                     self.int_coronagraph_psf.value,
                     self.int_coronagraph_psf_profile,
-                    norm_peak=1.0, # do NOT normalize to 1
+                    norm_peak=peak,
                 )
                 self._set_radial_profile_output(
                     self.std_coronagraph_psf.value,
                     self.std_coronagraph_psf_profile,
-                    norm_peak=1.0, # do NOT normalize to 1
+                    norm_peak=peak,
+                )
+                self._set_azimuthal_std_profile(
+                    self.int_coronagraph_psf.value,
+                    self.int_coronagraph_psf_azstd_profile,
+                    peak,
                 )
 
         self.int_coronagraph_psf.generation_time = self.current_time
         self.std_coronagraph_psf.generation_time = self.current_time
+
+    def _set_azimuthal_std_profile(self, psf, profile_output, peak):
+        """
+        Azimuthal standard deviation of psf / peak in each ring of the radial
+        profile, sqrt(<I^2> - <I>^2), as [radial distance in lambda/D, std].
+        The ring averages are accumulated in double precision: the two terms
+        are close when the residual is smooth.
+        """
+        if float(peak) <= 0.0:
+            norm_psf = self.xp.zeros_like(psf)
+        else:
+            norm_psf = psf / peak
+        mean, pix_dist = compute_radial_profile(norm_psf, xp=self.xp, dtype=np.float64)
+        mean2, _ = compute_radial_profile(norm_psf.astype(np.float64) ** 2, xp=self.xp,
+                                          dtype=np.float64)
+        std = self.xp.sqrt(self.xp.maximum(mean2 - mean ** 2, 0))
+        profile_output.value = self.xp.vstack([pix_dist / self.nd, std]).astype(self.dtype)
+        profile_output.generation_time = self.current_time
