@@ -696,13 +696,16 @@ class TestSimul(unittest.TestCase):
                 'small_object': 'tag_small',
             }
         }
-        with patch('specula.simul.import_class', side_effect=mock_import), \
-             patch.object(Simul, 'restore_object', return_value=rec) as mock_restore:
-            simul = Simul('dummy.yaml')
-            simul.build_objects(params)
+        # With data_objects_on_device (--data-objects-on-device), all on the device
+        for on_device, big_device in [(False, -1), (True, 0)]:
+            with self.subTest(data_objects_on_device=on_device):
+                with patch('specula.simul.import_class', side_effect=mock_import), \
+                     patch.object(Simul, 'restore_object', return_value=rec) as mock_restore:
+                    simul = Simul('dummy.yaml', data_objects_on_device=on_device)
+                    simul.build_objects(dict((k, dict(v)) for k, v in params.items()))
 
-        devices = {call.args[1]: call.args[2] for call in mock_restore.call_args_list}
-        self.assertEqual(devices, {'tag_big': -1, 'tag_small': 0})
+                devices = {call.args[1]: call.args[2] for call in mock_restore.call_args_list}
+                self.assertEqual(devices, {'tag_big': big_device, 'tag_small': 0})
 
     def test_list_object_raises_with_no_type(self):
         '''
