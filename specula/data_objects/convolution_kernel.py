@@ -116,6 +116,92 @@ def lgs_map_sh(nsh, diam, rl, zb, dz, profz, fwhmb, ps, ssp,
     return ccd
 
 
+def lgs_kernel_spectrum(nsh, diam, rl, zb, dz, profz, fwhmb, ps, n, theta=[0.0, 0.0],
+                        out=None, dtype=np.complex64, xp=np):
+    """
+    Fourier coefficients of the normalized kernels of lgs_map_sh(), in closed form.
+
+    The map of lgs_map_sh() is exactly a sum of isotropic Gaussians in angle, one
+    per sodium layer: the z term of the distance cancels, so for the subaperture
+    centred at rs the layer at zb + dz is a Gaussian centred at
+    (rs * dz / zb + rb + dz * el) / (zb + dz), with the width of the beacon scaled
+    by zb / (zb + dz) and a flux proportional to profz * (zb / (zb + dz))**2.
+    The Fourier transform of each Gaussian is analytic and separable in x and y:
+    the coefficients are computed directly, without a spatial grid and without the
+    aliasing of a sampled kernel, so they are exact in the band of the PSFs they
+    are convolved with, for any n.
+
+    Evaluated at the frequencies k / n, the transform gives the coefficients of the
+    periodized kernel: the light of a spot beyond half the FFT period wraps to the
+    other side, where a sampled kernel would have cut it. It reaches the detector
+    field, about the central half of the period (e.g. MORFEO: period ~40 arcsec,
+    field 16 arcsec), only if it is more than 3/4 of a period from the centre.
+
+    They follow the convention of ConvolutionKernel.process_kernels(): ifft2() of
+    the unit-sum kernel sampled at (j - (n - 1) / 2) * ps, j = 0 ... n - 1 (positive
+    phase, scale 1 / n**2), without the aliased copies. For even n, the Nyquist
+    row and column, where the band-limited PSFs of the SH have no power, take the
+    mean of the two aliases at +-n / 2, i.e. the exact transform of a kernel
+    concentrated on the samples.
+
+    Parameters:
+        nsh, diam, rl, zb, dz, profz, fwhmb, ps, theta: as in lgs_map_sh()
+        n (int): FFT size (ssp in lgs_map_sh())
+        out (ndarray, optional): output array, (nsh * nsh, n, n // 2 + 1)
+        dtype: complex dtype of the output
+        xp (module): The numpy or cupy module of the output
+
+    Returns:
+        out: the rfft2() half spectra of the kernels, the subaperture in row iy
+        and column ix at index iy * nsh + ix
+    """
+    m = n // 2 + 1
+    if out is None:
+        out = xp.zeros((nsh * nsh, n, m), dtype=dtype)
+
+    zb = float(zb)
+    theta = cpuArray(theta)
+    dz = np.asarray(cpuArray(dz), dtype=np.float64).ravel()
+    profz = np.asarray(cpuArray(profz), dtype=np.float64).ravel()
+    layers = profz > 0
+    dz, profz = dz[layers], profz[layers]
+    flux = profz * (zb / (zb + dz)) ** 2
+    if flux.sum() <= 0:
+        out[:] = 0
+        return out
+
+    # Geometry of lgs_map_sh(), in FFT samples, with sample j at position j
+    sample = ps * ASEC2RAD * zb
+    sh_axis = (np.arange(nsh) - (nsh - 1) / 2) * (diam / nsh)
+    sigma = float(fwhmb) * ASEC2RAD * zb / (2 * np.sqrt(2 * np.log(2)))
+    rb = np.array([theta[0] * ASEC2RAD * zb, theta[1] * ASEC2RAD * zb, 0.0])
+    bl = zb * np.array([0.0, 0.0, 1.0]) + rb - np.asarray(cpuArray(rl), dtype=np.float64)
+    el = bl / bl[2]
+    width = sigma / (zb + dz) * zb / sample
+    centres = [((sh_axis[None, :] * dz[:, None] / zb + rb[c] + dz[:, None] * el[c])
+                / (zb + dz[:, None])) * zb / sample + (n - 1) / 2 for c in (0, 1)]
+
+    def factor(centre, k):
+        f = k / n
+        amp = np.exp(-2 * np.pi ** 2 * (width[:, None, None] * f) ** 2)
+        phase = np.exp(2j * np.pi * f * centre[:, :, None])
+        if n % 2 == 0:
+            phase[:, :, np.abs(k) == n // 2] = np.cos(np.pi * centre)[:, :, None]
+        return amp * phase  # (layers, nsh, len(k))
+
+    # Separable layers: the spectrum of each subaperture is A[iy] @ B[ix],
+    # summing over the layers
+    a = factor(centres[1], np.fft.fftfreq(n, 1 / n)) * (flux / flux.sum() / n ** 2)[:, None, None]
+    b = factor(centres[0], np.arange(m))
+    if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+        raise ValueError("Kernel contains non-finite values!")
+    a = xp.asarray(a.transpose(1, 2, 0), dtype=dtype)
+    b = xp.asarray(b.transpose(1, 0, 2), dtype=dtype)
+    for iy in range(nsh):
+        out[iy * nsh:(iy + 1) * nsh] = xp.matmul(a[iy], b)
+    return out
+
+
 # Kernels already loaded or computed, shared by all the objects with the same kernel.
 # Weak values: the kernels are freed when no object uses them anymore.
 _kernels_cache = weakref.WeakValueDictionary()
@@ -213,10 +299,10 @@ class ConvolutionKernel(BaseDataObj):
         return self.xp.sum(self.to_xp(self.zlayer) * self.to_xp(self.zprofile)) \
                / self.xp.sum(self.zprofile)
 
-    def calculate_lgs_map(self):
+    def _map_parameters(self):
         """
-        Calculate the LGS (Laser Guide Star) map based on current parameters.
-        This creates convolution kernels for each subaperture.
+        Focus distance, layer offsets from it and LGS tip-tilt [arcsec], as given
+        to lgs_map_sh() and lgs_kernel_spectrum() for the current parameters.
         """
         if len(self.zlayer) != len(self.zprofile):
             raise ValueError("Number of elements of zlayer and zprofile must be the same")
@@ -241,8 +327,14 @@ class ConvolutionKernel(BaseDataObj):
             lgs_tt = self.xp.array([0.5, 0.5], dtype=self.dtype) * self.pxscale
         lgs_tt += self.theta
 
-        # Calculate normalized layer heights and profiles
-        layer_offsets = lay_heights - zfocus
+        return zfocus, lay_heights - zfocus, lgs_tt
+
+    def calculate_lgs_map(self):
+        """
+        Calculate the LGS (Laser Guide Star) map based on current parameters.
+        This creates convolution kernels for each subaperture.
+        """
+        zfocus, layer_offsets, lgs_tt = self._map_parameters()
 
         # Call the LGS map calculation function
         self.real_kernels = lgs_map_sh(
@@ -253,6 +345,19 @@ class ConvolutionKernel(BaseDataObj):
 
         # Process the kernels - apply FFT if needed
         self.process_kernels(return_fft=self.return_fft)
+
+    def calculate_kernel_spectrum(self):
+        """
+        Fourier coefficients of the kernels for the current parameters, computed in
+        closed form by lgs_kernel_spectrum(), without the real space kernels.
+        """
+        zfocus, layer_offsets, lgs_tt = self._map_parameters()
+        self._allocate_kernels(return_fft=True)
+        lgs_kernel_spectrum(
+            self.dimx, self.pupil_size_m, self.launcher_pos, zfocus, layer_offsets,
+            self.zprofile, self.spot_size, self.pxscale, self.dimension,
+            theta=lgs_tt, out=self.kernels, dtype=self.complex_dtype, xp=self.xp
+        )
 
     def generate_hash(self, items):
         """
@@ -285,11 +390,7 @@ class ConvolutionKernel(BaseDataObj):
         sha1.update(json.dumps(hash_arr).encode('utf-8'))
         return sha1.hexdigest()
 
-    def process_kernels(self, return_fft=False):
-        # Check for non-finite values
-        if self.xp.any(~self.xp.isfinite(self.real_kernels)):
-            raise ValueError("Kernel contains non-finite values!")
-
+    def _allocate_kernels(self, return_fft):
         # Kernels in the cache can be shared with other objects (see prepare_for_sh()):
         # they are never overwritten, the new ones are stored in a new array.
         # Other kernels are reused if the layout is the same. Users like SH, that keep
@@ -300,6 +401,13 @@ class ConvolutionKernel(BaseDataObj):
         if cached or self.kernels is None or self.kernels.shape != shape \
                 or self.kernels.dtype != dtype:
             self.kernels = self.xp.zeros(shape, dtype=dtype)
+
+    def process_kernels(self, return_fft=False):
+        # Check for non-finite values
+        if self.xp.any(~self.xp.isfinite(self.real_kernels)):
+            raise ValueError("Kernel contains non-finite values!")
+
+        self._allocate_kernels(return_fft)
 
         # Process the kernels - apply FFT if needed.
         # One row of subapertures at a time: real_kernels is x-major
@@ -372,30 +480,41 @@ class ConvolutionKernel(BaseDataObj):
                 self.logger.info(f"Sharing kernel {kernel_fn} with another object")
                 return
 
-            # Build full path using data_dir
-            if self.data_dir:
-                full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
-            else:
-                full_path = kernel_fn + '.fits'
-
-            # Create directory if it doesn't exist
-            os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
-                        else '.', exist_ok=True)
-
-            if os.path.exists(full_path):
-                self.logger.info(f"Loading kernel from {full_path}")
-                self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
-                             return_fft=True)
-            else:
-                self.logger.info('Calculating kernel...')
-                self.calculate_lgs_map()
-                self.save(full_path)
+            if self.return_fft:
+                # The coefficients are computed in closed form, faster than they
+                # would be loaded from a file: they are not saved in data_dir
+                self.logger.info('Calculating kernel spectrum...')
+                self.calculate_kernel_spectrum()
                 self.logger.info('Done')
+            else:
+                self._load_or_calculate_real_kernels(kernel_fn)
 
             # free memory
             self.real_kernels = None
 
             _kernels_cache[key] = self.kernels
+
+    def _load_or_calculate_real_kernels(self, kernel_fn):
+        '''Real space kernels from data_dir, computed and saved there if missing'''
+        # Build full path using data_dir
+        if self.data_dir:
+            full_path = os.path.join(self.data_dir, kernel_fn + '.fits')
+        else:
+            full_path = kernel_fn + '.fits'
+
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(full_path) if os.path.dirname(full_path)
+                    else '.', exist_ok=True)
+
+        if os.path.exists(full_path):
+            self.logger.info(f"Loading kernel from {full_path}")
+            self.restore(full_path, kernel_obj=self, target_device_idx=self.target_device_idx,
+                         return_fft=self.return_fft)
+        else:
+            self.logger.info('Calculating kernel...')
+            self.calculate_lgs_map()
+            self.save(full_path)
+            self.logger.info('Done')
 
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
