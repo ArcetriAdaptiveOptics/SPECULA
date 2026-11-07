@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from contextlib import nullcontext
 
-from iteras.base_time_obj import BaseTimeObj
+from iteras.base_time_obj import BaseTimeObj, release_cached_gpu_memory
 import iteras
 from iteras import mpi_progress
 from iteras.tracing import tracer
@@ -157,6 +157,7 @@ class LoopControl(BaseTimeObj):
         
         self.logger.debug(f'Setups DONE')
         self._report_mem('after setup')
+        release_cached_gpu_memory()
         self._mem_pending = {el for lst in self.trigger_lists.values() for el in lst}
         self._mem_first_trigger_report = True
         if iteras.process_comm is not None:
@@ -167,6 +168,7 @@ class LoopControl(BaseTimeObj):
         if self._mem_first_trigger_report and not self._mem_pending:
             self._report_mem('after the first trigger of all objects')
             self._mem_first_trigger_report = False
+            release_cached_gpu_memory()
 
         self.t = self.t0
         self.last_reported_time = time.time()
@@ -272,6 +274,7 @@ class LoopControl(BaseTimeObj):
         if self._mem_first_trigger_report and not self._mem_pending:
             self._report_mem('after the first trigger of all objects')
             self._mem_first_trigger_report = False
+            release_cached_gpu_memory()
         if tracer.recording:
             tracer.end_iteration()
 
