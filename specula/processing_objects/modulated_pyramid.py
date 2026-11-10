@@ -558,23 +558,27 @@ class ModulatedPyramid(BaseProcessingObj):
         t = np.clip(((u - p0[0]) * d[0] + (v - p0[1]) * d[1]) / (d @ d), 0, 1)
         return np.sqrt((u - p0[0] - t * d[0]) ** 2 + (v - p0[1] - t * d[1]) ** 2)
 
-    def _edge_distance(self, faces):
+    @staticmethod
+    def _edge_distance(faces, grad):
         """
         Distance [pixels] of each pixel from the nearest edge of its face.
 
+        faces is an array (n_faces, ny, nx) of face planes whose envelope is
+        their minimum, and grad (n_faces, 2) their gradients along (u, v).
         Each face is the convex region where its plane is the lowest, so the
         distance from its border is the minimum, over the other faces i, of
         the distance from the line where plane i equals the own plane:
         (plane_i - plane_own) / |grad_i - grad_own|. Pixels on a roof, where
         two planes are equal, get distance 0 whichever face owns them.
+        For an envelope that is the maximum of the planes, pass -faces, -grad.
         """
-        grad, _ = self._face_planes()
+        n_faces = faces.shape[0]
         own = faces.argmin(axis=0)
         envelope = faces.min(axis=0)
         dist = np.full(envelope.shape, np.inf)
-        for j in range(4):
+        for j in range(n_faces):
             sel = own == j
-            for i in range(4):
+            for i in range(n_faces):
                 if i != j:
                     norm = np.sqrt(np.sum((grad[i] - grad[j]) ** 2))
                     dist[sel] = np.minimum(dist[sel], (faces[i][sel] - envelope[sel]) / norm)
@@ -615,7 +619,7 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # 2. Random defects, with values up to the maximum of the surface
         if self.pyr_edge_def_ld > 0:
-            idx_edge = np.nonzero(self._edge_distance(faces) <= self.pyr_edge_def_ld * self.fft_res / 2)
+            idx_edge = np.nonzero(self._edge_distance(faces, self._face_planes()[0]) <= self.pyr_edge_def_ld * self.fft_res / 2)
             pyr_tlt[idx_edge] = pyr_tlt.max() * np.random.rand(len(idx_edge[0]))
             self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to random values'
                              ' to consider pyramid imperfect edges')
