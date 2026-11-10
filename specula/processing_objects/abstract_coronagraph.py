@@ -34,7 +34,7 @@ class Coronagraph(BaseProcessingObj):
         wavelengthInNm: float
             Wavelength in nm
         fov: float
-            Desired field of view in lambda/D on focal plane
+            Desired field of view on the focal plane, in arcsec
         fov_errinf: float, optional
             Relative error allowed on the inner part of the FOV (default: 0.1)
         fov_errsup: float, optional
