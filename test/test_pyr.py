@@ -2,7 +2,7 @@ import specula
 specula.init(0)  # Default target device
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from specula import np
 from specula import cpuArray, RAD2ASEC
@@ -1369,3 +1369,186 @@ class TestModulatedPyramid(unittest.TestCase):
             pyr.post_trigger()
             outputs.append(cpuArray(pyr.outputs['out_i'].i).copy())
         np.testing.assert_array_equal(outputs[1], outputs[0])
+
+    # ------------------------------------------------------------------
+    # Pyramid roof / envelope of the four faces
+    # ------------------------------------------------------------------
+    pixel_pupil = 64
+    pixel_pitch = 0.1
+
+    def _roof_pyramid(self, target_device_idx, **kwargs):
+        simul_params = SimulParams(pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch)
+        kwargs.setdefault('mod_amp', 0.0)
+        return ModulatedPyramid(
+            simul_params=simul_params,
+            wavelengthInNm=750,
+            fov=2.0,
+            pup_diam=24,
+            pup_dist=32,
+            output_resolution=64,
+            target_device_idx=target_device_idx,
+            **kwargs,
+        )
+
+    def _quadrant_fractions(self, target_device_idx, xp, roof):
+        """Flux fraction in the detector quadrants (TL, TR, BL, BR), flat wavefront, no modulation"""
+        pyr = self._roof_pyramid(target_device_idx, pyr_roof_ld=roof)
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=100,
+                           target_device_idx=target_device_idx)
+        ef.A = make_mask(self.pixel_pupil)
+        ef.generation_time = 0
+        pyr.inputs['in_ef'].set(ef)
+        loop = LoopControl()
+        loop.add(pyr, idx=0)
+        loop.run(run_time=1, dt=1, t0=0)
+        i = cpuArray(pyr.outputs['out_i'].i)
+        h = i.shape[0] // 2
+        q = np.array([i[:h, :h].sum(), i[:h, h:].sum(), i[h:, :h].sum(), i[h:, h:].sum()])
+        return q / q.sum()
+
+    @cpu_and_gpu
+    def test_pyr_tlt_nominal_is_bit_exact_with_former_quadrant_formula(self, target_device_idx, xp):
+        """Without defects the envelope of the four faces equals the former quadrant
+        formula exactly (x+y from the outer corner of each quadrant)."""
+        pyr = self._roof_pyramid(target_device_idx)
+        p, c = pyr.fft_sampling, pyr.fft_padding
+        A = int(round((p + c) / 2.0))
+        y, x = np.mgrid[0:A, 0:A]
+        old = np.zeros((2 * A, 2 * A))
+        old[:A, :A] = x + y
+        old[:A, A:] = x[:, ::-1] + y
+        old[A:, :A] = x + y[::-1]
+        old[A:, A:] = x[:, ::-1] + y[::-1]
+        old = old / pyr.tilt_scale
+        new = cpuArray(pyr.get_pyr_tlt(p, c))
+        if target_device_idx >= 0:
+            # Last-bit differences are tolerated on the GPU only
+            np.testing.assert_allclose(new, old, rtol=1e-12)
+        else:
+            np.testing.assert_array_equal(new, old)
+
+    @cpu_and_gpu
+    def test_pyr_roof_geometry_edges(self, target_device_idx, xp):
+        """With a positive roof the face boundaries far from the tip are at
+        u = +-L/(2 sqrt2) (vertical edges, 0|1 at the top and 2|3 at the bottom) and
+        v = +-L/(2 sqrt2) (horizontal edges, 0|2 on the left and 1|3 on the right),
+        L = pyr_roof_ld * fft_res pixels. Labels are per pixel centre, so the
+        expected position must lie between the centres bracketing the label change."""
+        pyr = self._roof_pyramid(target_device_idx, pyr_roof_ld=4.0)
+        p, c = pyr.fft_sampling, pyr.fft_padding
+        lab = pyr.get_pyr_faces(p, c).argmin(0)
+        n = lab.shape[0]
+        A = n // 2
+        coord = np.arange(n) - (A - 0.5)
+        half = pyr.pyr_roof_ld * pyr.fft_res / (2 * np.sqrt(2))
+
+        def check(line, la, lb, expected):
+            idx = np.flatnonzero(np.diff(line) != 0)
+            self.assertEqual(len(idx), 1)            # a single boundary along the line
+            self.assertEqual((line[idx[0]], line[idx[0] + 1]), (la, lb))
+            self.assertLessEqual(coord[idx[0]], expected)
+            self.assertGreaterEqual(coord[idx[0] + 1], expected)
+
+        check(lab[2, :], 0, 1, +half)
+        check(lab[n - 3, :], 2, 3, -half)
+        check(lab[:, 2], 0, 2, +half)
+        check(lab[:, n - 3], 1, 3, -half)
+
+    @cpu_and_gpu
+    def test_pyr_roof_faces_contact(self, target_device_idx, xp):
+        """A positive roof makes faces 0 and 3 meet (and 1, 2 never); a negative roof
+        the opposite. Without roof the labels are exactly the four quadrants."""
+        def touching(lab):
+            pairs = set()
+            for a, b in ((lab[:, :-1], lab[:, 1:]), (lab[:-1, :], lab[1:, :])):
+                m = a != b
+                pairs |= {frozenset(t) for t in zip(a[m].tolist(), b[m].tolist())}
+            return pairs
+
+        for roof, touch, apart in ((4.0, {0, 3}, {1, 2}), (-4.0, {1, 2}, {0, 3})):
+            pyr = self._roof_pyramid(target_device_idx, pyr_roof_ld=roof)
+            lab = pyr.get_pyr_faces(pyr.fft_sampling, pyr.fft_padding).argmin(0)
+            pairs = touching(lab)
+            self.assertIn(frozenset(touch), pairs)
+            self.assertNotIn(frozenset(apart), pairs)
+
+        pyr = self._roof_pyramid(target_device_idx)
+        lab = pyr.get_pyr_faces(pyr.fft_sampling, pyr.fft_padding).argmin(0)
+        A = lab.shape[0] // 2
+        expected = np.empty_like(lab)
+        expected[:A, :A], expected[:A, A:], expected[A:, :A], expected[A:, A:] = 0, 1, 2, 3
+        np.testing.assert_array_equal(lab, expected)
+
+    @cpu_and_gpu
+    def test_pyr_roof_midpoint_stays_at_tip(self, target_device_idx, xp):
+        """The roof is centred on the tip: the label map is invariant under a 180 deg
+        rotation combined with the relabelling 0<->3, 1<->2."""
+        for roof in (4.0, -4.0):
+            pyr = self._roof_pyramid(target_device_idx, pyr_roof_ld=roof)
+            faces = pyr.get_pyr_faces(pyr.fft_sampling, pyr.fft_padding)
+            lab = faces.argmin(0)
+            rotated = np.array([3, 2, 1, 0])[np.rot90(lab, 2)]
+            # Pixels exactly on a face boundary are ties, resolved by argmin to the lowest
+            # index (not symmetric): compare only the pixels with a unique minimum
+            two_lowest = np.sort(faces, axis=0)[:2]
+            unique = (two_lowest[1] - two_lowest[0]) > 1e-9
+            np.testing.assert_array_equal(rotated[unique], lab[unique])
+
+    @cpu_and_gpu
+    def test_pyr_roof_flux_at_zero_modulation(self, target_device_idx, xp):
+        """Flat wavefront, mod_amp=0. No roof: 0.25 in each pupil. Positive roof:
+        faces 0 and 3 (TL and BR pupils) collect the light, equal to each other, TR = BL,
+        and the dark-pair fraction decreases monotonically with the roof length.
+        Negative roof: mirrored split (TL<->TR, BL<->BR)."""
+        q0 = self._quadrant_fractions(target_device_idx, xp, 0.0)
+        np.testing.assert_allclose(q0, 0.25, atol=1e-3)
+
+        dark = [q0[1] + q0[2]]
+        for roof in (1.0, 8.0):
+            q = self._quadrant_fractions(target_device_idx, xp, roof)
+            np.testing.assert_allclose(q[0], q[3], rtol=1e-6)
+            np.testing.assert_allclose(q[1], q[2], rtol=1e-6)
+            self.assertGreater(q[0], 0.25)
+            dark.append(q[1] + q[2])
+            qneg = self._quadrant_fractions(target_device_idx, xp, -roof)
+            np.testing.assert_allclose(qneg, q[[1, 0, 3, 2]], atol=1e-6)
+        self.assertGreater(dark[0], dark[1])
+        self.assertGreater(dark[1], dark[2])
+        self.assertLess(dark[2], 0.1)
+
+    @cpu_and_gpu
+    def test_pyr_tlt_coeff_gives_continuous_surface(self, target_device_idx, xp):
+        """With pyr_tlt_coeff all ones except column 2 = (1.2, 0.9) the face slopes pivot
+        around the tip, so the envelope (min of continuous planes) has no steps: adjacent
+        pixels differ by at most the largest slope. (The former formula, pivoting around
+        the outer corner of each quadrant, had a step of ~19 tilt pixels at the tip.)"""
+        coeff = np.ones((2, 4))
+        coeff[:, 2] = (1.2, 0.9)
+        pyr = self._roof_pyramid(target_device_idx, pyr_tlt_coeff=coeff.tolist())
+        tlt = cpuArray(pyr.get_pyr_tlt(pyr.fft_sampling, pyr.fft_padding)).astype(np.float64)
+        tlt = tlt * pyr.tilt_scale
+        step = max(np.abs(np.diff(tlt, axis=0)).max(), np.abs(np.diff(tlt, axis=1)).max())
+        self.assertLessEqual(step, coeff.max() + 1e-9 * max(1.0, np.abs(tlt).max()))
+
+    def test_pyr_roof_ld_plumbing(self):
+        """pyr_roof_ld given to ExtSourcePyramid, DistributedExtSourcePyramid and
+        PolyCromPyramid reaches the internal ModulatedPyramid instances."""
+        from specula.processing_objects.ext_source_pyramid import ExtSourcePyramid
+        from specula.processing_objects.distributed_ext_source_pyramid import DistributedExtSourcePyramid
+        from specula.processing_objects.poly_crom_pyramid import PolyCromPyramid
+        simul_params = SimulParams(pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch)
+        common = dict(simul_params=simul_params, fov=2.0, pup_diam=24, output_resolution=64,
+                      pyr_roof_ld=2.5, target_device_idx=-1)
+
+        ext = ExtSourcePyramid(wavelengthInNm=750, **common)
+        self.assertEqual(ext.pyr_roof_ld, 2.5)
+
+        dist = DistributedExtSourcePyramid(wavelengthInNm=750, n_slices=2, **common)
+        self.assertEqual(len(dist.sub_pyr), 2)
+        for sub in dist.sub_pyr:
+            self.assertEqual(sub.pyr_roof_ld, 2.5)
+
+        poly = PolyCromPyramid(wavelengthInNm=[600, 750], flux_factor=[1.0, 1.0], mod_amp=0.0, **common)
+        self.assertEqual(len(poly._wfs_instances), 2)
+        for inst in poly._wfs_instances:
+            self.assertEqual(inst.pyr_roof_ld, 2.5)

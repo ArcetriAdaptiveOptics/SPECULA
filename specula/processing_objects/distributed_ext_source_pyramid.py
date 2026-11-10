@@ -35,6 +35,7 @@ class DistributedExtSourcePyramid(ExtSourcePyramid):
                  fp_obs: float = None,
                  pup_shifts = (0.0, 0.0),
                  pyr_tlt_coeff: float = None,
+                 pyr_roof_ld: float = 0.0,
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
