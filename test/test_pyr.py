@@ -1530,6 +1530,125 @@ class TestModulatedPyramid(unittest.TestCase):
         step = max(np.abs(np.diff(tlt, axis=0)).max(), np.abs(np.diff(tlt, axis=1)).max())
         self.assertLessEqual(step, coeff.max() + 1e-9 * max(1.0, np.abs(tlt).max()))
 
+    # ------------------------------------------------------------------
+    # Pyramid defects (edges, tip), flat top and support
+    # ------------------------------------------------------------------
+    def _tlt_host(self, pyr):
+        """get_pyr_tlt() on the host, float64, in tilt pixels (times tilt_scale)"""
+        tlt = cpuArray(pyr.get_pyr_tlt(pyr.fft_sampling, pyr.fft_padding)).astype(np.float64)
+        return tlt * pyr.tilt_scale
+
+    def _defect_mask(self, target_device_idx, **kwargs):
+        """Pixels changed by the defects: output with defects vs the same pyramid without
+        them. The random values are mocked to -1 (times max), which cannot coincide with
+        the (non-negative) surface, so every pixel hit by a defect registers as changed."""
+        pyr0 = self._roof_pyramid(target_device_idx, **{k: v for k, v in kwargs.items()
+                                                       if k in ('pyr_roof_ld', 'pyr_max_side_ld')})
+        pyr = self._roof_pyramid(target_device_idx, **kwargs)
+        with patch('numpy.random.rand', lambda n: np.full(n, -1.0)):
+            with_def = self._tlt_host(pyr)
+        return pyr, with_def != self._tlt_host(pyr0)
+
+    @cpu_and_gpu
+    def test_pyr_defects_nominal_unchanged(self, target_device_idx, xp):
+        """No roof, nominal slopes: the edge defect hits exactly the pixels with
+        |u| <= w/2 or |v| <= w/2 (w = pyr_edge_def_ld * fft_res), the tip defect exactly
+        those with sqrt(u^2+v^2) <= pyr_tip_def_ld * fft_res / 2, as in the former code."""
+        pyr, edge = self._defect_mask(target_device_idx, pyr_edge_def_ld=1.0)
+        u, v = pyr._tip_coords(pyr.fft_sampling, pyr.fft_padding)
+        w = 1.0 * pyr.fft_res
+        np.testing.assert_array_equal(edge, (np.abs(u) <= w / 2) | (np.abs(v) <= w / 2))
+        self.assertTrue(edge.any())
+
+        pyr, tip = self._defect_mask(target_device_idx, pyr_tip_def_ld=2.0)
+        r = 2.0 * pyr.fft_res / 2
+        np.testing.assert_array_equal(tip, np.sqrt(u ** 2 + v ** 2) <= r)
+        self.assertTrue(tip.any())
+
+    @cpu_and_gpu
+    def test_pyr_edge_defect_follows_roof_edges(self, target_device_idx, xp):
+        """With a roof (L = 12 px) the edges move to u = +-L/(2 sqrt2) ~ 4.24 px far from
+        the tip: the defect hits the columns bracketing that position (not the old axis
+        at u = +-0.5), the ridge itself (distance 0), and the mask has 180 deg symmetry."""
+        pyr, mask = self._defect_mask(target_device_idx, pyr_roof_ld=4.0, pyr_edge_def_ld=0.4)
+        u, v = pyr._tip_coords(pyr.fft_sampling, pyr.fft_padding)
+        uu, vv = np.broadcast_arrays(u, v)
+        L = 4.0 * pyr.fft_res
+        half = L / (2 * np.sqrt(2))
+        coord = u[0]
+        cols = np.flatnonzero(mask[2, :])
+        self.assertIn(len(cols), (1, 2))
+        # Half-width 0.6 px: the hit centres are within 0.6 of the edge
+        self.assertTrue(np.all(np.abs(coord[cols] - half) <= 0.6 + 1e-9))
+        self.assertFalse(mask[2, np.abs(coord) == 0.5].any())
+        ridge = (np.abs(uu + vv) < 1e-9) & (np.abs(uu) < half)
+        self.assertTrue(ridge.any())
+        self.assertTrue(mask[ridge].all())
+        np.testing.assert_array_equal(np.rot90(mask, 2), mask)
+
+    @cpu_and_gpu
+    def test_pyr_tip_defect_follows_roof(self, target_device_idx, xp):
+        """The roof ends are at (+-L/(2 sqrt2), -+L/(2 sqrt2)) (positive roof, ridge along
+        u+v=0) or (+-L/(2 sqrt2), +-L/(2 sqrt2)) (negative roof, ridge along u=v). The
+        tip defect hits exactly the pixels within r of the ridge segment, ends included."""
+        for roof, sgn in ((4.0, -1), (-4.0, 1)):
+            pyr, mask = self._defect_mask(target_device_idx, pyr_roof_ld=roof, pyr_tip_def_ld=1.0)
+            h = abs(roof) * pyr.fft_res / (2 * np.sqrt(2))
+            pts = sorted(map(tuple, pyr._tip_points()))
+            np.testing.assert_allclose(pts, [(-h, -sgn * h), (h, sgn * h)], atol=1e-12)
+            u, v = pyr._tip_coords(pyr.fft_sampling, pyr.fft_padding)
+            a = np.array(pts[0])
+            d = np.array(pts[1]) - a
+            t = np.clip(((u - a[0]) * d[0] + (v - a[1]) * d[1]) / (d @ d), 0, 1)
+            dist = np.hypot(u - a[0] - t * d[0], v - a[1] - t * d[1])
+            np.testing.assert_array_equal(mask, dist <= 1.0 * pyr.fft_res / 2)
+            # Pixels near both ends are hit too
+            uu, vv = np.broadcast_arrays(u, v)
+            for end in pts:
+                near = (np.abs(uu - end[0]) < 1) & (np.abs(vv - end[1]) < 1)
+                self.assertTrue(mask[near].any())
+            np.testing.assert_array_equal(np.rot90(mask, 2), mask)
+
+    @cpu_and_gpu
+    def test_pyr_maya_flat_top(self, target_device_idx, xp):
+        """Nominal pyramid with pyr_tip_maya_ld = 4 (r = 6 px): the surface equals the
+        envelope for |u|+|v| >= r and the flat level (2A-1) - r inside, and it stays
+        continuous. With a roof the level is (2A-1) - |delta|/2 - r and is the maximum."""
+        base = self._roof_pyramid(target_device_idx)
+        pyr = self._roof_pyramid(target_device_idx, pyr_tip_maya_ld=4.0)
+        p, c = pyr.fft_sampling, pyr.fft_padding
+        A = int(round((p + c) / 2.0))
+        r = 4.0 * pyr.fft_res / 2
+        u, v = pyr._tip_coords(p, c)
+        tlt = self._tlt_host(pyr)
+        env = self._tlt_host(base)
+        inside = (np.abs(u) + np.abs(v)) < r
+        np.testing.assert_allclose(tlt[~inside], env[~inside], atol=1e-5)
+        np.testing.assert_allclose(tlt[inside], 2 * A - 1 - r, atol=1e-5)
+        step = max(np.abs(np.diff(tlt, axis=0)).max(), np.abs(np.diff(tlt, axis=1)).max())
+        self.assertLessEqual(step, 1 + 1e-5)
+
+        pyr = self._roof_pyramid(target_device_idx, pyr_tip_maya_ld=4.0, pyr_roof_ld=4.0)
+        delta = 4.0 * pyr.fft_res / np.sqrt(2)
+        level = 2 * A - 1 - delta / 2 - r
+        tlt = self._tlt_host(pyr)
+        self.assertAlmostEqual(tlt.max(), level, places=4)
+        self.assertGreater(np.sum(np.abs(tlt - level) < 1e-5), 1)
+
+    @cpu_and_gpu
+    def test_pyr_support_applied_after_defects(self, target_device_idx, xp):
+        """The support (pyr_max_side_ld) is applied last: outside radius
+        max_side * fft_res / 2 the output is 0 even on the edge-defect pixels."""
+        pyr, _ = self._defect_mask(target_device_idx, pyr_edge_def_ld=1.0, pyr_max_side_ld=6.0)
+        u, v = pyr._tip_coords(pyr.fft_sampling, pyr.fft_padding)
+        outside = np.sqrt(u ** 2 + v ** 2) > 6.0 * pyr.fft_res / 2
+        edge = (np.abs(u) <= pyr.fft_res / 2) | (np.abs(v) <= pyr.fft_res / 2)
+        self.assertTrue((outside & edge).any())
+        with patch('numpy.random.rand', lambda n: np.full(n, 0.5)):
+            tlt = self._tlt_host(pyr)
+        np.testing.assert_array_equal(tlt[outside], 0.0)
+        self.assertTrue((tlt[~outside & edge] != 0).any())
+
     def test_pyr_roof_ld_plumbing(self):
         """pyr_roof_ld given to ExtSourcePyramid, DistributedExtSourcePyramid and
         PolyCromPyramid reaches the internal ModulatedPyramid instances."""
