@@ -68,8 +68,9 @@ class ModulatedPyramid(BaseProcessingObj):
         Margin around pupils in pixels (default: 2)
     fft_res : float [1], optional
         Minimum PSF sampling (default: 3.0, i.e., 3 pixels per PSF FWHM i.e. lambda/D)
-    fp_obs : float [pixels], optional
-        Focal plane central obstruction diameter in pixels (default: None)
+    fp_obs : float [lambda/D], optional
+        Diameter of the central obstruction of the focal plane mask in lambda/D
+        units (default: None, no obstruction)
     pup_shifts : tuple [pixels], optional
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0)). The
         optional input in_misregistration can change them, and
@@ -227,7 +228,12 @@ class ModulatedPyramid(BaseProcessingObj):
         final_ccd_side = result['final_ccd_side']
 
         # Compute focal plane central obstruction dimension ratio
-        fp_obsratio = fp_obs / (fft_totsize / fft_res) if fp_obs is not None else 0
+        # make_mask() takes it as a fraction of the field stop diameter, which is
+        # fp_masking times the FFT frame (fft_totsize / fft_res lambda/D)
+        if fp_obs is not None:
+            fp_obsratio = fp_obs / (self.fp_masking * fft_totsize / fft_res)
+        else:
+            fp_obsratio = 0
 
         self.wavelength_in_nm = wavelengthInNm
         self.fov_res = fov_res
@@ -272,30 +278,24 @@ class ModulatedPyramid(BaseProcessingObj):
         self._s0_area_host = None
 
         if mod_step is None:
-            if mod_type == 'circular':
-                # In the circular case we want to ensure:
-                # - 1 point for mod_amp = 0
-                # - a multiple of 4 points for mod_amp > 0
-                # - more than 2*pi*mod_amp points for mod_amp > 0
-                # For example, for mod_amp = 1, we want 8 points
-                mod_step = max([1.0, round(mod_amp * 2.)*4.])
-            else:
-                # In the linear case we want:
-                # - 1 point for mod_amp = 0
-                # - a point in [0, 0] for mod_amp > 0
-                # - more than 2 points for mod_amp > 0
-                mod_step = round(mod_amp)*2.+1.0
+            mod_step = self.default_mod_step(mod_amp, mod_type)
         elif mod_step == 0:
             raise ValueError('mod_step cannot be zero')
         elif mod_step < 0:
             raise ValueError('mod_step must be a positive integer')
         elif int(mod_step) != mod_step:
             raise ValueError('Modulation step number is not an integer')
-        elif mod_step < self.xp.around(2 * self.xp.pi * mod_amp):
+        elif mod_type == 'circular' and mod_step < np.around(2 * np.pi * mod_amp):
             raise ValueError(
                 f'Number of modulation steps is too small ({mod_step}), '
                 f'it must be at least 2*pi times the modulation amplitude '
-                f'({self.xp.around(2 * self.xp.pi * mod_amp)})!'
+                f'({np.around(2 * np.pi * mod_amp)})!'
+            )
+        elif mod_type != 'circular' and mod_step < round(mod_amp) * 2 + 1:
+            raise ValueError(
+                f'Number of modulation steps is too small ({mod_step}), '
+                f'linear modulation needs at least {round(mod_amp) * 2 + 1} '
+                f'(about one per lambda/D along the 2*mod_amp path)!'
             )
 
         if self.pyr_tlt_coeff is not None:
@@ -358,6 +358,20 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # Derived classes can disable streams
         self.stream_enable = True
+
+    @staticmethod
+    def default_mod_step(mod_amp: float, mod_type: str = 'circular') -> int:
+        """
+        Default number of modulation steps for a modulation amplitude [lambda/D].
+
+        Circular modulation: 1 point for mod_amp = 0, otherwise a multiple of
+        4 points, more than 2*pi*mod_amp (e.g. 8 points for mod_amp = 1).
+        Linear modulation: 1 point for mod_amp = 0, otherwise an odd number of
+        points (one in [0, 0]), about one per lambda/D along the path.
+        """
+        if mod_type == 'circular':
+            return int(max(1, round(mod_amp * 2) * 4))
+        return int(round(mod_amp) * 2 + 1)
 
     @classmethod
     def input_names(cls):

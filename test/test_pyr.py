@@ -1667,7 +1667,78 @@ class TestModulatedPyramid(unittest.TestCase):
         for sub in dist.sub_pyr:
             self.assertEqual(sub.pyr_roof_ld, 2.5)
 
+        # PolyCromPyramid: given at the reference (first) wavelength, rescaled
+        # by lambda_ref / lambda for the others
         poly = PolyCromPyramid(wavelengthInNm=[600, 750], flux_factor=[1.0, 1.0], mod_amp=0.0, **common)
         self.assertEqual(len(poly._wfs_instances), 2)
-        for inst in poly._wfs_instances:
-            self.assertEqual(inst.pyr_roof_ld, 2.5)
+        self.assertEqual(poly._wfs_instances[0].pyr_roof_ld, 2.5)
+        self.assertAlmostEqual(poly._wfs_instances[1].pyr_roof_ld, 2.5 * 600 / 750, places=12)
+
+    def test_default_mod_step_gives_former_values(self):
+        """default_mod_step reproduces the former default: circular
+        int(max(1, round(2*mod_amp)*4)), linear int(round(mod_amp)*2+1)."""
+        for mod_amp in (0, 0.5, 1, 2.3, 3, 4.5):
+            self.assertEqual(ModulatedPyramid.default_mod_step(mod_amp, 'circular'),
+                             int(max(1, round(2 * mod_amp) * 4)))
+            for mod_type in ('vertical', 'horizontal', 'alternating'):
+                self.assertEqual(ModulatedPyramid.default_mod_step(mod_amp, mod_type),
+                                 int(round(mod_amp) * 2 + 1))
+
+    def _build_pyr(self, target_device_idx, **kwargs):
+        simul_params = SimulParams(pixel_pupil=self.pixel_pupil, pixel_pitch=self.pixel_pitch)
+        params = dict(simul_params=simul_params, wavelengthInNm=750, fov=2.0, pup_diam=24,
+                      pup_dist=32, output_resolution=64, target_device_idx=target_device_idx)
+        params.update(kwargs)
+        return ModulatedPyramid(**params)
+
+    @cpu_and_gpu
+    def test_explicit_mod_step_validation(self, target_device_idx, xp):
+        """Linear modulation accepts mod_step >= round(mod_amp)*2+1 (the default,
+        7 for mod_amp=3) and rejects smaller values; circular modulation still
+        needs mod_step >= around(2*pi*mod_amp) (19 for mod_amp=3)."""
+        pyr = self._build_pyr(target_device_idx, mod_amp=3, mod_type='vertical', mod_step=7)
+        self.assertEqual(pyr.mod_steps, 7)
+        with self.assertRaises(ValueError):
+            self._build_pyr(target_device_idx, mod_amp=3, mod_type='vertical', mod_step=5)
+        with self.assertRaises(ValueError):
+            self._build_pyr(target_device_idx, mod_amp=3, mod_type='circular', mod_step=18)
+        pyr = self._build_pyr(target_device_idx, mod_amp=3, mod_type='circular', mod_step=20)
+        self.assertEqual(pyr.mod_steps, 20)
+
+    @staticmethod
+    def _obstruction_diameter_ld(pyr, fp_obs):
+        """Zero pixels of fp_mask within the obstruction neighbourhood, as an
+        equivalent disc diameter in lambda/D."""
+        mask = cpuArray(pyr.fp_mask)
+        n = mask.shape[0]
+        y, x = np.mgrid[:n, :n]
+        r = np.hypot(y - (n / 2 - 0.5), x - (n / 2 - 0.5))
+        area = np.count_nonzero((mask == 0) & (r <= fp_obs * pyr.fft_res / 2 + 2))
+        return 2 * np.sqrt(area / np.pi) / pyr.fft_res
+
+    @cpu_and_gpu
+    def test_fp_obs_is_in_lambda_over_d(self, target_device_idx, xp):
+        """With fp_obs = 4 lambda/D the focal-plane obstruction is a disc of
+        diameter 4*fft_res pixels, independently of fov (i.e. of fp_masking),
+        and the field stop diameter matches fov. The former formula gave an
+        area fp_masking**2 times too small."""
+        fp_obs = 4.0
+        maskings = []
+        for fov in (2.0, 1.2):
+            pyr = self._build_pyr(target_device_idx, fov=fov, fp_obs=fp_obs)
+            maskings.append(pyr.fp_masking)
+            diam_ld = self._obstruction_diameter_ld(pyr, fp_obs)
+            expected_area = np.pi * (fp_obs * pyr.fft_res / 2) ** 2
+            area = np.pi * (diam_ld * pyr.fft_res / 2) ** 2
+            self.assertAlmostEqual(area / expected_area, 1.0, delta=0.1)
+
+            # Field stop: non-zero extent along the central row (obstruction excluded
+            # by taking the outer extent)
+            mask = cpuArray(pyr.fp_mask)
+            n = mask.shape[0]
+            cols = np.nonzero(mask[n // 2] != 0)[0]
+            stop_pix = cols[-1] - cols[0] + 1
+            ld_arcsec = 750e-9 / (self.pixel_pupil * self.pixel_pitch) * RAD2ASEC
+            self.assertAlmostEqual(stop_pix / pyr.fft_res * ld_arcsec, fov,
+                                   delta=ld_arcsec / pyr.fft_res * 1.5)
+        self.assertGreater(abs(maskings[0] - maskings[1]), 0.05)
