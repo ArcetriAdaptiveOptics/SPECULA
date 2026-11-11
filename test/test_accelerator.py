@@ -1,3 +1,4 @@
+import re
 import unittest
 
 import specula
@@ -74,7 +75,7 @@ class Counter(BaseProcessingObj):
 
 
 class Slow(BaseProcessingObj):
-    '''Long GPU work on its own stream (CUDA graph, see build_stream()), from its input'''
+    '''Long GPU work, from its input'''
 
     def __init__(self, target_device_idx=None, n=1 << 21):
         super().__init__(target_device_idx=target_device_idx)
@@ -83,9 +84,8 @@ class Slow(BaseProcessingObj):
         self.outputs['out_value'] = self.out
         self.ramp = self.xp.linspace(0, 1, n, dtype=self.dtype)
 
-    def setup(self):
-        super().setup()
-        self.build_stream()
+    def can_accelerate(self):  # pragma: gpu
+        return True
 
     def trigger_code(self):
         x = self.out.value
@@ -99,20 +99,14 @@ class Slow(BaseProcessingObj):
 
 
 class Total(BaseProcessingObj):
-    '''Sum of its inputs, times a factor, on its own stream if *own_stream*'''
+    '''Sum of its inputs, times a factor'''
 
-    def __init__(self, target_device_idx=None, factor=1.0, own_stream=True):
+    def __init__(self, target_device_idx=None, factor=1.0):
         super().__init__(target_device_idx=target_device_idx)
         self.inputs['in_values'] = InputList(type=BaseValue)
         self.out = BaseValue(value=self.xp.zeros(1, dtype=self.dtype), target_device_idx=target_device_idx)
         self.outputs['out_value'] = self.out
         self.factor = factor
-        self.own_stream = own_stream
-
-    def setup(self):
-        super().setup()
-        if self.own_stream:
-            self.build_stream()
 
     def can_accelerate(self):
         return True
@@ -128,15 +122,15 @@ class Total(BaseProcessingObj):
 
 
 @unittest.skipIf(cp is None, 'Cupy not found')
-class TestOwnStreams(unittest.TestCase):
+class TestTriggerLevels(unittest.TestCase):
 
     def run_graph(self, accelerate, steps=8):
-        '''generator -> slow -> (a, b on their own streams, same level) -> total (default stream)'''
+        '''generator -> slow -> (a, b, same level) -> total, without host waits between them'''
         gen = WaveGenerator(amp=[1.0], freq=[37.0], constant=[0.5], output_size=4, target_device_idx=0)
         slow = Slow(target_device_idx=0)
         a = Total(target_device_idx=0, factor=1.0)
         b = Total(target_device_idx=0, factor=-2.0)
-        total = Total(target_device_idx=0, own_stream=False)
+        total = Total(target_device_idx=0)
         slow.inputs['in_value'].set(gen.outputs['output'])
         a.inputs['in_values'].set([slow.outputs['out_value']])
         b.inputs['in_values'].set([slow.outputs['out_value']])
@@ -155,14 +149,12 @@ class TestOwnStreams(unittest.TestCase):
         loop.finish()
         return np.array(out), objs
 
-    def test_same_results_with_own_streams(self):
+    def test_same_results_accelerated(self):
         ref, _ = self.run_graph(False)
         out, (gen, slow, a, b, total) = self.run_graph(True)
         np.testing.assert_allclose(out, ref, rtol=1e-5)
-        for obj in (slow, a, b):
+        for obj in (slow, a, b, total):
             self.assertIsNotNone(obj._accel.graph)
-            self.assertIs(obj._accel.launch_stream(), obj.stream)
-        self.assertIsNot(total._accel.launch_stream(), slow.stream)
 
 
 @unittest.skipIf(cp is None, 'Cupy not found')
@@ -289,9 +281,7 @@ class TestAccelerator(unittest.TestCase):
     def test_accelerated_object_does_not_wait_for_the_gpu(self):
         (_, dbl, _), _ = self.check_same()
         self.assertIsNotNone(dbl._accel)
-        # post_trigger() of a accelerated object with its own graph does not wait for its stream
-        dbl.stream = cp.cuda.Stream()
-        dbl.cuda_graph = object()
+        # post_trigger() of a accelerated object does not wait for the GPU
         dbl.inputs_changed = True
         dbl.post_trigger()
 
@@ -372,6 +362,34 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         sim.run()
         self.assertIn('0 of 1 objects accelerated', sim.accelerator.report())
 
+    def test_accelerate_is_the_default(self):
+        from specula.simul import Simul
+        from iteras.scripts.iteras_main import build_parser
+        self.assertTrue(Simul('unused.yml').accelerate)
+        parser = build_parser()
+        self.assertTrue(parser.parse_args(['p.yml']).accelerate)
+        self.assertTrue(parser.parse_args(['--accelerate', 'p.yml']).accelerate)
+        self.assertFalse(parser.parse_args(['--no-accelerate', 'p.yml']).accelerate)
+
+    def test_accelerate_false_ignores_the_accelerator_section(self):
+        import os
+        import yaml
+        from specula.simul import Simul
+        params = {'main': {'class': 'SimulParams', 'root_dir': self.tmp.name, 'total_time': 0.003,
+                           'time_step': 0.001},
+                  'gen': {'class': 'WaveGenerator', 'amp': [1.0], 'freq': [10.0], 'output_size': 2,
+                          'target_device_idx': -1},
+                  'accelerator': {'class': 'Accelerator', 'exclude': ['gen']}}
+        path = os.path.join(self.tmp.name, 'params.yml')
+        with open(path, 'w') as f:
+            yaml.dump(params, f)
+        sim = Simul(path, accelerate=False, speed_report=False)
+        sim.run()
+        self.assertIsNone(sim.accelerator)
+        sim = Simul(path, speed_report=False)
+        sim.run()
+        self.assertEqual(sim.accelerator.options.exclude, ['gen'])
+
     def test_accelerator_sections(self):
         from specula.simul import Simul
         sim = Simul('unused.yml')
@@ -386,6 +404,47 @@ class TestAcceleratorOnCpu(unittest.TestCase):
             sim.run_allocator(params)
         self.assertEqual(AcceleratorOptions(exclude=['b', 'a']).as_dict(),
                          {'exclude': ['a', 'b'], 'capture_after': 1, 'check_pointers': True})
+
+    def test_internal_objects(self):
+        '''
+        The internal objects of a container are accelerated, listed as <container>[i],
+        and excluded with it. The objects are on the CPU, made to look on a GPU:
+        apply() only reads target_device_idx.
+        '''
+        class OwnTrigger(Doubler):
+            def trigger(self):
+                '''Not called: the accelerator only checks that the class overrides it'''
+
+        class Container(Doubler):
+            def __init__(self):
+                super().__init__(target_device_idx=-1)
+                self.parts = [Doubler(target_device_idx=-1), Doubler(target_device_idx=-1),
+                              OwnTrigger(target_device_idx=-1), TripleDoubler(target_device_idx=-1)]
+                for obj in [self, self.parts[0], self.parts[2], self.parts[3]]:
+                    obj.target_device_idx = 0
+
+            def internal_objects(self):
+                return self.parts
+
+        container = Container()
+        container.name = 'cont'
+        accelerator = Accelerator(AcceleratorOptions())
+        accelerator.apply([container])
+        self.assertIsNotNone(container._accel)
+        self.assertEqual([p._accel is not None for p in container.parts], [True, False, False, False])
+        report = accelerator.report()
+        self.assertIn('5 objects', report)
+        for i, reason in enumerate(['not captured yet', 'on the CPU', 'overrides trigger()',
+                                    'is not covered']):
+            self.assertRegex(report, rf'cont\[{i}\] .*{re.escape(reason)}')
+
+        container = Container()
+        container.name = 'cont'
+        accelerator = Accelerator(AcceleratorOptions(exclude=['cont']))
+        accelerator.apply([container])
+        self.assertIsNone(container._accel)
+        self.assertIsNone(container.parts[0]._accel)
+        self.assertRegex(accelerator.report(), r'cont\[0\] .*excluded')
 
     def test_declarations_of_the_classes(self):
         from types import SimpleNamespace
@@ -417,6 +476,38 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         self.assertIs(BaseOperation.can_accelerate(op), True)
         op.local_inputs['in_value1'].generation_time = -1
         self.assertIn('in_value1', BaseOperation.can_accelerate(op))
+
+        # The classes that called build_stream() before
+        from specula.processing_objects.atmo_evolution import AtmoEvolution
+        from specula.processing_objects.atmo_propagation import AtmoPropagation
+        from specula.processing_objects.avc import AVC
+        from specula.processing_objects.ext_source_pyramid import ExtSourcePyramid
+        from specula.processing_objects.modulated_double_roof import ModulatedDoubleRoof
+        from specula.processing_objects.modulated_pyramid import ModulatedPyramid
+        from specula.processing_objects.sh import SH
+        from specula.processing_objects.sh_slopec import ShSlopec
+        for klass in (AtmoEvolution, AVC, SH):
+            self.assertIs(klass.can_accelerate(None), True, klass)
+        self.assertIs(AtmoPropagation.can_accelerate(SimpleNamespace(doFresnel=False)), True)
+        self.assertIs(AtmoPropagation.can_accelerate(SimpleNamespace(doFresnel=True)), False)
+        for klass in (ModulatedPyramid, ExtSourcePyramid, ModulatedDoubleRoof):
+            for enable in (True, False):
+                self.assertIs(klass.can_accelerate(SimpleNamespace(stream_enable=enable)), enable, klass)
+        # ShSlopec: not its derived classes, which may compute on the host
+        self.assertIs(ShSlopec.can_accelerate(object.__new__(ShSlopec)), True)
+        derived = type('Derived', (ShSlopec,), {'compute_slopes': lambda self: None})
+        self.assertIs(ShSlopec.can_accelerate(object.__new__(derived)), False)
+
+    def test_internal_objects_of_the_containers(self):
+        from types import SimpleNamespace
+        from specula.processing_objects.distributed_sh import DistributedSH
+        from specula.processing_objects.distributed_ext_source_pyramid import DistributedExtSourcePyramid
+        from specula.processing_objects.poly_chrom_wfs import PolyChromWFS
+        parts = [object(), object()]
+        self.assertEqual(DistributedSH.internal_objects(SimpleNamespace(sub_sh=parts)), parts)
+        self.assertEqual(DistributedExtSourcePyramid.internal_objects(SimpleNamespace(sub_pyr=parts)), parts)
+        self.assertEqual(PolyChromWFS.internal_objects(SimpleNamespace(_wfs_instances=parts)), parts)
+        self.assertEqual(BaseProcessingObj(target_device_idx=-1).internal_objects(), [])
 
     def test_helpers(self):
         import iteras

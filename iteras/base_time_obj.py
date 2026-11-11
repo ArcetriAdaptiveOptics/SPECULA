@@ -37,7 +37,7 @@ def release_cached_gpu_memory():
     others), and the pinned host blocks, so that the process does not hold
     them for the whole run. Only the GPUs already used are touched. The
     arrays allocated while capturing CUDA graphs are in separate pools
-    (see BaseProcessingObj.build_stream()) and are not affected.
+    (see iteras.accelerator) and are not affected.
     '''
     if iteras.cp is None:
         return

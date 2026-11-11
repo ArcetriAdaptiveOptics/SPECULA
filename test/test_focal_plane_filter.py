@@ -3,7 +3,9 @@ specula.init(0)  # Default target device
 
 import unittest
 
-from specula import np, cpuArray
+from scipy.special import j0, j1
+
+from specula import np, cpuArray, RAD2ASEC
 from specula.lib.calc_psf import calc_psf
 from specula.lib.make_mask import make_mask
 from specula.data_objects.electric_field import ElectricField
@@ -82,7 +84,7 @@ class TestFocalPlaneFilter(unittest.TestCase):
         ef_nofilter = fpf_nofilter.outputs['out_ef']
 
         # With filter: central obstruction of 2 lambda/D
-        fp_obs = 2 * (self.wavelength_nm * 1e-9) / (self.pixel_pupil * self.pixel_pitch) * 206265  # in arcsec
+        fp_obs = 2.0  # in lambda/D
 
         fpf_obs = FocalPlaneFilter(
             simul_params=self.simul_params,
@@ -389,3 +391,155 @@ class TestFocalPlaneFilter(unittest.TestCase):
         for t in transmissions:
             self.assertGreater(t, 0.0, "Transmission should be positive")
             self.assertLessEqual(t, 1.0, "Transmission should not exceed 1.0")
+
+class TestFocalPlaneFilterObstruction(unittest.TestCase):
+    """Units and physical meaning of fp_obs (diameter of the obstruction in lambda/D)."""
+
+    def setUp(self):
+        self.pixel_pupil = 120
+        self.pixel_pitch = 0.05
+        self.wavelength_nm = 500
+        self.simul_params = SimulParams(
+            pixel_pupil=self.pixel_pupil,
+            pixel_pitch=self.pixel_pitch
+        )
+        self.mask = make_mask(self.pixel_pupil, obsratio=0.0, xp=np)
+        # lambda/D in arcsec, with D = pixel_pupil * pixel_pitch
+        self.ld_arcsec = (self.wavelength_nm * 1e-9 / (self.pixel_pupil * self.pixel_pitch)
+                          * RAD2ASEC)
+
+    def _make_filter(self, fov, fp_obs, target_device_idx):
+        return FocalPlaneFilter(
+            simul_params=self.simul_params,
+            wavelengthInNm=self.wavelength_nm,
+            fov=fov,
+            fp_obs=fp_obs,
+            target_device_idx=target_device_idx
+        )
+
+    @staticmethod
+    def _equivalent_diameter_ld(n_pixels, fft_res):
+        """Diameter in lambda/D of the disk with the same area as n_pixels."""
+        return 2 * np.sqrt(n_pixels / np.pi) / fft_res
+
+    def _run_filter(self, fpf, ef):
+        fpf.inputs['in_ef'].set(ef)
+        fpf.setup()
+        fpf.check_ready(1)
+        fpf.prepare_trigger(1)
+        fpf.trigger_code()
+        fpf.post_trigger()
+        return fpf.outputs['out_ef']
+
+    @cpu_and_gpu
+    def test_obstruction_diameter_in_lambda_over_d(self, target_device_idx, xp):
+        """The zero pixels inside the field stop form a disk of diameter fp_obs [lambda/D].
+
+        Expected: the area-equivalent diameter of the obstruction equals fp_obs. The
+        focal plane has fft_res = 3 pixels per lambda/D, also when the pupil is
+        interpolated (fov_res > 1), so a disk edge is quantised to ~1/3 lambda/D
+        and the tolerance is 0.25 lambda/D (measured deviations are below 0.15).
+        The fov values cover fov_res = 1, 2 and 3 (different fp_masking too).
+        """
+        expected_fov_res = {2.0: 1, 3.0: 2, 6.0: 3}
+        for fov, fov_res in expected_fov_res.items():
+            no_obs = cpuArray(self._make_filter(fov, 0.0, target_device_idx).fp_mask)
+            for fp_obs in (2.0, 4.0, 10.0):
+                with self.subTest(fov=fov, fp_obs=fp_obs):
+                    fpf = self._make_filter(fov, fp_obs, target_device_idx)
+                    self.assertEqual(fpf.fov_res, fov_res)
+                    mask = cpuArray(fpf.fp_mask)
+                    # Zero pixels inside the field stop (open without obstruction)
+                    n_obstructed = np.count_nonzero((no_obs == 1) & (mask == 0))
+                    diameter = self._equivalent_diameter_ld(n_obstructed, fpf.fft_res)
+                    self.assertAlmostEqual(diameter, fp_obs, delta=0.25)
+
+    @cpu_and_gpu
+    def test_field_stop_diameter_in_arcsec(self, target_device_idx, xp):
+        """Open pixels plus obstruction have an area-equivalent diameter equal to fov [arcsec].
+
+        Expected: within 1%, independently of fov_res and of the obstruction.
+        """
+        for fov in (1.0, 2.0, 3.0, 6.0):
+            for fp_obs in (0.0, 4.0):
+                with self.subTest(fov=fov, fp_obs=fp_obs):
+                    fpf = self._make_filter(fov, fp_obs, target_device_idx)
+                    mask = cpuArray(fpf.fp_mask)
+                    no_obs = cpuArray(self._make_filter(fov, 0.0, target_device_idx).fp_mask)
+                    # Field stop = open pixels + obstructed pixels (the no-obstruction disk)
+                    n_stop = np.count_nonzero(mask) + np.count_nonzero((no_obs == 1) & (mask == 0))
+                    diameter_arcsec = (self._equivalent_diameter_ld(n_stop, fpf.fft_res)
+                                       * self.ld_arcsec)
+                    self.assertAlmostEqual(diameter_arcsec / fov, 1.0, delta=0.01)
+
+    @cpu_and_gpu
+    def test_obstruction_larger_than_field_stop_raises(self, target_device_idx, xp):
+        """fp_obs >= field stop diameter must raise ValueError, a smaller one must not.
+
+        For this geometry (D = 6 m, 500 nm) a 2 arcsec field stop is ~116 lambda/D.
+        """
+        stop_ld = 2.0 / self.ld_arcsec
+        self.assertAlmostEqual(stop_ld, 116.3, delta=0.5)
+        with self.assertRaises(ValueError):
+            self._make_filter(2.0, stop_ld + 10, target_device_idx)
+        with self.assertRaises(ValueError):
+            self._make_filter(2.0, 130.0, target_device_idx)
+        fpf = self._make_filter(2.0, stop_ld - 10, target_device_idx)  # no exception
+        self.assertGreater(np.count_nonzero(cpuArray(fpf.fp_mask)), 0)
+
+    @cpu_and_gpu
+    def test_blocked_energy_is_airy_encircled_energy(self, target_device_idx, xp):
+        """The focal plane mask blocks the Airy encircled energy within radius fp_obs / 2.
+
+        Expected: for a flat wavefront on a circular pupil, the PSF fraction inside an
+        obstruction of diameter d lambda/D is EE = 1 - J0(v)^2 - J1(v)^2 with
+        v = pi * d / 2 (v = pi D theta / lambda at theta = d/2 lambda/D); for d = 2
+        EE = 0.826, for d = 4 EE = 0.906. The PSF is computed independently with numpy,
+        sampled at fft_res = 3 px per lambda/D (disk area quantised, ~0.13 lambda/D
+        on the diameter), so the tolerance is 0.03. fov = 3 arcsec uses fov_res = 2.
+        """
+        for fov in (2.0, 3.0):
+            no_obs = self._make_filter(fov, 0.0, target_device_idx)
+            n = no_obs.fft_totsize
+            n_pup = no_obs.fft_sampling
+            pad = (n - n_pup) // 2
+            pupil = np.zeros((n, n))
+            pupil[pad:pad + n_pup, pad:pad + n_pup] = make_mask(n_pup, xp=np)
+            psf = np.abs(np.fft.fft2(pupil)) ** 2
+            psf /= psf.sum()
+            open_no_obs = np.fft.fftshift(cpuArray(no_obs.fp_mask)).astype(float)
+
+            for fp_obs in (2.0, 4.0):
+                with self.subTest(fov=fov, fp_obs=fp_obs):
+                    fpf = self._make_filter(fov, fp_obs, target_device_idx)
+                    open_obs = np.fft.fftshift(cpuArray(fpf.fp_mask)).astype(float)
+                    blocked = 1 - (psf * open_obs).sum() / (psf * open_no_obs).sum()
+                    v = np.pi * fp_obs / 2
+                    expected = 1 - j0(v) ** 2 - j1(v) ** 2
+                    self.assertAlmostEqual(blocked, expected, delta=0.03)
+
+    @cpu_and_gpu
+    def test_s0_loss_is_at_least_the_blocked_energy(self, target_device_idx, xp):
+        """The S0 lost through the filter is not smaller than the Airy encircled energy.
+
+        Expected: the output field is cropped to the pupil, so it carries at most the
+        energy that passes the focal plane mask: 1 - T_obs / T_noobs >= EE(fp_obs / 2),
+        with EE = 1 - J0(pi)^2 - J1(pi)^2 = 0.826 for fp_obs = 2 lambda/D. It is not
+        equal to EE because the unfiltered pupil halo outside the pupil is also lost
+        (measured ~0.875), but it must stay below 1.
+        """
+        ef = ElectricField(self.pixel_pupil, self.pixel_pupil, self.pixel_pitch, S0=1,
+                           target_device_idx=target_device_idx)
+        ef.A[:] = xp.array(self.mask)
+        ef.phaseInNm[:] = 0.0
+        ef.generation_time = 1
+
+        t_no_obs = float(self._run_filter(self._make_filter(2.0, 0.0, target_device_idx), ef).S0)
+        t_obs = float(self._run_filter(self._make_filter(2.0, 2.0, target_device_idx), ef).S0)
+        self.assertGreater(t_no_obs, 0.99)
+        self.assertLessEqual(t_no_obs, 1.0)
+
+        lost = 1 - t_obs / t_no_obs
+        expected = 1 - j0(np.pi) ** 2 - j1(np.pi) ** 2
+        self.assertGreaterEqual(lost, expected - 0.01)
+        self.assertLess(lost, 1.0)

@@ -70,8 +70,8 @@ class ProcessingObjName(BaseProcessingObj):
     def setup(self):
         super().setup()
         
-        # when using stream capture should do:
-        # super().build_stream()
+        # trigger_code() can be captured in a CUDA graph if can_accelerate()
+        # returns True (see iteras.accelerator)
 
         # check some initial conditions
         data1 = self.local_inputs['in_data1']

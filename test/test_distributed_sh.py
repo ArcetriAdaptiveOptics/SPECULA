@@ -172,6 +172,39 @@ print(f'{sh.sub_sh[0].target_device_idx},{sh.sub_sh[1].target_device_idx}')
             cp.cuda.Device(target_device_idx).use()
         np.testing.assert_almost_equal(xp.sum(intensity.i), ref_S0 * ef.masked_area())
 
+    @unittest.skipIf(cp is None, 'GPU not available')
+    def test_slices_are_accelerated(self):
+        '''
+        The slices (internal objects, see internal_objects()) are accelerated, on
+        two GPUs if available, with the same result as an SH over several steps
+        '''
+        from specula.processing_objects.sh import SH
+        from test.specula_testlib import accelerate, graph_captured
+        from specula.lib.make_mask import make_mask
+        params = dict(wavelengthInNm=500, subap_wanted_fov=3, sensor_pxscale=0.5,
+                      subap_on_diameter=20, subap_npx=6, target_device_idx=0)
+        dist = DistributedSH(n_slices=2, **params)
+        ref = SH(**params)
+        ef = ElectricField(120, 120, 0.05, S0=100, target_device_idx=0)
+        ef.A = make_mask(120)
+        accelerate(dist)
+        for sh in (dist, ref):
+            sh.inputs['in_ef'].set(ef)
+            sh.setup()
+        rng = np.random.default_rng(3)
+        for t in (1, 2, 3, 4):
+            ef.phaseInNm[:] = cp.asarray(50 * rng.standard_normal((120, 120)))
+            ef.generation_time = t
+            for sh in (dist, ref):
+                sh.check_ready(t)
+                sh.trigger()
+                sh.post_trigger()
+            out = cpuArray(ref.outputs['out_i'].i)
+            np.testing.assert_allclose(cpuArray(dist.outputs['out_i'].i), out,
+                                       rtol=1e-5, atol=1e-6 * out.max(), err_msg=f'step {t}')
+        self.assertTrue(all(graph_captured(sh) for sh in dist.sub_sh))
+        self.assertFalse(graph_captured(ref))
+
     @cpu_and_gpu
     def test_uneven_slices(self, target_device_idx, xp):
         '''

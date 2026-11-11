@@ -44,7 +44,7 @@ class Simul():
                  log_level: str='info',
                  allocate=False,
                  reallocate=False,
-                 accelerate=False,
+                 accelerate=True,
                  data_objects_on_device=False,
                  ):
         if len(param_files) < 1:
@@ -1152,6 +1152,10 @@ class Simul():
 
         if self.accelerate:
             self.add_accelerator_section(params)
+        else:
+            # Accelerator turned off (--no-accelerate): its sections are ignored
+            for key in self.accelerator_keys(params):
+                del params[key]
         if not self.run_allocator(params):
             return
         accelerator_options = self.take_accelerator_section(params)

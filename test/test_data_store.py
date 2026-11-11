@@ -82,9 +82,9 @@ class TestDataStore(unittest.TestCase):
     @unittest.skipIf(cp is None, 'Cupy not found')
     def test_copy_ordered_with_the_next_write_of_the_producer(self):
         '''
-        The output of an object with its own stream (see build_stream()), copied
+        The output of an object working on a blocking stream, copied
         asynchronously, is not overwritten by the next step of the producer before
-        the copy is done
+        the copy is done (see the extension API on streams)
         '''
         class Producer(BaseProcessingObj):
             def __init__(self):
@@ -94,7 +94,7 @@ class TestDataStore(unittest.TestCase):
                 self.outputs['out'] = self.out
 
         producer = Producer()
-        producer.build_stream(capture=False)
+        producer.stream = cp.cuda.Stream(non_blocking=False)
         store = DataStore(store_dir=self.tmp_dir, create_tn=False, target_device_idx=0)
         store.inputs['v'] = InputValue(type=BaseValue)
         store.inputs['v'].set(producer.out)
@@ -104,7 +104,8 @@ class TestDataStore(unittest.TestCase):
                 producer.out.value.fill(t)
                 for _ in range(3):
                     producer.out.value *= 1.0       # GPU work, so that the next write takes time
-            producer.stream.synchronize()           # as post_trigger() waits for the own graph
+            # the default stream waits for the producer on the GPU, the host does not wait
+            cp.cuda.get_current_stream().wait_event(producer.stream.record())
             producer.out.generation_time = t
             store.check_ready(t)
             store.trigger()
