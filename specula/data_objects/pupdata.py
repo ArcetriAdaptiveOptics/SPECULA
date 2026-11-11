@@ -21,9 +21,8 @@ class PupData(BaseDataObj):
                  target_device_idx: int=None,
                  precision: int=None):
         """
-        Note
-        ----
-        
+        Notes
+        -----
         TODO change by passing all the initializing arguments as __init__ parameters,
         to avoid the later initialization (see test/test_slopec.py for an example),
         where things can be forgotten easily.

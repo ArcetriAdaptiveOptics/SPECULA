@@ -76,8 +76,8 @@ def compute_im_synim(misreg_params,
 
     Returns
     -------
-    im : ndarray, shape (nslopes, nmodes)
-        Interaction matrix
+    im : ndarray
+        Interaction matrix, shape (nslopes, nmodes)
     """
 
     # Extract parameters

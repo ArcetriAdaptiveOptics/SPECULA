@@ -5,6 +5,7 @@ FITS (see iteras.lib.storage).
 import specula
 specula.init(0)  # Default target device
 
+import contextlib
 import os
 import re
 import subprocess
@@ -12,7 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import numpy as np
 
@@ -269,6 +270,20 @@ class TestStorageAPI(unittest.TestCase):
             np.testing.assert_array_equal(f.read(None, 1), self.a)
             self.assertFalse(f.has('b', 2))
 
+    def test_fits_has_does_not_read_data(self):
+        path = self._path('obj', 'fits')
+        storage.write_object(path, self.header, {'a': self.a, 'none': None})
+        with storage.read_object(path) as f:
+            # any access to the HDU data fails while has() runs
+            hdu_types = {type(hdu) for hdu in f._hdul}
+            with contextlib.ExitStack() as stack:
+                for t in hdu_types:
+                    stack.enter_context(patch.object(
+                        t, 'data', new_callable=PropertyMock,
+                        side_effect=AssertionError('has() read the HDU data')))
+                self.assertTrue(f.has('a'))
+                self.assertFalse(f.has('none'))
+
     def test_load_on_device(self):
         targets = [-1] + ([0] if specula.cp is not None else [])
         for data_format in storage.OBJECT_FORMATS:
@@ -464,7 +479,9 @@ class TestRestore(unittest.TestCase):
                                              spot_size=spot_size, pupil_size_m=8.0,
                                              data_dir=self.tmp.name, target_device_idx=-1)
         kernel = make()
-        kernel.prepare_for_sh(current_time=1)       # computes and saves the file
+        kernel.build()
+        kernel.calculate_lgs_map()
+        kernel.save(os.path.join(self.tmp.name, 'kernel.fits'))
         files = [p for p in Path(self.tmp.name).iterdir() if storage.object_format(p)]
         self.assertEqual(len(files), 1)
         restored = GaussianConvolutionKernel.restore(files[0], target_device_idx=-1)

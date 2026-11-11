@@ -183,6 +183,22 @@ rounding. ``--no-accelerate`` turns it off:
 
 See :doc:`accelerator`.
 
+Data objects on the device
+==========================
+
+Some classes keep large input data objects on the host and build what they need
+on the GPU in blocks (``host_data_objects``, see :doc:`extension_api`): for example
+``ModalrecImplicitPolc`` with its reconstruction, projection and interaction
+matrices, 6.7 GB for MORFEO. This lowers the GPU memory peak during setup, but
+the matrices pass through host memory. With ``--data-objects-on-device`` all
+data objects are restored on the device of the object that uses them, streamed
+from the files without host copies: no host memory peak, but a higher GPU memory
+peak during setup.
+
+.. code-block:: bash
+
+    specula --data-objects-on-device params.yml
+
 .. _running_with_mpi:
 
 Running with MPI

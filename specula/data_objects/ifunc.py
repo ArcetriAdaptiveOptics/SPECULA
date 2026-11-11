@@ -194,5 +194,5 @@ class IFunc(BaseDataObj):
         with storage.read_object(filename) as f:
             mask = f.read('mask_inf_func' if exten == 1 else None, exten + 1)
             ifunc = f.load('influence_function' if exten == 1 else None, exten,
-                           target_device_idx=target_device_idx).T
+                           target_device_idx=target_device_idx, transpose=True)
         return IFunc(ifunc, mask=mask, target_device_idx=target_device_idx)

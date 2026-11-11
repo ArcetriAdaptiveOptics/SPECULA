@@ -662,6 +662,51 @@ class TestSimul(unittest.TestCase):
                 assert self._path_suffix_parts(first_path) == ('rec', 'tag_fast.fits')
                 assert self._path_suffix_parts(second_path) == ('rec', 'tag_slow.fits')
 
+    @unittest.skipIf(specula.cp is None, 'needs a GPU for the object')
+    def test_host_data_objects_are_restored_on_cpu(self):
+        '''
+        The "_object" parameters listed in host_data_objects are restored on
+        the CPU, the others on the device of the object
+        '''
+        from specula.base_processing_obj import BaseProcessingObj
+
+        class ClassWithHostObject(BaseProcessingObj):
+            host_data_objects = ('big',)
+
+            def __init__(self, big: Recmat, small: Recmat, target_device_idx=None, precision=None):
+                super().__init__(target_device_idx=target_device_idx, precision=precision)
+                self.big = big
+                self.small = small
+
+        def mock_import(classname, additional_modules=None):
+            if classname == 'SimulParams':
+                return DummySimulParams
+            if classname == 'ClassWithHostObject':
+                return ClassWithHostObject
+            return real_import_class(classname, additional_modules)
+
+        rec = Recmat(np.ones((2, 2), dtype=np.float32), target_device_idx=-1, precision=0)
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': 'dummy'},
+            'test': {
+                'class': 'ClassWithHostObject',
+                'target_device_idx': 0,     # not the CPU, to see the difference
+                'precision': 0,
+                'big_object': 'tag_big',
+                'small_object': 'tag_small',
+            }
+        }
+        # With data_objects_on_device (--data-objects-on-device), all on the device
+        for on_device, big_device in [(False, -1), (True, 0)]:
+            with self.subTest(data_objects_on_device=on_device):
+                with patch('specula.simul.import_class', side_effect=mock_import), \
+                     patch.object(Simul, 'restore_object', return_value=rec) as mock_restore:
+                    simul = Simul('dummy.yaml', data_objects_on_device=on_device)
+                    simul.build_objects(dict((k, dict(v)) for k, v in params.items()))
+
+                devices = {call.args[1]: call.args[2] for call in mock_restore.call_args_list}
+                self.assertEqual(devices, {'tag_big': big_device, 'tag_small': 0})
+
     def test_list_object_raises_with_no_type(self):
         '''
         Test generic _list_object behavior:

@@ -1,7 +1,6 @@
-from specula import fuse
+from specula import fuse, np
 
 from specula.processing_objects.modulated_pyramid import ModulatedPyramid
-from specula.lib.make_xy import make_xy
 from specula.data_objects.simul_params import SimulParams
 
 @fuse(kernel_name='pyr1_fused')
@@ -22,6 +21,18 @@ class ModulatedDoubleRoof(ModulatedPyramid):
     """
     Pyramid wavefront sensor with double roof processing object.
     Includes tip-tilt modulation and double roof.
+
+    The two roofs have one edge each: roof 1 a vertical edge (along the
+    rows), roof 2 a horizontal one. Each roof is the envelope of the planes
+    of its two faces (their maximum: the phase delay is lowest on the edge).
+    The pyramid defects of ModulatedPyramid apply to each roof as follows:
+
+    - pyr_edge_def_ld: random phase on a strip of this width along the edge;
+    - pyr_tip_maya_ld: truncated edge, a flat strip of this width along the
+      edge (the roof analogue of the flat tip of the pyramid);
+    - pyr_max_side_ld: finite support, as for the pyramid;
+    - pyr_tip_def_ld: not supported (a roof has no tip), it must be 0;
+    - pyr_tlt_coeff: not supported.
     """
     def __init__(self,
                  simul_params: SimulParams,
@@ -50,6 +61,9 @@ class ModulatedDoubleRoof(ModulatedPyramid):
                  target_device_idx: int = None,
                  precision: int = None
                 ):
+        if pyr_tip_def_ld != 0:
+            raise ValueError('pyr_tip_def_ld is not supported by ModulatedDoubleRoof: '
+                             'a roof has no tip')
         super().__init__(simul_params=simul_params,
                  wavelengthInNm=wavelengthInNm,
                  fov=fov,
@@ -94,59 +108,70 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         self.mid_w = self.fft_totsize // 2
 
     def get_pyr_tlt(self, p, c):
-        A = int(round((p + c) / 2.0))
-        # Create two separate roofs instead of a 4-faced pyramid
-        roof1_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
-        roof2_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
+        """
+        Phase delays of the two roofs [tilt pixels / tilt_scale]. Stores both
+        (roof1_tlt, roof2_tlt) and returns the first one, which becomes the
+        masked_exp of the base class.
 
-        y, x = self.xp.mgrid[0:2*A,0:2*A]
-
+        As in ModulatedPyramid.get_pyr_tlt(), in three steps, on the CPU:
+        geometry (two face planes, truncated edge), random edge defects,
+        finite support.
+        """
         if self.pyr_tlt_coeff is not None:
             raise NotImplementedError('pyr_tlt_coeff is not tested yet for double roof')
-        else:
-            # First roof: horizontal separation (left/right)
-            # Left half: decreasing from center to left edge
-            roof1_tlt[:, :A] = A - 1 - x[:, :A]
-            # Right half: increasing from center to right edge
-            roof1_tlt[:, A:] = x[:, A:] - A
 
-            # Second roof: vertical separation (top/bottom)
-            roof2_tlt = self.xp.rot90(roof1_tlt)
+        u, v = self._tip_coords(p, c)
+        n = u.shape[1]
+        # Row and column indices, for the tilts that shift each roof's pupils to one side
+        y, x = np.mgrid[0:n, 0:n]
 
-            # add to roof1_tlt a tilt in the other direction to shift the image on one side
-            roof1_tlt += A - 1 - 0.5*y
+        # Face planes of each roof, (u, v) gradients, and the tilt across its edge.
+        # Roof 1: -u - 1/2 (left) and u - 1/2 (right); roof 2: the same rotated
+        # by 90 degrees (-v - 1/2 and v - 1/2), as np.rot90 of roof 1.
+        grad1 = np.array([[-1.0, 0.0], [1.0, 0.0]])
+        grad2 = np.array([[0.0, -1.0], [0.0, 1.0]])
+        # The former code added A - 1 - 0.5 * y to roof 1 and A - 1 - 0.5 * x to
+        # roof 2, but roof 2 was a view (rot90) of roof 1, so both tilts went
+        # into both roofs: the effective tilt, kept here, is twice that one.
+        tilt1 = 2 * ((n // 2) - 1 - 0.5 * y)
+        tilt2 = 2 * ((n // 2) - 1 - 0.5 * x)
 
-            # add to roof2_tlt a tilt in the other direction to shift the image on one side
-            roof2_tlt += A - 1 - 0.5*x
+        roofs = []
+        for grad, tilt in ((grad1, tilt1), (grad2, tilt2)):
+            faces = np.stack([grad[k, 0] * u + grad[k, 1] * v - 0.5 for k in range(2)])
+            roof_tlt = faces.max(axis=0)
 
-        # Apply edge and tip defects to both roofs
-        xx, yy = make_xy(A * 2, A, xp=self.xp)
+            # Truncated edge: flat strip of width pyr_tip_maya_ld along the edge,
+            # r above the bottom of the V (-1/2, on the edge)
+            if self.pyr_tip_maya_ld > 0:
+                r = self.pyr_tip_maya_ld * self.fft_res / 2
+                roof_tlt = np.maximum(roof_tlt, -0.5 + r)
+                self.logger.info(f'get_pyr_tlt: flat strip of {2 * r:.1f} pixels along the '
+                                 'roof edge (pyramid imperfect tip, maya)')
 
-        for roof_tlt in [roof1_tlt, roof2_tlt]:
-            # distance from edge
-            dx = self.xp.sqrt(xx ** 2)
-            dy = self.xp.sqrt(yy ** 2)
-            idx_edge = self.xp.where((dx <= self.pyr_edge_def_ld * self.fft_res / 2) |
-                                (dy <= self.pyr_edge_def_ld * self.fft_res / 2))
-            if len(idx_edge[0]) > 0:
-                roof_tlt[idx_edge] = self.xp.max(roof_tlt) * self.xp.random.rand(len(idx_edge[0]))
+            roof_tlt = roof_tlt + tilt
 
-            # distance from tip
-            d = self.xp.sqrt(xx ** 2 + yy ** 2)
-            idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)
-            if len(idx_tip[0]) > 0:
-                roof_tlt[idx_tip] = self.xp.max(roof_tlt) * self.xp.random.rand(len(idx_tip[0]))
+            # Random defects along the edge, with values up to the maximum of the roof
+            if self.pyr_edge_def_ld > 0:
+                dist = self._edge_distance(-faces, -grad)
+                idx_edge = np.nonzero(dist <= self.pyr_edge_def_ld * self.fft_res / 2)
+                roof_tlt[idx_edge] = roof_tlt.max() * np.random.rand(len(idx_edge[0]))
+                self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to random values'
+                                 ' to consider pyramid imperfect edges')
 
-            # distance from tip (maya)
-            idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)
-            if len(idx_tip_m[0]) > 0:
-                roof_tlt[idx_tip_m] = self.xp.min(roof_tlt[idx_tip_m])
+            # Finite support
+            if self.pyr_max_side_ld > 0:
+                max_side = self.pyr_max_side_ld * self.fft_res / 2
+                idx_max = np.nonzero(np.sqrt(u ** 2 + v ** 2) > max_side)
+                roof_tlt[idx_max] = 0.0
+                self.logger.info(
+                    f'get_pyr_tlt: {len(idx_max[0])} pixels outside the support radius '
+                    f'({self.pyr_max_side_ld} lambda/D) set to 0'
+                )
 
-        # Store both roofs
-        self.roof1_tlt = roof1_tlt / self.tilt_scale
-        self.roof2_tlt = roof2_tlt / self.tilt_scale
+            roofs.append(self.to_xp(roof_tlt, dtype=self.dtype) / self.tilt_scale)
 
-        # Return the first roof for compatibility (the second will be accessed directly)
+        self.roof1_tlt, self.roof2_tlt = roofs
         return self.roof1_tlt
 
 

@@ -282,14 +282,15 @@ class ImShSynimGenerator(BaseProcessingObj):
         ----------
         misreg_params : array_like
             Mis-registration parameters:
+
             - If length 4: [shift_x, shift_y, rotation, magnification]
             - If length 6: [shift_x, shift_y, rotation, mag_global,
-                            anamorphosis_90, anamorphosis_45]
+              anamorphosis_90, anamorphosis_45]
         
         Returns
         -------
-        im : ndarray, shape (nslopes, nmodes)
-            Interaction matrix
+        im : ndarray
+            Interaction matrix, shape (nslopes, nmodes)
         """
         return compute_im_synim(
             misreg_params=misreg_params,

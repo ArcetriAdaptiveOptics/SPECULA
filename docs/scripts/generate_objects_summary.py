@@ -11,7 +11,8 @@ from pathlib import Path
 
 def format_port_name(name):
     """Render dynamic placeholders in a user-friendly style for docs."""
-    return str(name).replace('{', '[').replace('}', ']')
+    # A word ending with "_" is an RST reference: escape the underscore
+    return str(name).replace('{', '[').replace('}', ']').replace('_]', '\\_]')
 
 
 def _first_doc_paragraph(docstring):
@@ -175,15 +176,23 @@ def extract_classes_from_file(filepath, module_name=None):
     return results
 
 
+# Last line of the modules moved to iteras, which are aliases of the iteras modules
+_ALIAS = re.compile(r'^sys\.modules\[__name__\] = ([\w.]+)$', re.MULTILINE)
+
+
 def scan_package(package_path, package_name):
-    """Scan a package directory and return list of (module_name, filepath)."""
+    """
+    Scan a package directory and return list of (module_name, filepath),
+    without the modules moved to iteras (aliases of the iteras modules).
+    """
     modules = []
     package_path = Path(package_path)
     if not package_path.exists():
         return modules
 
     for _, modname, ispkg in pkgutil.iter_modules([str(package_path)]):
-        if not ispkg:
+        filepath = package_path / f"{modname}.py"
+        if not ispkg and not _ALIAS.search(filepath.read_text(encoding='utf-8')):
             modules.append((
                 f"{package_name}.{modname}",
                 package_path / f"{modname}.py",
@@ -331,7 +340,9 @@ def main():
             'name': 'Processing Objects',
             'path': specula_path / 'processing_objects',
             'package': 'specula.processing_objects',
-            'description': 'Processing objects for simulating AO system components.',
+            'description': 'Processing objects for simulating AO system components. '
+                           'The generic ones are in iteras: see '
+                           ':doc:`iteras_processing_objects_summary`.',
             'filename': 'processing_objects_summary',
             'include_io': True,
         },
@@ -339,19 +350,33 @@ def main():
             'name': 'Data Objects',
             'path': specula_path / 'data_objects',
             'package': 'specula.data_objects',
-            'description': 'Data objects for representing simulation data.',
+            'description': 'Data objects for representing simulation data. '
+                           'The generic ones are in iteras: see '
+                           ':doc:`iteras_data_objects_summary`.',
             'filename': 'data_objects_summary',
+            'include_io': False,
+        },
+        {
+            'name': 'iteras Processing Objects',
+            'path': iteras_path / 'processing_objects',
+            'package': 'iteras.processing_objects',
+            'description': 'Generic processing objects of iteras.',
+            'filename': 'iteras_processing_objects_summary',
+            'include_io': True,
+        },
+        {
+            'name': 'iteras Data Objects',
+            'path': iteras_path / 'data_objects',
+            'package': 'iteras.data_objects',
+            'description': 'Generic data objects of iteras.',
+            'filename': 'iteras_data_objects_summary',
             'include_io': False,
         },
     ]
 
     for cat in categories:
         print(f"Scanning {cat['path']}...")
-        # Also the iteras package of the same kind: the classes moved there are
-        # found in both, and listed once (see generate_rst_table())
-        modules = sorted(scan_package(cat['path'], cat['package']) +
-                         scan_package(iteras_path / cat['path'].name,
-                                      cat['package'].replace('specula.', 'iteras.', 1)),
+        modules = sorted(scan_package(cat['path'], cat['package']),
                          key=lambda m: m[0].split('.')[-1])
         if not modules:
             print("  No modules found.")

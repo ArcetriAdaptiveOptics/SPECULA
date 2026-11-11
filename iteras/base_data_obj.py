@@ -49,11 +49,12 @@ class BaseDataObj(BaseTimeObj):
         """
         Initialize the base data object.
 
-        Parameters:
-        target_device_idx: int, optional
+        Parameters
+        ----------
+        target_device_idx : int, optional
             device to be targeted for data storage. Set to -1 for CPU,
             to 0 for the first GPU device, 1 for the second GPU device, etc.
-        precision: int, optional
+        precision : int, optional
             if None will use the global_precision, otherwise set to 0 for double, 1 for single
         """
         super().__init__(target_device_idx, precision)

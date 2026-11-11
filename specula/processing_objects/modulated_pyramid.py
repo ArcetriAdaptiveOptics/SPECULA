@@ -31,7 +31,7 @@ def pyr_abs2_acc(v, norm, ffv, acc, xp):
 
 
 class ModulatedPyramid(BaseProcessingObj):
-    """
+    r"""
     Pyramid wavefront sensor processing object. Includes tip-tilt modulation.
     
     This class implements a modulated pyramid WFS that works with point sources or
@@ -68,8 +68,9 @@ class ModulatedPyramid(BaseProcessingObj):
         Margin around pupils in pixels (default: 2)
     fft_res : float [1], optional
         Minimum PSF sampling (default: 3.0, i.e., 3 pixels per PSF FWHM i.e. lambda/D)
-    fp_obs : float [pixels], optional
-        Focal plane central obstruction diameter in pixels (default: None)
+    fp_obs : float [lambda/D], optional
+        Diameter of the central obstruction of the focal plane mask in lambda/D
+        units (default: None, no obstruction)
     pup_shifts : tuple [pixels], optional
         Static pupil shifts in pixels (x, y) (default: (0.0, 0.0)). The
         optional input in_misregistration can change them, and
@@ -78,13 +79,42 @@ class ModulatedPyramid(BaseProcessingObj):
         field.
     pyr_tlt_coeff : list [2,4], optional
         Pyramid tilt coefficients for each face. (default: None)
-        The coefficient multiplies the x-tilt or y-tilt (rows) of each of each of the 
+        The coefficient multiplies the x-tilt or y-tilt (rows) of each of each of the
         4 pyramid faces (columns). A coefficient greater than 1 pushes the pupil outward,
-        away from the frame center, while a coefficient lower than 1 pulls it inward, 
+        away from the frame center, while a coefficient lower than 1 pulls it inward,
         towards the frame center, with respect to the nominal distance pup_dist.
-        The x coefficient (first row) shifts in the horizontal direction, 
+        The x coefficient (first row) shifts in the horizontal direction,
         the y coefficient (second row) shifts in the vertical direction.
+        The faces (columns) are numbered in array indices of the focal plane,
+        with row 0 at the top (an image shown with origin='lower' is flipped
+        vertically)::
+
+              column ->
+            +-----+-----+
+            |  0  |  1  |   row
+            +-----+-----+    |
+            |  2  |  3  |    v
+            +-----+-----+
+
+        The slope of each face changes around the tip, and the edges between
+        the faces move accordingly (see Notes).
         By default, no deviation is applied to the nominal tilt.
+    pyr_roof_ld : float [lambda/D], optional
+        Length of the roof defect in lambda/D units (default: 0.0, no roof).
+        With a roof, two opposite faces meet along a segment (the roof)
+        instead of in a single tip: if positive, faces 0 and 3 (see
+        pyr_tlt_coeff), if negative, faces 1 and 2::
+
+              pyr_roof_ld > 0             pyr_roof_ld < 0
+            +-------+-----+            +-----+-------+
+            |   0   |  1  |            |  0  |   1   |
+            |      /+-----+            +-----+\      |
+            +-----/       |            |       \-----+
+            |  2  |   3   |            |   2   |  3  |
+            +-----+-------+            +-------+-----+
+
+        The midpoint of the roof stays on the optical axis. The length is
+        exact for the nominal face slopes.
     pyr_edge_def_ld : float [lambda/D], optional
         Edge defect size in lambda/D units (default: 0.0)
     pyr_tip_def_ld : float [lambda/D], optional
@@ -119,7 +149,19 @@ class ModulatedPyramid(BaseProcessingObj):
     - 'vertical'/'horizontal': Linear modulation along one axis, flux weighted by 1/cos(tilt)
     - 'alternating': Switches between vertical and horizontal on consecutive frames
     - pyr_tip_def_ld and pyr_tip_maya_ld represent different types of pyramid tip imperfections.
-    
+
+    The pyramid surface is the envelope of the planes of its four faces: at
+    each point of the focal plane the phase delay is the minimum over the
+    four planes, so each point belongs to the face whose plane is lowest, as
+    in a real prism. Each plane passes through the tip, with slopes given by
+    pyr_tlt_coeff. The roof (pyr_roof_ld) lowers the planes of two opposite
+    faces and raises the other two by the same amount: the two lowered faces
+    then meet along a segment centred on the optical axis, and the edges
+    between adjacent faces move by L / (2 sqrt(2)), with L the roof
+    length. A decentred pyramid (beam off the tip) is
+    not a parameter of the pyramid: it is equivalent to a static tip-tilt
+    of the input field.
+
     For linear modulation, the flux weighting compensates for intensity loss at large tilts,
     ensuring uniform contribution from all modulation positions.
     """
@@ -140,6 +182,7 @@ class ModulatedPyramid(BaseProcessingObj):
                  fp_obs: float = None,
                  pup_shifts = (0.0, 0.0),
                  pyr_tlt_coeff: list = None,
+                 pyr_roof_ld: float = 0.0,
                  pyr_edge_def_ld: float = 0.0,
                  pyr_tip_def_ld: float = 0.0,
                  pyr_tip_maya_ld: float = 0.0,
@@ -185,7 +228,12 @@ class ModulatedPyramid(BaseProcessingObj):
         final_ccd_side = result['final_ccd_side']
 
         # Compute focal plane central obstruction dimension ratio
-        fp_obsratio = fp_obs / (fft_totsize / fft_res) if fp_obs is not None else 0
+        # make_mask() takes it as a fraction of the field stop diameter, which is
+        # fp_masking times the FFT frame (fft_totsize / fft_res lambda/D)
+        if fp_obs is not None:
+            fp_obsratio = fp_obs / (self.fp_masking * fft_totsize / fft_res)
+        else:
+            fp_obsratio = 0
 
         self.wavelength_in_nm = wavelengthInNm
         self.fov_res = fov_res
@@ -199,6 +247,7 @@ class ModulatedPyramid(BaseProcessingObj):
         self.toccd_side = int(toccd_side)
         self.final_ccd_side = final_ccd_side
         self.pyr_tlt_coeff = pyr_tlt_coeff
+        self.pyr_roof_ld = float(pyr_roof_ld)
         self.pyr_edge_def_ld = pyr_edge_def_ld
         self.pyr_tip_def_ld = pyr_tip_def_ld
         self.pyr_tip_maya_ld = pyr_tip_maya_ld
@@ -229,30 +278,24 @@ class ModulatedPyramid(BaseProcessingObj):
         self._s0_area_host = None
 
         if mod_step is None:
-            if mod_type == 'circular':
-                # In the circular case we want to ensure:
-                # - 1 point for mod_amp = 0
-                # - a multiple of 4 points for mod_amp > 0
-                # - more than 2*pi*mod_amp points for mod_amp > 0
-                # For example, for mod_amp = 1, we want 8 points
-                mod_step = max([1.0, round(mod_amp * 2.)*4.])
-            else:
-                # In the linear case we want:
-                # - 1 point for mod_amp = 0
-                # - a point in [0, 0] for mod_amp > 0
-                # - more than 2 points for mod_amp > 0
-                mod_step = round(mod_amp)*2.+1.0
+            mod_step = self.default_mod_step(mod_amp, mod_type)
         elif mod_step == 0:
             raise ValueError('mod_step cannot be zero')
         elif mod_step < 0:
             raise ValueError('mod_step must be a positive integer')
         elif int(mod_step) != mod_step:
             raise ValueError('Modulation step number is not an integer')
-        elif mod_step < self.xp.around(2 * self.xp.pi * mod_amp):
+        elif mod_type == 'circular' and mod_step < np.around(2 * np.pi * mod_amp):
             raise ValueError(
                 f'Number of modulation steps is too small ({mod_step}), '
                 f'it must be at least 2*pi times the modulation amplitude '
-                f'({self.xp.around(2 * self.xp.pi * mod_amp)})!'
+                f'({np.around(2 * np.pi * mod_amp)})!'
+            )
+        elif mod_type != 'circular' and mod_step < round(mod_amp) * 2 + 1:
+            raise ValueError(
+                f'Number of modulation steps is too small ({mod_step}), '
+                f'linear modulation needs at least {round(mod_amp) * 2 + 1} '
+                f'(about one per lambda/D along the 2*mod_amp path)!'
             )
 
         if self.pyr_tlt_coeff is not None:
@@ -315,6 +358,20 @@ class ModulatedPyramid(BaseProcessingObj):
 
         # Derived classes can disable streams
         self.stream_enable = True
+
+    @staticmethod
+    def default_mod_step(mod_amp: float, mod_type: str = 'circular') -> int:
+        """
+        Default number of modulation steps for a modulation amplitude [lambda/D].
+
+        Circular modulation: 1 point for mod_amp = 0, otherwise a multiple of
+        4 points, more than 2*pi*mod_amp (e.g. 8 points for mod_amp = 1).
+        Linear modulation: 1 point for mod_amp = 0, otherwise an odd number of
+        points (one in [0, 0]), about one per lambda/D along the path.
+        """
+        if mod_type == 'circular':
+            return int(max(1, round(mod_amp * 2) * 4))
+        return int(round(mod_amp) * 2 + 1)
 
     @classmethod
     def input_names(cls):
@@ -405,61 +462,178 @@ class ModulatedPyramid(BaseProcessingObj):
 
         return result
 
-    def get_pyr_tlt(self, p, c):
-        A = int(round((p + c) / 2.0))
-        pyr_tlt = self.xp.zeros((2 * A, 2 * A), dtype=self.dtype)
-        y, x = self.xp.mgrid[0:A,0:A]
+    def _face_planes(self):
+        """
+        Gradients and offsets of the four face planes.
 
+        Face j is the plane tip + offset[j] + grad[j, 0] * u + grad[j, 1] * v,
+        with (u, v) [pixels] relative to the tip, u along columns and v along
+        rows, in units of tilt pixels. Face j has slopes pyr_tlt_coeff[:, j]
+        around the tip. The roof (pyr_roof_ld) lowers faces 0 and 3 by
+        delta/2 and raises faces 1 and 2 by delta/2 (opposite signs for a
+        negative roof).
+
+        Returns
+        -------
+        grad : ndarray, shape (4, 2)
+        offset : ndarray, shape (4,)
+        """
         if self.pyr_tlt_coeff is not None:
-            k = self.pyr_tlt_coeff
-            pyr_tlt[:A, :A] = k[0,0] * x + k[1,0] * y
-            pyr_tlt[:A, A:] = k[0,1] * x[:,::-1] + k[1,1] * y
-            pyr_tlt[A:, :A] = k[0,2] * x + k[1,2] * y[::-1]
-            pyr_tlt[A:, A:] = k[0,3] * x[:,::-1] + k[1,3] * y[::-1]
-
+            k = cpuArray(self.pyr_tlt_coeff).astype(np.float64)
         else:
-            #pyr_tlt[0:A, 0:A] = tlt_basis + tlt_basis.T
-            #pyr_tlt[A:2*A, 0:A] = A - 1 - tlt_basis + tlt_basis.T
-            #pyr_tlt[A:2*A, A:2*A] = 2 * A - 2 - tlt_basis - tlt_basis.T
-            #pyr_tlt[0:A, A:2*A] = A - 1 + tlt_basis - tlt_basis.T
-            pyr_tlt[:A, :A] = x + y
-            pyr_tlt[:A, A:] = x[:,::-1] + y
-            pyr_tlt[A:, :A] = x + y[::-1]
-            pyr_tlt[A:, A:] = x[:,::-1] + y[::-1]
+            k = np.ones((2, 4))
 
-        if max(self.pyr_edge_def_ld, self.pyr_tip_def_ld,
-               self.pyr_tip_maya_ld, self.pyr_max_side_ld) <= 0:
-            # No defects: skip the full-frame distance maps
-            return pyr_tlt / self.tilt_scale
+        # Signs of (u, v) in the quadrant of each face, for the nominal pyramid
+        sign_u = np.array((-1, 1, -1, 1))
+        sign_v = np.array((-1, -1, 1, 1))
+        grad = np.stack((-k[0] * sign_u, -k[1] * sign_v), axis=1)
 
-        xx, yy = make_xy(A * 2, A, xp=self.xp)
+        # Roof: with nominal slopes, the two lowered faces meet along the
+        # diagonal segment u + v = 0 (faces 0 and 3, delta > 0) or u = v
+        # (faces 1 and 2, delta < 0), with |u| <= |delta|/2: length
+        # L = sqrt(2) * |delta|.
+        roof_len = self.pyr_roof_ld * self.fft_res        # [pixels], signed
+        delta = roof_len / np.sqrt(2)
+        offset = np.array((-delta / 2, delta / 2, delta / 2, -delta / 2))
+        return grad, offset
 
-        # distance from edge
-        dx = self.xp.sqrt(xx ** 2)
-        dy = self.xp.sqrt(yy ** 2)
-        idx_edge = self.xp.where((dx <= self.pyr_edge_def_ld * self.fft_res / 2) | 
-                                 (dy <= self.pyr_edge_def_ld * self.fft_res / 2))
-        if len(idx_edge[0]) > 0:
-            pyr_tlt[idx_edge] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_edge[0]))
-            self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to 0 to consider pyramid imperfect edges')
+    def _tip_coords(self, p, c):
+        """Pixel centres relative to the tip [pixels], as (u, v) broadcastable to (2A, 2A)"""
+        A = int(round((p + c) / 2.0))
+        coord = np.arange(2 * A) - (A - 0.5)
+        return coord[None, :], coord[:, None]
 
-        # distance from tip
-        d = self.xp.sqrt(xx ** 2 + yy ** 2)
-        idx_tip = self.xp.where(d <= self.pyr_tip_def_ld * self.fft_res / 2)
-        if len(idx_tip[0]) > 0:
-            pyr_tlt[idx_tip] = self.xp.max(pyr_tlt) * self.xp.random.rand(len(idx_tip[0]))
-            self.logger.info(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to 0 to consider pyramid imperfect tip')
+    @staticmethod
+    def _tip_height(p, c):
+        """
+        Height of the face planes at the tip [tilt pixels]: the value of the
+        former quadrant formula (x + y counted from the outer corner of each
+        quadrant), so that the nominal pyramid is unchanged.
+        """
+        return 2 * int(round((p + c) / 2.0)) - 1
 
-        # distance from tip
-        idx_tip_m = self.xp.where(d <= self.pyr_tip_maya_ld * self.fft_res / 2)
-        if len(idx_tip_m[0]) > 0:
-            pyr_tlt[idx_tip_m] = self.xp.min(pyr_tlt[idx_tip_m])
-            self.logger.info(f'get_pyr_tlt: {len(idx_tip_m[0])} pixels set to 0 to consider pyramid imperfect tip')
+    def get_pyr_faces(self, p, c):
+        """
+        Planes of the four pyramid faces, before the envelope.
 
-        # limit the pyramid support to a finite radial extent from the tip
+        Returns an array of shape (4, 2A, 2A), A = round((p + c) / 2), with
+        the phase delay of each face plane in units of tilt pixels (as
+        get_pyr_tlt() before the division by tilt_scale). The tip lies at
+        the corner between the four central pixels. See _face_planes().
+        """
+        u, v = self._tip_coords(p, c)
+        grad, offset = self._face_planes()
+        tip = self._tip_height(p, c)
+        faces = np.empty((4, v.shape[0], u.shape[1]))
+        for j in range(4):
+            faces[j] = tip + offset[j] + grad[j, 0] * u + grad[j, 1] * v
+        return faces
+
+    def _tip_points(self):
+        """
+        Vertices of the pyramid surface [pixels, (u, v)]: the tip, or the two
+        ends of the roof, where the planes of the roof faces meet the plane
+        of each of the other two faces.
+        """
+        if self.pyr_roof_ld == 0:
+            return [np.zeros(2)]
+        grad, offset = self._face_planes()
+        a, b = (0, 3) if self.pyr_roof_ld > 0 else (1, 2)
+        points = []
+        for o in sorted({0, 1, 2, 3} - {a, b}):
+            # face a = face b and face a = face o: (g_a - g_i) . r = off_i - off_a
+            m = np.array([grad[a] - grad[b], grad[a] - grad[o]])
+            rhs = np.array([offset[b] - offset[a], offset[o] - offset[a]])
+            points.append(np.linalg.solve(m, rhs))
+        return points
+
+    def _tip_distance(self, u, v):
+        """Distance [pixels] from the tip, or from the roof segment"""
+        points = self._tip_points()
+        if len(points) == 1:
+            return np.sqrt(u ** 2 + v ** 2)
+        p0, p1 = points
+        d = p1 - p0
+        # Position along the segment, clipped to its ends
+        t = np.clip(((u - p0[0]) * d[0] + (v - p0[1]) * d[1]) / (d @ d), 0, 1)
+        return np.sqrt((u - p0[0] - t * d[0]) ** 2 + (v - p0[1] - t * d[1]) ** 2)
+
+    @staticmethod
+    def _edge_distance(faces, grad):
+        """
+        Distance [pixels] of each pixel from the nearest edge of its face.
+
+        faces is an array (n_faces, ny, nx) of face planes whose envelope is
+        their minimum, and grad (n_faces, 2) their gradients along (u, v).
+        Each face is the convex region where its plane is the lowest, so the
+        distance from its border is the minimum, over the other faces i, of
+        the distance from the line where plane i equals the own plane:
+        (plane_i - plane_own) / |grad_i - grad_own|. Pixels on a roof, where
+        two planes are equal, get distance 0 whichever face owns them.
+        For an envelope that is the maximum of the planes, pass -faces, -grad.
+        """
+        n_faces = faces.shape[0]
+        own = faces.argmin(axis=0)
+        envelope = faces.min(axis=0)
+        dist = np.full(envelope.shape, np.inf)
+        for j in range(n_faces):
+            sel = own == j
+            for i in range(n_faces):
+                if i != j:
+                    norm = np.sqrt(np.sum((grad[i] - grad[j]) ** 2))
+                    dist[sel] = np.minimum(dist[sel], (faces[i][sel] - envelope[sel]) / norm)
+        return dist
+
+    def get_pyr_tlt(self, p, c):
+        """
+        Phase delay of the pyramid [tilt pixels / tilt_scale], in three steps:
+
+        1. geometry: envelope of the four face planes (each point belongs to
+           the lowest one), with the flat top of pyr_tip_maya_ld;
+        2. random manufacturing defects along the edges (pyr_edge_def_ld)
+           and around the tip or the roof (pyr_tip_def_ld), measured from
+           the actual edges and tip of step 1;
+        3. finite support (pyr_max_side_ld).
+
+        Everything is computed on the CPU, as get_fp_mask(), to keep the
+        full-frame float64 temporaries out of the GPU memory pool.
+        """
+        faces = self.get_pyr_faces(p, c)
+        pyr_tlt = faces.min(axis=0)
+        u, v = self._tip_coords(p, c)
+
+        # 1. Flat top ("maya" tip): the surface is cut r below its maximum,
+        # which lies at the tip (or along the roof). With nominal slopes the
+        # flat top is a square with its corners on the edges, at r from the
+        # tip, i.e. with diagonal pyr_tip_maya_ld.
+        if self.pyr_tip_maya_ld > 0:
+            r = self.pyr_tip_maya_ld * self.fft_res / 2
+            grad, offset = self._face_planes()
+            # Height of the surface at the tip (the same at both roof ends)
+            p0 = self._tip_points()[0]
+            top = np.min(self._tip_height(p, c) + offset + grad @ p0)
+            n_flat = int(np.sum(pyr_tlt > top - r))
+            pyr_tlt = np.minimum(pyr_tlt, top - r)
+            self.logger.info(f'get_pyr_tlt: {n_flat} pixels in the flat top of the pyramid'
+                             ' (pyramid imperfect tip, maya)')
+
+        # 2. Random defects, with values up to the maximum of the surface
+        if self.pyr_edge_def_ld > 0:
+            idx_edge = np.nonzero(self._edge_distance(faces, self._face_planes()[0]) <= self.pyr_edge_def_ld * self.fft_res / 2)
+            pyr_tlt[idx_edge] = pyr_tlt.max() * np.random.rand(len(idx_edge[0]))
+            self.logger.info(f'get_pyr_tlt: {len(idx_edge[0])} pixels set to random values'
+                             ' to consider pyramid imperfect edges')
+
+        if self.pyr_tip_def_ld > 0:
+            idx_tip = np.nonzero(self._tip_distance(u, v) <= self.pyr_tip_def_ld * self.fft_res / 2)
+            pyr_tlt[idx_tip] = pyr_tlt.max() * np.random.rand(len(idx_tip[0]))
+            self.logger.info(f'get_pyr_tlt: {len(idx_tip[0])} pixels set to random values'
+                             ' to consider pyramid imperfect tip')
+
+        # 3. Limit the pyramid support to a finite radial extent from the optical axis
         if self.pyr_max_side_ld > 0:
             max_side = self.pyr_max_side_ld * self.fft_res / 2
-            idx_max = self.xp.where(d > max_side)
+            idx_max = np.nonzero(np.sqrt(u ** 2 + v ** 2) > max_side)
             if len(idx_max[0]) > 0:
                 pyr_tlt[idx_max] = 0.0
                 self.logger.info(
@@ -467,7 +641,7 @@ class ModulatedPyramid(BaseProcessingObj):
                     f'({self.pyr_max_side_ld} lambda/D) set to 0'
                 )
 
-        return pyr_tlt / self.tilt_scale
+        return self.to_xp(pyr_tlt, dtype=self.dtype) / self.tilt_scale
 
     def get_tlt_f(self, p, c):
         """

@@ -27,3 +27,4 @@ framework of SPECULA: they do not need any AO object, and run with the ``iteras`
    Building an MMSE petal reconstructor from a KL modal basis <elt_petal_mmse_reconstructor_tutorial>
    Closed-loop ELT SCAO with the Soft-Limiter <elt_petal_soft_limiter_closed_loop_tutorial>
    Training a CNN on simulated WFS data (wavefront rms from SH slopes) <cnn_rms_tutorial>
+   Nonlinear modal reconstructor (per-mode saturation correction) <nonlinear_modalrec>

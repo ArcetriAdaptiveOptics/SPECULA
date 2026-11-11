@@ -1,3 +1,4 @@
+import gc
 import unittest
 import os
 import numpy as np
@@ -349,6 +350,7 @@ class TestKernel(unittest.TestCase):
                 os.remove(temp_filename)
 
         # --- Part 2: Test automatic save/restore via prepare_for_sh with data_dir ---
+        # (real space kernels only: FFT kernels are computed in closed form, see Part 3)
         temp_dir = tempfile.mkdtemp()
 
         try:
@@ -358,7 +360,7 @@ class TestKernel(unittest.TestCase):
                 pupil_size_m=pupil_size_m, dimension=dimension,
                 launcher_pos=launcher_pos, seeing=spot_size,
                 zfocus=zfocus, theta=[0.0, 0.0],
-                oversampling=1, return_fft=True,
+                oversampling=1, return_fft=False,
                 positive_shift_tt=True, data_dir=temp_dir,
                 target_device_idx=target_device_idx
             )
@@ -383,7 +385,7 @@ class TestKernel(unittest.TestCase):
                 pupil_size_m=pupil_size_m, dimension=dimension,
                 launcher_pos=launcher_pos, seeing=spot_size,
                 zfocus=zfocus, theta=[0.0, 0.0],
-                oversampling=1, return_fft=True,
+                oversampling=1, return_fft=False,
                 positive_shift_tt=True, data_dir=temp_dir,
                 target_device_idx=target_device_idx
             )
@@ -415,6 +417,34 @@ class TestKernel(unittest.TestCase):
             new_kernel_fn = kernel3.build()
             self.assertNotEqual(kernel_fn, new_kernel_fn)
             self.assertTrue(os.path.exists(os.path.join(temp_dir, new_kernel_fn + '.fits')))
+
+        finally:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+
+        # --- Part 3: FFT kernels are computed in closed form, without files ---
+        temp_dir = tempfile.mkdtemp()
+
+        try:
+            kernel4 = ConvolutionKernel(
+                dimx=dimx, dimy=dimy, pxscale=pixel_scale,
+                pupil_size_m=pupil_size_m, dimension=dimension,
+                launcher_pos=launcher_pos, seeing=spot_size,
+                zfocus=zfocus, theta=[0.0, 0.0],
+                oversampling=1, return_fft=True,
+                positive_shift_tt=True, data_dir=temp_dir,
+                target_device_idx=target_device_idx
+            )
+            with patch.object(kernel4, 'calculate_lgs_map',
+                              side_effect=AssertionError('real space kernels computed')):
+                kernel4.prepare_for_sh(
+                    sodium_altitude=zlayer.tolist(),
+                    sodium_intensity=zprofile.tolist(),
+                    current_time=4
+                )
+            self.assertEqual(os.listdir(temp_dir), [])
+            self.assertEqual(kernel4.kernels.shape, (dimx * dimy, dimension, dimension // 2 + 1))
+            self.assertTrue(xp.all(xp.isfinite(kernel4.kernels)))
 
         finally:
             if os.path.exists(temp_dir):
@@ -636,13 +666,13 @@ class TestKernel(unittest.TestCase):
         temp_dir = tempfile.mkdtemp()
 
         try:
-            # Create and save kernel
+            # Create and save kernel (prepare_for_sh saves real space kernels only)
             kernel1 = ConvolutionKernel(
                 dimx=dimx, dimy=dimy, pxscale=pixel_scale,
                 pupil_size_m=pupil_size_m, dimension=dimension,
                 launcher_pos=launcher_pos, seeing=spot_size,
                 zfocus=zfocus, theta=[0.0, 0.0],
-                oversampling=1, return_fft=True,
+                oversampling=1, return_fft=False,
                 positive_shift_tt=True, data_dir=temp_dir,
                 target_device_idx=target_device_idx
             )
@@ -1097,3 +1127,142 @@ class TestKernel(unittest.TestCase):
             gauss_new, gen_new = names()
         self.assertNotEqual(gauss_now, gauss_new)
         self.assertNotEqual(gen_now, gen_new)
+
+    @staticmethod
+    def _band(n):
+        '''Mask of the rfft2 coefficients in the band of a PSF sampled by n = 2 * n_sub'''
+        k = np.abs(np.fft.fftfreq(n, 1 / n))
+        return (k[:, None] <= n // 2 - 1) & (np.arange(n // 2 + 1)[None, :] <= n // 2 - 1)
+
+    @cpu_and_gpu
+    def test_kernel_spectrum_matches_sampled_kernels(self, target_device_idx, xp):
+        '''
+        Closed-form coefficients against the FFT of the sampled kernels of lgs_map_sh(),
+        for a well sampled spot where the latter are accurate. The spots are asymmetric
+        (off-axis launcher, uneven profile, nonzero tilt), so that a wrong sign or centre
+        of the coefficients would not go unnoticed.
+        '''
+        for dimension in (64, 63):
+            with self.subTest(dimension=dimension):
+                self._check_spectrum_against_sampled(target_device_idx, dimension)
+
+    def _check_spectrum_against_sampled(self, target_device_idx, dimension):
+        dimx = dimy = 4
+
+        def kernel():
+            k = ConvolutionKernel(dimx=dimx, dimy=dimy, pxscale=0.25, pupil_size_m=8.0,
+                                  dimension=dimension, launcher_pos=[5.0, -3.0, 0.0],
+                                  seeing=1.5, zfocus=90e3, theta=[0.3, -0.2],
+                                  return_fft=True, target_device_idx=target_device_idx)
+            k.zlayer = [84e3, 90e3, 94e3]
+            k.zprofile = [0.2, 1.0, 0.5]
+            k.build()
+            return k
+
+        sampled = kernel()
+        sampled.calculate_lgs_map()
+        closed = kernel()
+        closed.calculate_kernel_spectrum()
+        self.assertEqual(closed.kernels.shape, sampled.kernels.shape)
+        self.assertEqual(closed.kernels.dtype, closed.complex_dtype)
+
+        band = self._band(dimension)
+        ref = cpuArray(sampled.kernels)[:, band]
+        new = cpuArray(closed.kernels)[:, band]
+        scale = np.abs(ref).max()
+        self.assertLess(np.abs(new - ref).max() / scale, 1e-5)
+        # The mirrored spots differ by much more than the tolerance
+        self.assertGreater(np.abs(np.conj(new) - ref).max() / scale, 0.1)
+
+    @cpu_and_gpu
+    def test_gaussian_kernel_spectrum(self, target_device_idx, xp):
+        '''Width and centre (sample n/2) of the Gaussian kernel coefficients'''
+        n, ps, fwhm = 32, 0.1, 0.35
+        kernel = GaussianConvolutionKernel(dimx=3, dimy=3, pxscale=ps, dimension=n,
+                                           spot_size=fwhm, return_fft=True,
+                                           target_device_idx=target_device_idx)
+        kernel.build()
+        kernel.calculate_kernel_spectrum()
+        coeffs = cpuArray(kernel.kernels)
+
+        sigma = fwhm / (2 * np.sqrt(2 * np.log(2))) / ps
+        ky = np.fft.fftfreq(n, 1 / n)[:, None]
+        kx = np.arange(n // 2 + 1)[None, :]
+        expected = np.exp(-2 * np.pi ** 2 * sigma ** 2 * (kx ** 2 + ky ** 2) / n ** 2) \
+            * (-1.0) ** (kx + ky) / n ** 2
+        np.testing.assert_allclose(coeffs, np.broadcast_to(expected, coeffs.shape),
+                                   rtol=0, atol=1e-6 / n ** 2)
+
+    @cpu_and_gpu
+    def test_single_layer_keeps_beacon_tilt(self, target_device_idx, xp):
+        '''A single layer at the focus is the beacon spot, moved by the requested tilt'''
+        n, ps, fwhm, theta = 32, 0.2, 0.8, [0.45, -0.3]
+        kernel = ConvolutionKernel(dimx=2, dimy=2, pxscale=ps, pupil_size_m=8.0,
+                                   dimension=n, launcher_pos=[4.0, 2.0, 0.0],
+                                   launcher_size=fwhm, zfocus=90e3, theta=theta,
+                                   return_fft=True, target_device_idx=target_device_idx)
+        kernel.zlayer = [90e3]
+        kernel.zprofile = [1.0]
+        kernel.build()
+        kernel.calculate_kernel_spectrum()
+        coeffs = cpuArray(kernel.kernels)
+
+        sigma = fwhm / (2 * np.sqrt(2 * np.log(2))) / ps
+        ux, uy = n / 2 + theta[0] / ps, n / 2 + theta[1] / ps
+        ky = np.fft.fftfreq(n, 1 / n)[:, None]
+        kx = np.arange(n // 2 + 1)[None, :]
+        expected = np.exp(-2 * np.pi ** 2 * sigma ** 2 * (kx ** 2 + ky ** 2) / n ** 2
+                          + 2j * np.pi * (kx * ux + ky * uy) / n) / n ** 2
+        band = self._band(n)
+        np.testing.assert_allclose(coeffs[:, band], np.broadcast_to(expected[band], (4, band.sum())),
+                                   rtol=0, atol=1e-6 / n ** 2)
+        # Nyquist column: real valued, as for any real kernel
+        np.testing.assert_allclose(coeffs[:, 0, n // 2].imag, 0, atol=1e-12)
+
+    def test_kernel_spectrum_edge_cases(self):
+        from specula.data_objects.convolution_kernel import lgs_kernel_spectrum
+        args = dict(nsh=2, diam=8.0, rl=[1.0, 0.0, 0.0], zb=90e3, fwhmb=1.0, ps=0.2, n=8)
+        # No emitting layer: zero kernels
+        out = lgs_kernel_spectrum(dz=[0.0, 1e3], profz=[0.0, -1.0], **args)
+        self.assertEqual(out.shape, (4, 8, 5))
+        self.assertFalse(np.any(out))
+        # A layer at the telescope would have an infinite width and flux
+        with np.errstate(divide='ignore', invalid='ignore'):
+            with self.assertRaisesRegex(ValueError, 'non-finite'):
+                lgs_kernel_spectrum(dz=[-90e3], profz=[1.0], **args)
+        # The same check for real space kernels
+        kernel = ConvolutionKernel(dimx=2, dimy=2, pxscale=0.2, pupil_size_m=8.0, dimension=8,
+                                   return_fft=False, target_device_idx=-1)
+        with self.assertRaisesRegex(ValueError, 'non-finite'):
+            kernel.set_value(np.full((4, 8, 8), np.nan, dtype=kernel.dtype))
+
+    def test_real_kernels_file_cache(self):
+        '''
+        Real space kernels are saved in the current directory without data_dir, and
+        loaded from the file by an object that does not share them in memory.
+        '''
+        sodium = dict(sodium_altitude=[88e3, 92e3], sodium_intensity=[0.4, 0.6])
+
+        def kernel():
+            return ConvolutionKernel(dimx=3, dimy=3, pxscale=0.2, pupil_size_m=8.0,
+                                     dimension=16, launcher_pos=[4.0, 0.0, 0.0],
+                                     launcher_size=1.0, return_fft=False, target_device_idx=-1)
+
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            try:
+                first = kernel()
+                first.prepare_for_sh(current_time=1, **sodium)
+                self.assertEqual(os.listdir(tmp), [first.build() + '.fits'])
+                expected = cpuArray(first.kernels).copy()
+                del first
+                gc.collect()  # the kernels are no longer shared in memory
+
+                second = kernel()
+                with patch.object(second, 'calculate_lgs_map',
+                                  side_effect=AssertionError('kernels recomputed')):
+                    second.prepare_for_sh(current_time=2, **sodium)
+                np.testing.assert_allclose(cpuArray(second.kernels), expected, rtol=1e-6)
+            finally:
+                os.chdir(cwd)

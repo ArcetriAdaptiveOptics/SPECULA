@@ -375,16 +375,23 @@ class ObjectReader:
         '''The array *name* (or HDU *index* in FITS files), as a numpy array in native byte order'''
         raise NotImplementedError
 
-    def load(self, name, index=None, target_device_idx=None, precision=None):
+    def load(self, name, index=None, target_device_idx=None, precision=None, transpose=False):
         '''
         The array *name* (or HDU *index*), on device *target_device_idx*
         (None for the default device, -1 for the CPU). Floating point and
         complex data are converted to the type of *precision* (None for the
         global precision); other data (integer, boolean) is kept, and a
         ValueError is raised if a precision is given.
-        Large arrays of FITS and npy files are streamed to the GPU in chunks.
+        With *transpose*, a 2D array is returned transposed, in C order.
+        Large arrays of FITS and npy files are streamed to the GPU in chunks
+        (also when transposed, without a full-size temporary copy).
         '''
-        return _to_device(self.read(name, index), target_device_idx, precision, self.path, name)
+        array = self.read(name, index)
+        if transpose:
+            if array.ndim != 2:
+                raise ValueError(f'{self.path}: transpose needs a 2D array, {name} has shape {array.shape}')
+            array = np.ascontiguousarray(array.T)
+        return _to_device(array, target_device_idx, precision, self.path, name)
 
     def _missing(self, name, index):
         where = name if index is None else f'{name} (HDU {index})'
@@ -413,7 +420,8 @@ class _FitsReader(ObjectReader):
 
     def has(self, name, index=None):
         i = self._index(name, index)
-        return i is not None and self._hdul[i].data is not None
+        # From the header: reading .data would load the whole array in host memory
+        return i is not None and self._hdul[i].header.get('NAXIS', 0) > 0
 
     def names(self):
         return [hdu.name for hdu in self._hdul[1:] if hdu.name]
@@ -425,13 +433,13 @@ class _FitsReader(ObjectReader):
         data = self._hdul[i].data
         return data.astype(data.dtype.newbyteorder('='))
 
-    def load(self, name, index=None, target_device_idx=None, precision=None):
+    def load(self, name, index=None, target_device_idx=None, precision=None, transpose=False):
         from iteras.lib.fits_io import load_fits_array
         i = self._index(name, index)
         if i is None:
             raise self._missing(name, index)
         array = load_fits_array(self.path, ext=i, target_device_idx=target_device_idx,
-                                precision=precision)
+                                precision=precision, transpose=transpose)
         if array is None:
             raise self._missing(name, index)
         return array
@@ -505,28 +513,28 @@ class _NpyReader(ObjectReader):
             raise self._missing(name, index)
         return np.load(self._file(name), allow_pickle=False)
 
-    def load(self, name, index=None, target_device_idx=None, precision=None):
+    def load(self, name, index=None, target_device_idx=None, precision=None, transpose=False):
         if name not in self._names:
             raise self._missing(name, index)
         if target_device_idx is None:
             target_device_idx = iteras.default_target_device_idx
         if target_device_idx < 0:
-            return super().load(name, index, target_device_idx, precision)
+            return super().load(name, index, target_device_idx, precision, transpose)
         # GPU: stream the data from the file, as for FITS files
         with open(self._file(name), 'rb') as f:  # pragma: no cover
             version = np.lib.format.read_magic(f)
             if version not in ((1, 0), (2, 0)):
-                return super().load(name, index, target_device_idx, precision)
+                return super().load(name, index, target_device_idx, precision, transpose)
             read_header = (np.lib.format.read_array_header_1_0 if version == (1, 0)
                            else np.lib.format.read_array_header_2_0)
             shape, fortran_order, dtype = read_header(f)
             offset = f.tell()
-        if fortran_order or dtype.kind not in 'iuf':  # pragma: no cover
-            return super().load(name, index, target_device_idx, precision)
+        if fortran_order or dtype.kind not in 'iuf' or (transpose and len(shape) != 2):  # pragma: no cover
+            return super().load(name, index, target_device_idx, precision, transpose)
         from iteras.lib.fits_io import upload_from_file  # pragma: no cover
         return upload_from_file(self._file(name), offset, shape, dtype,  # pragma: no cover
                                 _target_dtype(dtype, precision, self.path, name),
-                                target_device_idx, byteswap=not dtype.isnative)
+                                target_device_idx, byteswap=not dtype.isnative, transpose=transpose)
 
 
 def read_header(path, data_format):

@@ -3,6 +3,9 @@ specula.init(0)  # Default target device
 
 import unittest
 
+import numpy as np
+
+from specula import cpuArray
 from specula.processing_objects.modalrec import Modalrec
 from specula.processing_objects.modalrec_explicit_polc import ModalrecExplicitPolc
 from specula.processing_objects.modalrec_implicit_polc import ModalrecImplicitPolc
@@ -434,3 +437,34 @@ class TestModalrec(unittest.TestCase):
         # (since the commands are not zero)
         with self.assertRaises(AssertionError):
             xp.testing.assert_allclose(rec.pseudo_ol_modes.value, rec.modes.value)
+
+
+class TestModalrecImplicitPolcHostInputs(unittest.TestCase):
+
+    @cpu_and_gpu
+    def test_host_inputs(self, target_device_idx, xp):
+        '''Inputs on the host (as restored with host_data_objects): C and H are
+        computed in blocks of columns, and equal those from inputs on the device'''
+        from unittest.mock import patch
+        import specula.processing_objects.modalrec_implicit_polc as polc
+        rng = np.random.default_rng(4)
+        r = rng.standard_normal((40, 30)).astype(np.float32)   # modes x slopes
+        p = rng.standard_normal((20, 40)).astype(np.float32)   # projected modes x modes
+        d = rng.standard_normal((30, 20)).astype(np.float32)   # slopes x commands
+
+        def build(device_idx):
+            return ModalrecImplicitPolc(recmat=Recmat(r, target_device_idx=device_idx),
+                                        projmat=Recmat(p, target_device_idx=device_idx),
+                                        intmat=Intmat(d, target_device_idx=device_idx),
+                                        target_device_idx=target_device_idx)
+
+        self.assertEqual(ModalrecImplicitPolc.host_data_objects, ('recmat', 'projmat', 'intmat'))
+        on_device = build(target_device_idx)
+        # Blocks of 7 columns of R (30 columns: 5 blocks, the last one partial)
+        with patch.object(polc, '_BLOCK_BYTES', 7 * 40 * 4):
+            on_host = build(-1)
+        np.testing.assert_allclose(cpuArray(on_host.recmat.recmat), cpuArray(on_device.recmat.recmat),
+                                   rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(cpuArray(on_host.h_mat.recmat), cpuArray(on_device.h_mat.recmat),
+                                   rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(cpuArray(on_host.recmat.recmat), p @ r, rtol=1e-4, atol=1e-4)

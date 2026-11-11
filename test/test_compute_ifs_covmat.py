@@ -546,6 +546,44 @@ class TestComputeIfsCovmat(unittest.TestCase):
         self.assertGreater(float(cpuArray(result)[0, 0]), 0)
 
     @cpu_and_gpu
+    def test_multiple_batches(self, target_device_idx, xp):
+        """With more modes than one batch (512 for M = 128), each block of the
+        covariance equals the one computed on those modes alone (one batch)."""
+        mask_size = 64
+        y, x = np.ogrid[:mask_size, :mask_size]
+        pupil_mask = xp.asarray(((x - 31.5)**2 + (y - 31.5)**2 <= 30**2).astype(np.float32))
+        npupil = int(xp.sum(pupil_mask))
+        n_actuators = 600  # one full batch of 512 and one partial batch of 88
+        rng = np.random.default_rng(7)
+        influence_functions = xp.asarray(rng.standard_normal((n_actuators, npupil)))
+
+        def covmat(ifs):
+            return cpuArray(compute_ifs_covmat(pupil_mask, 8.0, ifs, 0.16, 25.0,
+                                               xp=xp, dtype=xp.float64))
+
+        cov = covmat(influence_functions)
+        self.assertEqual(cov.shape, (n_actuators, n_actuators))
+        for sel in (slice(0, 100), slice(n_actuators - 50, n_actuators)):
+            np.testing.assert_allclose(cov[sel, sel], covmat(influence_functions[sel]),
+                                       rtol=1e-10, atol=1e-10 * np.abs(cov).max())
+        # cross block between the two batches
+        both = np.r_[0:50, n_actuators - 50:n_actuators]
+        np.testing.assert_allclose(cov[np.ix_(both, both)], covmat(influence_functions[both]),
+                                   rtol=1e-10, atol=1e-10 * np.abs(cov).max())
+
+    @cpu_and_gpu
+    def test_symmetric_product_tiles(self, target_device_idx, xp):
+        """The tiled F F^T (lower tiles, mirrored) equals a single product."""
+        from specula.lib.modal_base_generator import _symmetric_product
+        rng = np.random.default_rng(11)
+        for n in (100, 1100, 4100):  # 1 (single product), 2 and 8 tiles
+            f = xp.asarray(rng.standard_normal((n, 300)))
+            out = cpuArray(_symmetric_product(f, xp))
+            f = cpuArray(f)
+            np.testing.assert_allclose(out, f @ f.T, rtol=1e-12, atol=1e-12 * 300)
+            np.testing.assert_array_equal(out, out.T)
+
+    @cpu_and_gpu
     def test_rectangular_mask(self, target_device_idx, xp):
         """Test with non-square pupil mask."""
         mask = xp.ones((20, 30), dtype=xp.float32)

@@ -239,6 +239,7 @@ def main_simul(yml_files: list,
                allocate: bool=False,
                reallocate: bool=False,
                accelerate: bool=True,
+               data_objects_on_device: bool=False,
                ):
 
     # Set logging level for the "parent" loggers of iteras and its plugins
@@ -307,6 +308,7 @@ def main_simul(yml_files: list,
                 allocate=allocate,
                 reallocate=reallocate,
                 accelerate=accelerate,
+                data_objects_on_device=data_objects_on_device,
             ).run()
     except Exception:
         if mpi:

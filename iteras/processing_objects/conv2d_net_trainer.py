@@ -86,14 +86,8 @@ class Conv2dNetTrainer(BaseProcessingObj):
     load_from_file : bool
         Resume from network_filename if it exists (it must have been
         trained with the same network parameters).
-
-    Network: channels, depth, conv_block_type, head_type, head_grid, dropout
-    -- see UNetRegressor (channels = base_channels, dropout = dropout_level).
-    They are saved in the checkpoint together with nmodes, input_channels,
-    channel_product and n_frames, and Conv2dNetTester/Conv2dNetRec read them
-    from there. The maps must be at least 2 ** depth pixels wide; for small
-    maps with the 'spatial' head, head_grid should be about the map size.
-
+    channels, depth, conv_block_type, head_type, head_grid, dropout
+        Network parameters, see UNetRegressor and the Notes.
     input_channels : int
         Channels of the buffered maps, per frame: 2 for the x/y slope maps
         of a slope computer (its out_slopes_map), 1 for a single map per
@@ -107,8 +101,6 @@ class Conv2dNetTrainer(BaseProcessingObj):
         input: sample t gets [x(t), x(t-1), ..., x(t-n_frames+1)], so the
         network sees input_channels * n_frames channels. Over a few frames
         the turbulence is strongly correlated while noise isn't.
-
-    Labels:
 
     label_offset : int
         Index of the first mode within the buffered 'labels' value (e.g. 1
@@ -124,8 +116,6 @@ class Conv2dNetTrainer(BaseProcessingObj):
         larger than this are dropped -- see _label_rms_mask(). In the labels'
         units.
 
-    Loop transients (optional 'gain_mod' input, the loop gain modulation):
-
     gain_mod_threshold : float
         Samples with gain_mod below this are dropped: while the loop is
         open or at reduced gain the residual is much larger than in closed
@@ -138,25 +128,12 @@ class Conv2dNetTrainer(BaseProcessingObj):
         Loss weight, in [0, 1], of those transient frames (1: same as the
         others; 0: dropped).
 
-    Normalization. The input is normalized by one mean/std over all pixels,
-    taken from the first batch and then kept: the network's first block ends
-    in a GroupNorm, which rescales every sample itself, so the network is
-    insensitive to that choice and nothing is gained by tracking it. The
-    output is normalized per mode, and those statistics do matter -- the
-    network predicts in that space -- but a few seconds of data don't
-    represent an atmosphere that keeps changing. So they follow a slow moving
-    average, and every update rescales the network's output layers so that
-    its denormalized predictions stay exactly the same: the statistics can
-    move at any rate without the network having to chase them.
-
     norm_timescale : float
         Time constant, in seconds of simulated time, of the output
         statistics' moving average. It should span several independent
         draws of the conditions; getting it somewhat wrong costs little,
         since the loss is in physical units and the predictions are kept
         unchanged by each update.
-
-    Training:
 
     val_split : float
         Fraction of each batch used for validation: its most recent frames,
@@ -229,15 +206,36 @@ class Conv2dNetTrainer(BaseProcessingObj):
         different conditions (e.g. different magnitudes), a small value
         averages over several runs instead of reflecting only the last one.
 
-    Device:
-
-    The network trains on the object's device: the GPU of target_device_idx,
-    or the CPU when the object is on the CPU.
-
     data_parallel : bool
         Train on all visible GPUs with torch's DataParallel instead of the
         object's GPU only. Off by default: on a GPU shared with other
         simulations it would take all of them.
+
+    Notes
+    -----
+    Network parameters: channels, depth, conv_block_type, head_type, head_grid, dropout
+    -- see UNetRegressor (channels = base_channels, dropout = dropout_level).
+    They are saved in the checkpoint together with nmodes, input_channels,
+    channel_product and n_frames, and Conv2dNetTester/Conv2dNetRec read them
+    from there. The maps must be at least 2 ** depth pixels wide; for small
+    maps with the 'spatial' head, head_grid should be about the map size.
+
+    Loop transients: the optional 'gain_mod' input is the loop gain
+    modulation (see gain_mod_threshold, settle_frames, transient_weight).
+
+    Normalization. The input is normalized by one mean/std over all pixels,
+    taken from the first batch and then kept: the network's first block ends
+    in a GroupNorm, which rescales every sample itself, so the network is
+    insensitive to that choice and nothing is gained by tracking it. The
+    output is normalized per mode, and those statistics do matter -- the
+    network predicts in that space -- but a few seconds of data don't
+    represent an atmosphere that keeps changing. So they follow a slow moving
+    average, and every update rescales the network's output layers so that
+    its denormalized predictions stay exactly the same: the statistics can
+    move at any rate without the network having to chase them.
+
+    Device: the network trains on the object's device, the GPU of
+    target_device_idx, or the CPU when the object is on the CPU.
     """
 
     def __init__(self,

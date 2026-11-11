@@ -111,12 +111,12 @@ Example Structure
             super().post_trigger()
             self.result.generation_time = self.current_time
 
-For detailed API documentation of all base classes, see :doc:`api/base_classes`.
+For detailed API documentation of all base classes, see :doc:`api/iteras_core`.
 
 See Also
 --------
 
-- :doc:`api/base_classes` - Complete API reference
+- :doc:`api/iteras_core` - Complete API reference
 - :doc:`development` - Development conventions
 - :doc:`processing_objects` - Guide to processing objects
 - :doc:`data_objects` - Guide to data objects

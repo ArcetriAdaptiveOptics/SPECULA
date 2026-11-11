@@ -62,7 +62,7 @@ class ShSlopec(Slopec):
         each subaperture is subtracted from its pixels. Default 0.
     exp_weight : float, optional
         Exponent of the pixel coordinates in the centroid weights:
-        sign(x) |x|^exp_weight. Default 1 (center of gravity).
+        ``sign(x) |x|^exp_weight``. Default 1 (center of gravity).
     filtmat : array_like, optional
         Slope filter (see Slopec).
     weightedPixRad : float [pixels], optional

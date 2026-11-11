@@ -45,6 +45,7 @@ class Simul():
                  allocate=False,
                  reallocate=False,
                  accelerate=True,
+                 data_objects_on_device=False,
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
@@ -69,6 +70,7 @@ class Simul():
         self.allocation = None
         self.accelerate = accelerate
         self.accelerator = None
+        self.data_objects_on_device = data_objects_on_device
         self.logger = get_iteras_logger(__name__)
         self.logger.setLevel(log_level.upper())
         if diagram or diagram_title or diagram_filename or diagram_colors_on:
@@ -168,9 +170,10 @@ class Simul():
     def build_trigger_order(self, params_orig):
         '''
         Work on a copy of the parameter file.
+
         1. Find leaves, add them to trigger
-        2. Remove leaves, remove their inputs from other objects
-          2a. Objects will become a leaf when all their inputs have been removed
+        2. Remove leaves, remove their inputs from other objects.
+           Objects will become a leaf when all their inputs have been removed
         3. Repeat from step 1. until there is no change
         4. Check if any objects have been skipped
         '''
@@ -579,8 +582,10 @@ class Simul():
                         pars2[parname] = None
                     elif parname in hints:
                         partype = resolve_type(hints[parname])
-
-                        pars2[parname] = self.restore_object(partype, value, target_device_idx)
+                        on_host = not self.data_objects_on_device and \
+                            parname in getattr(klass, 'host_data_objects', ())
+                        device_idx = -1 if on_host else target_device_idx
+                        pars2[parname] = self.restore_object(partype, value, device_idx)
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')
 

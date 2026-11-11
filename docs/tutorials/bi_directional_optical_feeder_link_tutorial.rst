@@ -1,7 +1,7 @@
 .. _bi_directional_optical_feeder_link_tutorial:
 
 Bi-directional Optical Feeder Link Tutorial
-=========================================
+===========================================
 
 This tutorial guides you through creating and running a bi-directional optical feeder link simulation in SPECULA.
 
@@ -36,7 +36,7 @@ We'll simulate a simple bi-directional optical feeder link setting with:
 
 
 Part 1: System configuration
------------------
+----------------------------
 In order to calculate the PAA, time delays, effective wind speeds and directions the SPECULA functions ``calc_paa``, ``calc_timing_uplink_downlink`` and ``calc_effective_wind_speed`` in ``lib/fsoc_lib.py`` can be used. Those functions require as input atmospheric parameters, such as Cn2, wind speed and directions, as well as space object specific parameters such as height and speed.
 
 The calculated PAA is used in ``polar_coordinates`` of the ``Source`` class. The effective wind speeds and directions are set as input for the ``AtmoInfiniteEvolutionUpDown`` class and the time delays are set via ``extra_delta_time_up`` and ``extra_delta_time_down`` for the ``AtmoInfiniteEvolutionUpDown`` class.
@@ -268,13 +268,13 @@ To set up the main SPECULA parameter file, create a YAML configuration file, for
 
 
 Part 2: Running the Simulation
------------------
+------------------------------
 Before running the full closed-loop simulation, we need to calibrate several components of the AO system.
 
 The calibration process has two main steps:
 
 Wavefront Sensor Geometry Calibration
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 We need to identify which part of the Pyramid WFS contains enough light from the guide star to provide reliable slope measurements, excluding those outside the pupil or with insufficient illumination.
 
 Create a YAML configuration file, for example ``calib_pyr_pupdata.yml``:
@@ -328,7 +328,7 @@ Now run the WFS calibration:
    specula params_leo_satellite.yml calib_pyr_pupdata.yml
 
 Interaction Matrix and Reconstructor Calibration
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Create a YAML configuration file, for example ``calib_im_rec.yml``:
 
 .. code-block:: yaml
@@ -407,6 +407,7 @@ Create a YAML configuration file, for example ``calib_im_rec.yml``:
         "psf_down",
         "data_store",
     ]
+
 Now run the interaction and reconstruction matrix calibration:
 
 .. code-block:: bash

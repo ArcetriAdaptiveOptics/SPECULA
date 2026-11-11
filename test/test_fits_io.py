@@ -45,6 +45,23 @@ class TestLoadFitsArray(unittest.TestCase):
             self.assertTrue(out.dtype.isnative)
             np.testing.assert_array_equal(cpuArray(out), data.astype(dtype))
 
+    def test_read_empty_array(self):
+        '''An empty array, also transposed with empty rows (no division by the row length)'''
+        out = fits_io.read_from_file(self.filename, 0, (3, 0), np.float32, np.float32,
+                                     byteswap=True, transpose=True)
+        self.assertEqual(out.shape, (0, 3))
+        out = fits_io.read_from_file(self.filename, 0, (0, 4), np.float32, np.float32, byteswap=True)
+        self.assertEqual(out.shape, (0, 4))
+
+    @cpu_and_gpu
+    def test_truncated_file(self, target_device_idx, xp):
+        data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
+        self._write(data)
+        with open(self.filename, 'r+b') as f:
+            f.truncate(os.path.getsize(self.filename) - 2880 - 4096)
+        with self.assertRaises(EOFError):
+            load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx)
+
     @cpu_and_gpu
     def test_multiple_chunks(self, target_device_idx, xp):
         data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
@@ -57,6 +74,38 @@ class TestLoadFitsArray(unittest.TestCase):
         np.testing.assert_array_equal(cpuArray(out), data)
         np.testing.assert_array_equal(cpuArray(out64), data64)
         self.assertEqual(out64.dtype, np.float64)
+
+    @unittest.skipIf(specula.cp is None, 'GPU upload only')
+    def test_staging_chunks_not_cached(self):
+        '''On GPU, the default memory pool grows only by the result: the chunks
+        used for the upload come from a temporary pool'''
+        data = np.arange(2 * 1024 * 1024, dtype=np.float32).reshape(2048, 1024)   # 8 MB
+        self._write(data)
+        pool = specula.cp.get_default_memory_pool()
+        pool.free_all_blocks()
+        before = pool.total_bytes()
+        with patch.object(fits_io, '_CHUNK_BYTES', 1 << 20):
+            out = load_fits_array(self.filename, ext=1, target_device_idx=0, precision=1)
+        self.assertLessEqual(pool.total_bytes() - before, out.nbytes + 1024)
+        np.testing.assert_array_equal(cpuArray(out), data)
+
+    @cpu_and_gpu
+    def test_transpose(self, target_device_idx, xp):
+        '''Transposed in C order: chunks of whole rows (with a partial last chunk), and
+        the astropy path for scaled data; 3D data is rejected'''
+        data = np.arange(1000 * 77, dtype=np.float32).reshape(1000, 77)
+        scaled = np.arange(12, dtype=np.uint16).reshape(3, 4)
+        self._write(data, scaled, np.zeros((2, 3, 4), dtype=np.float32))
+        with patch.object(fits_io, '_CHUNK_BYTES', 4096):
+            out = load_fits_array(self.filename, ext=1, target_device_idx=target_device_idx,
+                                  precision=1, transpose=True)
+        self.assertTrue(out.flags.c_contiguous)
+        np.testing.assert_array_equal(cpuArray(out), data.T)
+        out = load_fits_array(self.filename, ext=2, target_device_idx=target_device_idx, transpose=True)
+        self.assertTrue(out.flags.c_contiguous)
+        np.testing.assert_array_equal(cpuArray(out), scaled.T)
+        with self.assertRaises(ValueError):
+            load_fits_array(self.filename, ext=3, target_device_idx=target_device_idx, transpose=True)
 
     @cpu_and_gpu
     def test_integer_data_with_precision(self, target_device_idx, xp):

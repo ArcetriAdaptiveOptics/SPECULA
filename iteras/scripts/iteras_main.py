@@ -64,6 +64,11 @@ def build_parser():
                         help='Run the GPU work of the objects as CUDA graphs chained without '
                              'waiting for the GPU (see iteras.accelerator). On by default: '
                              '--no-accelerate turns it off, also if there is an Accelerator section')
+    parser.add_argument('--data-objects-on-device', action='store_true',
+                        help='Restore all data objects on the device of the object that uses them, '
+                             'also those that its class keeps on the host (host_data_objects, e.g. '
+                             'the input matrices of ModalrecImplicitPolc): no host memory peak '
+                             'during setup, but a higher GPU memory peak')
     parser.add_argument('yml_files', nargs='+', type=str,
                         help='YAML parameter files')
     return parser

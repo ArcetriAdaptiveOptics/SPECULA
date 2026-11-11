@@ -12,19 +12,23 @@ class PhaseUnwrapper(BaseProcessingObj):
     Robust multi-wavelength interferometry (WLI) phase unwrapper with modular behavior control.
 
     Optimized for closed-loop control systems with:
+
     - Fast edge response (minimal latency)
     - Optional temporal filtering (with proper blending, not replacement)
 
     Behaviors controlled via boolean flags for easy debugging:
+
     - unwrap_enabled: If False, output = input (no processing)
     - two_stage_enabled: Use two-stage or always full unwrapping
     - temporal_filtering_mode: 'none', 'median', or 'weighted_average'
 
     Two-stage logic (when enabled):
+
     - Stage 1: Use p1 directly as long as residual < threshold
     - Stage 2: Full multi-wavelength unwrapping when Stage 1 residual is too high
 
     Interval mode (interval_unwrap=True, replaces the two-stage/full logic):
+
     - Candidates p1 + k*lambda_1 +/- err_1 and p2 + m*lambda_2 +/- err_2,
       restricted to [-max_capture, max_capture]
     - Unique solution (overlaps spanning <= mean(lambda)/2): out_pistonsU is the
@@ -38,6 +42,7 @@ class PhaseUnwrapper(BaseProcessingObj):
       lambda_1/2 of 0: the lambda_1 step is made only if it brings every
       possible solution closer to 0
     - No overlap (inconsistent estimates): out_pistonsU is 0 (do not move)
+
     The confidence of the ambiguous and no-overlap outputs is 0.
     """
 
@@ -95,7 +100,7 @@ class PhaseUnwrapper(BaseProcessingObj):
             wavelengths: required and strictly positive if it is True, ignored
             (with a warning) otherwise. Larger margins are more robust to noise
             and to a bias between p1 and p2, but slower to converge; err_1 + err_2
-            must not exceed |lambda_2 - lambda_1|, otherwise a lambda_1 error is
+            must not exceed ``|lambda_2 - lambda_1|``, otherwise a lambda_1 error is
             always ambiguous and never corrected.
         """
         super().__init__(target_device_idx=target_device_idx, precision=precision)

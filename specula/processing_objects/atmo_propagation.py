@@ -42,11 +42,11 @@ class AtmoPropagation(BaseProcessingObj):
                  target_device_idx=None,
                  precision=None):
         """
-        Note
-        ----
+        Notes
+        -----
         - By default, all atmospheric phase screens are referenced to a wavelength of 500 nm.
         - Layer heights are always defined at zenith and projected according to the simulation
-        zenith angle (coming from simul_params).
+          zenith angle (coming from simul_params).
 
         Parameters
         ----------

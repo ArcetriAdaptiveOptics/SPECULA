@@ -1,4 +1,5 @@
-from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh, LGS_MAP_SH_REVISION
+from specula.data_objects.convolution_kernel import ConvolutionKernel, lgs_map_sh, \
+    lgs_kernel_spectrum, LGS_MAP_SH_REVISION
 
 from iteras.lib import storage
 
@@ -59,6 +60,15 @@ class GaussianConvolutionKernel(ConvolutionKernel):
             ssp=self.dimension, overs=1, theta=self.lgs_tt, xp=self.xp)
 
         self.process_kernels(return_fft=self.return_fft)
+
+    def calculate_kernel_spectrum(self):
+        # A single layer at the focus: the same kernel for all the subapertures
+        spectrum = lgs_kernel_spectrum(
+            1, self.pupil_size_m, 0, 90e3, [0], profz=[1.0], fwhmb=self.spot_size,
+            ps=self.pxscale, n=self.dimension, theta=self.lgs_tt,
+            dtype=self.complex_dtype, xp=self.xp)
+        self._allocate_kernels(return_fft=True)
+        self.kernels[:] = spectrum
 
     @staticmethod
     def restore(filename, target_device_idx=None, kernel_obj=None, return_fft=False):
