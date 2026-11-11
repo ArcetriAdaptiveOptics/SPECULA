@@ -176,6 +176,8 @@ The default implementations do nothing; override them to change how
        which the class then builds on its device in blocks, so that the inputs
        are never on the GPU all at once. Default: empty. Used by
        ``ModalrecImplicitPolc`` for ``recmat``, ``projmat`` and ``intmat``.
+       The ``--data-objects-on-device`` command line option ignores it, trading
+       the host memory peak for a GPU memory peak.
    * - ``runs_on_main_process_only()``
      - Class method. Return ``True`` for classes that must run in the main
        process (MPI rank 0), like ``DisplayServer`` and ``InteractiveInput``.

@@ -45,6 +45,7 @@ class Simul():
                  allocate=False,
                  reallocate=False,
                  accelerate=False,
+                 data_objects_on_device=False,
                  ):
         if len(param_files) < 1:
             raise ValueError('At least one Yaml parameter file must be present')
@@ -69,6 +70,7 @@ class Simul():
         self.allocation = None
         self.accelerate = accelerate
         self.accelerator = None
+        self.data_objects_on_device = data_objects_on_device
         self.logger = get_iteras_logger(__name__)
         self.logger.setLevel(log_level.upper())
         if diagram or diagram_title or diagram_filename or diagram_colors_on:
@@ -580,8 +582,9 @@ class Simul():
                         pars2[parname] = None
                     elif parname in hints:
                         partype = resolve_type(hints[parname])
-                        device_idx = -1 if parname in getattr(klass, 'host_data_objects', ()) \
-                            else target_device_idx
+                        on_host = not self.data_objects_on_device and \
+                            parname in getattr(klass, 'host_data_objects', ())
+                        device_idx = -1 if on_host else target_device_idx
                         pars2[parname] = self.restore_object(partype, value, device_idx)
                     else:
                         raise ValueError(f'No type hint for parameter {parname} of class {classname}')

@@ -1787,6 +1787,9 @@ class TestSmallBranches(AllocatorTestCase):
         from iteras.scripts.iteras_main import build_parser
         args = build_parser().parse_args(['--accelerate', '--allocate', '--reallocate', 'p.yml'])
         self.assertTrue(args.accelerate and args.allocate and args.reallocate)
+        self.assertFalse(args.data_objects_on_device)
+        args = build_parser().parse_args(['--data-objects-on-device', 'p.yml'])
+        self.assertTrue(args.data_objects_on_device)
 
     def test_mpi_bytes_without_cost(self):
         g = self.graph()
