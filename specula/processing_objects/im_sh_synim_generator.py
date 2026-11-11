@@ -71,7 +71,8 @@ class ImShSynimGenerator(BaseProcessingObj):
         Generated interaction matrix, one column per DM input command element,
         in slopes per DM command unit
     out_recmat : Recmat
-        Generated reconstruction matrix (if compute_rec=True)
+        Generated reconstruction matrix. With compute_rec=False it is an
+        empty (1x1) matrix that is never updated
     
     Examples
     --------
@@ -166,20 +167,18 @@ class ImShSynimGenerator(BaseProcessingObj):
             precision=precision
         )
 
-        self.output_recmat = None
-        if compute_rec:
-            # Create empty recmat, will be sized in setup
-            self.output_recmat = Recmat(
-                recmat=self.xp.zeros((1, 1), dtype=self.dtype),
-                target_device_idx=target_device_idx,
-                precision=precision
-            )
+        # Created also with compute_rec=False, since all declared outputs must
+        # exist: then it stays an empty, never updated recmat. Sized in setup.
+        self.output_recmat = Recmat(
+            recmat=self.xp.zeros((1, 1), dtype=self.dtype),
+            target_device_idx=target_device_idx,
+            precision=precision
+        )
 
         # Setup connections
         self.inputs['in_misreg_params'] = InputValue(type=BaseValue, optional=True)
         self.outputs['out_intmat'] = self.output_intmat
-        if compute_rec:
-            self.outputs['out_recmat'] = self.output_recmat
+        self.outputs['out_recmat'] = self.output_recmat
 
     @classmethod
     def input_names(cls):
@@ -188,7 +187,7 @@ class ImShSynimGenerator(BaseProcessingObj):
     @classmethod
     def output_names(cls):
         return {'out_intmat': OutputDesc(Intmat, 'Computed interaction matrix from SynIM geometric model'),
-                'out_recmat': OutputDesc(Recmat, 'Computed reconstruction matrix (optional, if compute_rec=True)')}
+                'out_recmat': OutputDesc(Recmat, 'Computed reconstruction matrix (updated only if compute_rec=True)')}
 
     def setup(self):
         """Initialize and extract parameters"""

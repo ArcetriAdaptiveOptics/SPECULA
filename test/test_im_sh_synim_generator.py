@@ -9,6 +9,7 @@ from specula.data_objects.ifunc import IFunc
 from specula.data_objects.m2c import M2C
 from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.subap_data import SubapData
+from specula.data_objects.recmat import Recmat
 from specula.base_value import BaseValue
 from specula.processing_objects.dm import DM
 from specula.processing_objects.sh import SH
@@ -468,3 +469,50 @@ class TestImShSynimGenerator(unittest.TestCase):
         rel_diff = np.sqrt(np.mean((im_generated - im_expected)**2) / np.mean(im_expected**2))
         self.assertLess(rel_diff, 1e-4)
         self.assertEqual(im_gen.output_recmat.recmat.shape, (dm_m2c.nmodes, im_generated.shape[0]))
+
+    @cpu_and_gpu
+    def test_im_generator_compute_rec_false_declares_all_outputs(self, target_device_idx, xp):
+        """Issue #840: with compute_rec=False the generator must pass the sanity
+        checks of setup() (every output in output_names(), including out_recmat,
+        must exist) and compute the same IM as with compute_rec=True.
+        out_recmat is an empty (1, 1) Recmat that the trigger never updates."""
+        simul_params, source, dm, wfs, slopec = create_test_system()
+
+        def make(compute_rec):
+            return ImShSynimGenerator(simul_params=simul_params, dm=dm, slopec=slopec,
+                                      source=source, wfs=wfs, compute_rec=compute_rec,
+                                      target_device_idx=target_device_idx, precision=1)
+
+        im_gen = make(False)
+
+        # Raised ValueError("Output out_recmat declared in output_names but not present")
+        im_gen.check_output_names()
+        im_gen.setup()
+        im_gen.sanity_check()
+
+        self.assertIn('out_recmat', im_gen.outputs)
+        self.assertIn('out_intmat', im_gen.outputs)
+        recmat = im_gen.outputs['out_recmat']
+        self.assertIsInstance(recmat, Recmat)
+        self.assertEqual(cpuArray(recmat.recmat).shape, (1, 1))
+        rec_time_before = recmat.generation_time
+
+        t = 7
+        im_gen.current_time = t
+        im_gen.trigger_code()
+
+        # IM updated, REC untouched
+        im_off = cpuArray(im_gen.output_intmat.intmat)
+        self.assertEqual(im_gen.output_intmat.generation_time, t)
+        self.assertGreater(np.max(np.abs(im_off)), 0)
+        self.assertEqual(recmat.generation_time, rec_time_before)
+        self.assertNotEqual(recmat.generation_time, t)
+        self.assertEqual(cpuArray(recmat.recmat).shape, (1, 1))
+        self.assertEqual(float(np.max(np.abs(cpuArray(recmat.recmat)))), 0.0)
+
+        # Same IM as an otherwise identical generator with compute_rec=True
+        im_gen_rec = make(True)
+        im_gen_rec.setup()
+        im_gen_rec.trigger_code()
+        im_on = cpuArray(im_gen_rec.output_intmat.intmat)
+        np.testing.assert_array_equal(im_off, im_on)
