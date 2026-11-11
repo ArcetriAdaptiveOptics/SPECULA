@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 import tempfile
 import unittest
 
@@ -315,8 +316,8 @@ class _GpuObj(_Obj):
         super().__init__(name)
         self.target_device_idx = 0
         self._target_device = _FakeDevice()
-        self.stream = object()
-        self.cuda_graph = object() if with_graph else None
+        # As set by the accelerator once the graph is captured
+        self._accel = SimpleNamespace(graph=object()) if with_graph else None
 
 
 class TestGpuEvents(unittest.TestCase):
@@ -364,7 +365,8 @@ class TestGpuEvents(unittest.TestCase):
             tracer.end_iteration()
             summary = tracer.close()
 
-        self.assertIn(('graph', graph_obj.stream, graph_obj.stream), streams)
+        # The graphs are launched on the current stream too
+        self.assertIn(('graph', current_stream, current_stream), streams)
         self.assertIn(('plain', current_stream, current_stream), streams)
         gpu_rows = [r for r in self._rows() if r[4] == 'trigger_gpu']
         self.assertEqual(sorted(r[2] for r in gpu_rows), ['graph', 'plain'])

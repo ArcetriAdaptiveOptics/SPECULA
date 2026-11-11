@@ -60,9 +60,10 @@ def build_parser():
                              '(see iteras.allocator)')
     parser.add_argument('--reallocate', action='store_true',
                         help='Recompute the placement of the objects even if a saved one exists')
-    parser.add_argument('--accelerate', action='store_true',
+    parser.add_argument('--accelerate', action=argparse.BooleanOptionalAction, default=True,
                         help='Run the GPU work of the objects as CUDA graphs chained without '
-                             'waiting for the GPU (see iteras.accelerator), as with a Accelerator section')
+                             'waiting for the GPU (see iteras.accelerator). On by default: '
+                             '--no-accelerate turns it off, also if there is an Accelerator section')
     parser.add_argument('--data-objects-on-device', action='store_true',
                         help='Restore all data objects on the device of the object that uses them, '
                              'also those that its class keeps on the host (host_data_objects, e.g. '

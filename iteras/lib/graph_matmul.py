@@ -4,7 +4,7 @@ Matrix products that can be captured in a CUDA graph.
 CuPy does not allow cuBLAS calls during stream capture ("calling cuBLAS API
 during stream capture is currently unsupported", also through its low-level
 cuBLAS binding), so `cp.matmul` cannot be used in a `trigger_code()` that is
-captured in a CUDA graph (see iteras.accelerator and build_stream()).
+captured in a CUDA graph (see iteras.accelerator).
 
 Use `matmul(a, b, xp)`: it is `a @ b` (cuBLAS) outside a capture, and inside one
 it uses the raw kernels of this module, chosen by the shapes and memory layout:

@@ -396,6 +396,10 @@ class AtmoPropagation(BaseProcessingObj):
             layer_list = layer_list[::-1]
         return layer_list
 
+    def can_accelerate(self):
+        # The Fresnel propagation is not captured
+        return not self.doFresnel
+
     def trigger_code(self):
         if self.geometric_propagation is not None:  # pragma: gpu
             self.geometric_propagation.run()
@@ -743,7 +747,6 @@ class AtmoPropagation(BaseProcessingObj):
             self.doFresnel_setup()
         else:
             self.setup_geometric_propagation()
-            self.build_stream()
 
     def setup_geometric_propagation(self):
         '''

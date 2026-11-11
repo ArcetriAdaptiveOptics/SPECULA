@@ -195,8 +195,8 @@ class TestToccd(unittest.TestCase):
     def test_toccd_out_no_allocation_in_cuda_graph(self):
         '''
         With out and set_total=0 (as in SH), toccd() allocates nothing when captured
-        in a CUDA graph, after a first call that builds the weights (the warm-up of
-        BaseProcessingObj.capture_stream()), and the graph gives the same result.
+        in a CUDA graph, after a first call that builds the weights (the first trigger
+        of an accelerated object, see iteras.accelerator), and the graph gives the same result.
         '''
         a = cp.asarray(np.random.default_rng(4).random((150, 120)), dtype=cp.float32)
         expected = cpuArray(toccd(a, (14, 11), set_total=0, xp=cp))
