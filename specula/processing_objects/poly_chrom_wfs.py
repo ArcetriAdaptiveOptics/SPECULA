@@ -174,6 +174,9 @@ class PolyChromWFS(BaseProcessingObj):
         else:
             self.flux_factor_normalized = self.flux_factor
 
+    def internal_objects(self):
+        return list(self._wfs_instances)
+
     def check_ready(self, t):
         super().check_ready(t)
 
@@ -221,7 +224,7 @@ class PolyChromWFS(BaseProcessingObj):
         # Reset output intensity
         self._out_i.i[:] = 0.0
 
-        # Trigger each SH, on its device: trigger() launches its own CUDA graph
+        # Trigger each SH, on its device: trigger() launches its CUDA graph when accelerated
         for wfs in self._wfs_instances:
             self._use_device(wfs)
             wfs.trigger()

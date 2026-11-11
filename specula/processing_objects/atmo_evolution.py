@@ -65,7 +65,7 @@ class AtmoEvolution(BaseProcessingObj):
     seeing, wind speed, and wind direction.
 
     Each time step is split so that trigger_code() can be captured in a CUDA graph
-    (see BaseProcessingObj.build_stream(), called in setup()):
+    (see can_accelerate() and iteras.accelerator):
 
     - prepare_trigger() only updates the device time step, if it has changed.
       trigger_code() reads the seeing, wind speed and wind direction inputs
@@ -326,8 +326,10 @@ class AtmoEvolution(BaseProcessingObj):
         self.layer_center_xp = (self.pixel_layer_xp - 1) / 2
         self.screen_size_xp = self.to_xp(self.phasescreens_sizes_array, dtype=self.dtype)
 
-        # Reallocated inputs raise an error, see BaseProcessingObj.check_input_ptrs()
-        self.build_stream()
+    def can_accelerate(self):
+        # trigger_code() only launches GPU work on arrays updated in place
+        # (reallocated inputs raise an error, see iteras.accelerator)
+        return True
 
     def prepare_trigger(self, t):
         """Update the device time step, only when it changes (no transfers)."""
@@ -351,7 +353,7 @@ class AtmoEvolution(BaseProcessingObj):
 
         On GPU, in addition to kernel launches, there are small temporary
         allocations inside cupyx.scipy.ndimage.affine_transform: in the CUDA graph,
-        they are taken from its own memory pool (see BaseProcessingObj.capture_stream()).
+        they are taken from its own memory pool (see iteras.accelerator.GraphRunner.capture()).
         """
         wind_speed = self.local_inputs['wind_speed'].value
         wind_direction = self.local_inputs['wind_direction'].value

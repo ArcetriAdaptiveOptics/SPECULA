@@ -234,12 +234,11 @@ so that the derived class' code runs on the correct target. A class that reimple
         super().setup()
         [... additional setup as needed ...]
 
-An important task of the *setup()* method is to call the *build_stream()* method to enable CUDA graph capturing
-of the trigger code described below::
+To allow the capture of the trigger code described below in a CUDA graph (see :doc:`accelerator`),
+a class overrides *can_accelerate()*::
 
-    def setup(self):
-        super().setup()
-        self.build_stream()
+    def can_accelerate(self):
+        return True
 
 
 Trigger
@@ -303,9 +302,8 @@ For each group identified by the trigger order algorithm:
 #. Call *post_trigger()* for all ready objects
 
 The general idea is to have a GPU-friendly algorithm in *trigger_code()*, that operates on statically-allocated
-arrays. This algorithm can be captured in a CUDA graph and executed on a private CUDA stream, which is both
-be more efficient than a series of Python/CuPY operations and also allows multiple objects to be run in parallel
-on the same or different GPUs. *prepare_trigger()* and *post_trigger()* take care of operations
+arrays. This algorithm can be captured in a CUDA graph, which is more efficient than a series of
+Python/CuPy operations; objects on different GPUs run in parallel. *prepare_trigger()* and *post_trigger()* take care of operations
 that cannot be captured in CUDA graph, in particular:
 
 * *prepare_trigger()*: perform any needed setup, for example CPU-only numpy calculations
@@ -323,16 +321,8 @@ the current simulated time *t*. The base class method must be called as well, ex
     def post_trigger(self):
         super().post_trigger()
 
-By default, all streams in an object group are executed in parallel. If an object wishes to turn off parallelization,
-it can call *build_stream()* setting the optional *allow_parallel* parameter to False::
-
-    def setup(self):
-        super().setup()
-        self.build_stream(allow_parallel=False)
-
-In this case, the trigger graph will be run on a default stream that serializes all such graphs. It is still
-possible to parallelize object instances across multiple GPUs, by explicitly setting their *target_device_idx*
-to a specific GPU in their initialization.
+The GPU work of the objects of a device runs in trigger order on its default stream. Object
+instances can run in parallel on multiple GPUs, by setting their *target_device_idx*.
 
 .. _prepare_trigger:
 
@@ -383,7 +373,7 @@ If the trigger code is known to be non-parallelizable, or numpy-only code is use
 it is possible to avoid the previous complexity and:
 
 * Put all code into *trigger_code()*
-* Avoid calling *build_stream()* during setup
+* Do not override *can_accelerate()*
 
 This way, no CUDA graph will be generated and *trigger_code()* will be executed
 as ordinary Python code.

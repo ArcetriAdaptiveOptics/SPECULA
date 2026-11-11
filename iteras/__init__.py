@@ -238,7 +238,7 @@ def main_simul(yml_files: list,
                trace_gpu_events: bool=False,
                allocate: bool=False,
                reallocate: bool=False,
-               accelerate: bool=False,
+               accelerate: bool=True,
                data_objects_on_device: bool=False,
                ):
 
