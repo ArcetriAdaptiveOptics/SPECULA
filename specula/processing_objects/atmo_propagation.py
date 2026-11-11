@@ -772,9 +772,11 @@ class AtmoPropagation(BaseProcessingObj):
                 and not self.doFresnel)
 
     def check_output_names(self):
-        # AtmoPropagation outputs are created dynamically from stored data files;
-        # skip the static output_names validation.
-        pass
+        # With mergeLayersContrib=False each output is a list of fields, one per
+        # atmospheric layer, created in setup() when the layers are known: the
+        # static check does not apply.
+        if self.mergeLayersContrib:
+            super().check_output_names()
 
 
 def fraunhofer_far_field_propagation(ef, propagator, buffer):

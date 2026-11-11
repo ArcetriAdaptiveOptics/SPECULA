@@ -187,10 +187,10 @@ class SH(BaseProcessingObj):
 
         self.subap_rows_slice = subap_rows_slice
 
-        # optional inputs for the kernel object
-        if self._laser_launch_tel is not None:
-            self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
-            self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
+        # Inputs of the LGS kernels: used only with a laser launch telescope, but
+        # always created, as all declared inputs (an LGS SH requires them)
+        self.inputs['sodium_altitude'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['sodium_intensity'] = InputValue(type=BaseValue, optional=True)
 
         self.inputs['in_ef'] = InputValue(type=ElectricField)
         self.outputs['out_i'] = self._out_i

@@ -139,10 +139,11 @@ class LoopControl(BaseTimeObj):
                 self.logger.mpi_debug(f'' + str(element) + ' startMemUsageCount')
                 element.startMemUsageCount()
                 try:
+                    # Before setup(): inputs and outputs must be created by the constructor
+                    element.sanity_check()
                     self.logger.mpi_debug(f'' + str(element) + ' setup')
                     with tracer('setup', element):
                         element.setup()
-                    element.sanity_check()
                 finally:
                     self.logger.mpi_debug(f'' + str(element) + ' stopMemUsageCount')
                     element.stopMemUsageCount()

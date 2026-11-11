@@ -651,20 +651,20 @@ class BaseProcessingObj(BaseTimeObj):
                 - Placeholder segments ``{...}`` are treated as wildcards.
                                 - In project classes, placeholder-style declarations are mandatory;
                                     do not use raw ``*`` declarations in ``input_names()``.
-                - Optional declarations are identified by descriptions ending with
-                    ``(optional)``.
+                - Every declared input must be present: an input that may be left
+                  unconnected is created anyway, with ``optional=True``. The
+                  ``(optional)`` marker in a description is documentation only.
                 - Exact-key matches take precedence over pattern matches.
         '''
         if not hasattr(self, 'input_names'):
             return
         input_dict = self.input_names()
         for declared_name, declared_desc in input_dict.items():
-            optional_decl = declared_desc[1].endswith("(optional)")
             declared_matches = [
                 name for name in self.inputs
                 if self._match_declared_name(name, declared_name)
             ]
-            if not optional_decl and not declared_matches:
+            if not declared_matches:
                 raise ValueError(
                     f"Input {declared_name} declared in input_names but not present in inputs"
                 )
