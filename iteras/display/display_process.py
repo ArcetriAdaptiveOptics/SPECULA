@@ -13,6 +13,10 @@ displays) drop new data, before copying it, so that memory stays bounded. Displa
 that accumulate a history (like PlotDisplay) return False: their data, usually small,
 is always sent.
 
+The display process exits by itself if the simulation process dies
+without stopping it (e.g. killed, or crashed in native code): daemon=True
+covers only a normal exit of the simulation.
+
 Only this module's top-level imports run in the display process
 before iteras.init(), so they must not import other iteras modules.
 '''
@@ -138,14 +142,26 @@ def _worker_loop(q, slots, specs, log_level):
     # setup() runs before the first update of each display, when its inputs are available
     not_setup = set(displays)
 
+    # The simulation process; None when this loop runs in it (tests)
+    parent = mp.parent_process()
+
     # The queue ends with a None terminator
     while True:
         try:
             msgs = [q.get(timeout=0.02)]
         except queue.Empty:
+            # A dead simulation never sends the terminator: exit, without
+            # finalize(), which nobody would see
+            if parent is not None and not parent.is_alive():
+                return
             for d in displays.values():
                 d.fig.canvas.flush_events()
             continue
+        except (EOFError, OSError):
+            # The simulation died while writing to the queue
+            if parent is not None and not parent.is_alive():
+                return
+            raise
         while msgs[-1] is not None:
             try:
                 msgs.append(q.get_nowait())
