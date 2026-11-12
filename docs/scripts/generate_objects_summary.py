@@ -50,7 +50,8 @@ def _is_optional_input(desc_obj):
     elif isinstance(desc_obj, tuple) and len(desc_obj) >= 2:
         desc_text = desc_obj[1]
 
-    return '(optional)' in str(desc_text).lower()
+    # Documentation marker only: '(optional)' or '(optional, ...)' in the description
+    return '(optional' in str(desc_text).lower()
 
 
 def _safe_call_class_port_method(klass, method_name):

@@ -168,17 +168,20 @@ Every new processing object should define both.
 Optional declarations
 +++++++++++++++++++++
 
-An input declaration is optional if its description ends with ``(optional)``.
-This is a different concept from the *optional=True* flag of an input:
+Every input and output declared in ``input_names()`` and ``output_names()`` must be
+created in the constructor, even if the object uses it only in some configurations.
+For example, ``SH`` always creates the ``sodium_altitude`` and ``sodium_intensity``
+inputs, although it uses them only with a laser launch telescope. ``sanity_check()``
+checks this before *setup()*.
 
-* *optional=True* in :py:class:`~iteras.connections.InputValue`: the input always exists,
-  but it may be left unconnected in the configuration file. This is checked by *setup()*.
-* ``(optional)`` at the end of the description: the input may be absent from *self.inputs*,
-  because it is created only for some constructor parameters.
-  This is checked by ``sanity_check()``.
+An input that may be left unconnected in the configuration file is created with
+*optional=True* in :py:class:`~iteras.connections.InputValue`; *setup()* checks that the
+other inputs are connected. Its description usually contains ``(optional)`` (for example
+``(optional)`` or ``(optional, ...)``): this marker is documentation only, shown in the
+summary tables, and is not used by the checks.
 
-An input that is created conditionally must therefore have an ``(optional)`` declaration.
-Output declarations have no optional form: each declared output must be present.
+An output that is not computed in some configurations (for example ``out_recmat`` of
+``ImShSynimGenerator`` with ``compute_rec=False``) is created anyway, and is never updated.
 
 Name patterns
 +++++++++++++
