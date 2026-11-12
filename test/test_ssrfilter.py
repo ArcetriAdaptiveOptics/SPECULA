@@ -450,7 +450,7 @@ class TestSsrFilterAccelerated(unittest.TestCase):
                          precision=1)
         filt.inputs['delta_comm'].set(delta_comm)
         if accelerate:
-            Accelerator(AcceleratorOptions()).apply([filt])
+            Accelerator(AcceleratorOptions(on_error='raise')).apply([filt])
         filt.setup()
         outputs = []
         for step in range(6):

@@ -37,7 +37,10 @@ simulation stops with an AcceleratorError, which names the object:
   (for example by prepare_trigger()) would make it use stale or freed memory.
 
 The fix is in the class (see BaseProcessingObj.can_accelerate()); meanwhile,
-the object can be excluded with the "exclude" option.
+the object can be excluded with the "exclude" option. With the option
+on_error='fallback' (the default), instead of stopping the simulation, the
+object runs as Python code from that step on, with a warning: the results are
+those of the accelerator off, only slower for that object.
 
 States of an accelerated object (GraphRunner):
 
@@ -83,12 +86,8 @@ def _items(value):  # pragma: gpu
     return value if isinstance(value, list) else [value]
 
 
-def array_refs(obj):  # pragma: gpu
-    '''
-    [(holder, attribute, address)] of the GPU arrays that the graph of *obj*
-    may use: those of the object, of the data objects it holds (directly or in
-    lists) and of its local inputs.
-    '''
+def _holders(obj):  # pragma: gpu
+    '''*obj*, the data objects it holds (directly or in lists) and its local inputs'''
     holders = [obj]
     seen = {id(obj)}
 
@@ -106,8 +105,17 @@ def array_refs(obj):  # pragma: gpu
     for v in obj.local_inputs.values():
         for item in _items(v):
             add(item)
+    return holders
+
+
+def array_refs(obj):  # pragma: gpu
+    '''
+    [(holder, attribute, address)] of the GPU arrays that the graph of *obj*
+    may use: those of the object, of the data objects it holds (directly or in
+    lists) and of its local inputs.
+    '''
     refs = []
-    for h in holders:
+    for h in _holders(obj):
         for k, v in h.__dict__.items():
             if isinstance(v, iteras.cp.ndarray):
                 refs.append((h, k, v.data.ptr))
@@ -157,15 +165,20 @@ class GraphRunner:  # pragma: gpu
         self.outputs = []       # data objects whose generation_time trigger_code() sets
         self.triggers = 0
         self.status = 'not captured yet'
+        self.fallback = False   # True after an error with on_error='fallback': Python code
 
     def trigger(self):
         '''The computation of a step: launch the graph, or run or capture trigger_code()'''
         self.triggers += 1
-        if self.graph is None:
+        if self.fallback:
+            self.obj.trigger_code()
+        elif self.graph is None:
             self.run_or_capture()
         else:
-            if self.options.check_pointers:
-                self.check_arrays()
+            if self.options.check_pointers and not self.check_arrays():
+                # Checked before the launch: no graph ran on stale memory
+                self.obj.trigger_code()
+                return
             self.launch()
 
     def run_or_capture(self):
@@ -187,24 +200,44 @@ class GraphRunner:  # pragma: gpu
         self.capture()
 
     def check_arrays(self):
-        '''Raise AcceleratorError if an array used by the graph is not the one of the capture anymore'''
+        '''
+        True if the arrays used by the graph are still those of the capture.
+        Otherwise raise AcceleratorError, or, with on_error='fallback', switch
+        to Python code and return False.
+        '''
         changed = changed_ref(self.refs)
-        if changed is not None:
-            holder, attr = changed
-            inputs = {id(v): name for name, value in self.obj.local_inputs.items()
-                      for v in _items(value)}
-            if holder is self.obj:
-                where = f'its array {attr}'
-            elif id(holder) in inputs:
-                # The cause is in another class: say it, or the user looks for it in this one
-                where = (f'the array {type(holder).__name__}.{attr} of its input '
-                         f'{inputs[id(holder)]} (reallocated by the object that produces it)')
-            else:
-                where = f'its array {type(holder).__name__}.{attr}'
-            raise AcceleratorError(self.error_message(
-                f'{where} was reallocated after the capture of its CUDA graph, '
-                'which would use stale memory (arrays used by trigger_code() must be '
-                'updated in place, or invalidate_graph() called)'))
+        if changed is None:
+            return True
+        holder, attr = changed
+        inputs = {id(v): name for name, value in self.obj.local_inputs.items()
+                  for v in _items(value)}
+        if holder is self.obj:
+            where = f'its array {attr}'
+        elif id(holder) in inputs:
+            # The cause is in another class: say it, or the user looks for it in this one
+            where = (f'the array {type(holder).__name__}.{attr} of its input '
+                     f'{inputs[id(holder)]} (reallocated by the object that produces it)')
+        else:
+            where = f'its array {type(holder).__name__}.{attr}'
+        self.error(f'{where} was reallocated after the capture of its CUDA graph, '
+                   'which would use stale memory (arrays used by trigger_code() must be '
+                   'updated in place, or invalidate_graph() called)', 'array reallocated')
+        # The graph is dropped, not its memory pool: arrays allocated at the capture
+        # may still be referenced by the object, and are used by its Python code
+        self.graph = None
+        return False
+
+    def error(self, what, short, cause=None):
+        '''
+        Raise AcceleratorError, or, with on_error='fallback', log a warning and
+        run the object as Python code from now on
+        '''
+        message = self.error_message(what)
+        if self.options.on_error == 'raise':
+            raise AcceleratorError(message) from cause
+        _logger.warning(f'{message}. It runs as Python code (please report the error)')
+        self.fallback = True
+        self.status = f'Python code after an error ({short})'
 
     def error_message(self, what):
         obj = self.obj
@@ -228,6 +261,10 @@ class GraphRunner:  # pragma: gpu
         t = obj.current_time
         outputs = [o for out in obj.outputs.values() for o in _items(out)]
         before = [o.generation_time for o in outputs]
+        # Attributes of the object and of its data objects before the capture, restored if
+        # it fails: trigger_code() may have stopped halfway, after rebinding attributes to
+        # arrays of the pool (freed below) or changing Python values (like counters)
+        saved = [(h, dict(h.__dict__)) for h in _holders(obj)]
         stream = _capture_stream(obj.target_device_idx)
         pool = iteras.cp.cuda.MemoryPool()
         error = None
@@ -246,11 +283,16 @@ class GraphRunner:  # pragma: gpu
                 except Exception as e:
                     error = error or e
         if error is not None:
+            for h, d in saved:
+                h.__dict__.clear()
+                h.__dict__.update(d)
             pool.free_all_blocks()
             first = str(error).splitlines()[0] if str(error) else ''
-            raise AcceleratorError(self.error_message(
-                f'the capture of its trigger_code() in a CUDA graph failed '
-                f'({type(error).__name__}: {first[:200]})')) from error
+            self.error(f'the capture of its trigger_code() in a CUDA graph failed '
+                       f'({type(error).__name__}: {first[:200]})', 'capture failed', error)
+            # The capture did not run the GPU work of this step
+            obj.trigger_code()
+            return
         self.graph = graph
         self.pool = pool
         # A deleted MemoryPool does not release its memory to the device (CuPy >= 13):
@@ -334,7 +376,11 @@ class Accelerator:
 
     def finish(self):
         text = self.report()
-        _logger.info(text)
+        # A warning if objects fell back to Python code: they are to be fixed
+        if any(runner.fallback for runner in self.runners()):
+            _logger.warning(text)
+        else:
+            _logger.info(text)
         if self.options.report_file:
             with open(self.options.report_file, 'w') as f:
                 f.write(text + '\n')

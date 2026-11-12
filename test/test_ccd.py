@@ -24,7 +24,7 @@ class TestCCD(unittest.TestCase):
         i = Intensity(dimx=16, dimy=16, target_device_idx=0)
         ccd.inputs['in_i'].set(i)
         if accelerate:
-            Accelerator(AcceleratorOptions()).apply([ccd])
+            Accelerator(AcceleratorOptions(on_error='raise')).apply([ccd])
         ccd.setup()
         frames = []
         for step in range(steps):

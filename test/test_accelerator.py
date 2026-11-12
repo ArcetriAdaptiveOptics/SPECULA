@@ -121,6 +121,39 @@ class Total(BaseProcessingObj):
         self.out.generation_time = self.current_time
 
 
+class StatefulDoubler(BaseProcessingObj):
+    '''
+    trigger_code() changes Python state and rebinds an output, and only then calls cuBLAS
+    (not capturable): the capture stops halfway.
+    '''
+
+    def __init__(self, target_device_idx=None):
+        super().__init__(target_device_idx=target_device_idx)
+        self.inputs['in_value'] = InputValue(type=BaseValue)
+        self.out = BaseValue(value=self.xp.zeros(4, dtype=self.dtype), target_device_idx=target_device_idx)
+        self.outputs['out_value'] = self.out
+        self.buf = self.xp.zeros(4, dtype=self.dtype)
+        self.mat = self.xp.eye(4, dtype=self.dtype)
+        self.n = 0
+
+    def can_accelerate(self):
+        return True
+
+    def prepare_trigger(self, t):
+        super().prepare_trigger(t)
+        self.buf[:] = self.local_inputs['in_value'].value
+
+    def trigger_code(self):
+        self.n += 1
+        # Rebinding: inside the capture, this array belongs to the pool freed after the failure
+        self.out.value = self.xp.zeros(4, dtype=self.dtype) + 1.0
+        self.out.value[:] = 2 * (self.mat @ self.buf) + self.n
+
+    def post_trigger(self):
+        super().post_trigger()
+        self.out.generation_time = self.current_time
+
+
 @unittest.skipIf(cp is None, 'Cupy not found')
 class TestTriggerLevels(unittest.TestCase):
 
@@ -140,7 +173,7 @@ class TestTriggerLevels(unittest.TestCase):
         for obj, level in zip(objs, [0, 1, 2, 2, 3]):
             loop.add(obj, level)
         if accelerate:
-            Accelerator(AcceleratorOptions()).apply(objs)
+            Accelerator(AcceleratorOptions(on_error='raise')).apply(objs)
         loop.start(run_time=steps * 1e-3, dt=1e-3)
         out = []
         for _ in range(steps):
@@ -172,7 +205,7 @@ class TestAccelerator(unittest.TestCase):
             loop.add(obj, i)
         accelerator = None
         if accelerate:
-            accelerator = Accelerator(options or AcceleratorOptions())
+            accelerator = Accelerator(options or AcceleratorOptions(on_error='raise'))
             accelerator.apply([gen, dbl, cnt])
         loop.start(run_time=steps * 1e-3, dt=1e-3)
         out = []
@@ -209,7 +242,7 @@ class TestAccelerator(unittest.TestCase):
         self.run_chain(False, realloc=True)
         with self.assertRaisesRegex(AcceleratorError, r'Doubler \(Doubler\) declares.*array buf was '
                                                       r'reallocated.*exclude'):
-            self.run_chain(True, realloc=True)
+            self.run_chain(True, realloc=True, options=AcceleratorOptions(on_error='raise'))
 
     def test_error_message_suggests_exclude_snippet(self):
         for kwargs in ({'realloc': True}, {'cublas': True}):
@@ -222,7 +255,7 @@ class TestAccelerator(unittest.TestCase):
         self.run_chain(False, cublas=True)
         with self.assertRaisesRegex(AcceleratorError, r'Doubler \(Doubler\) declares.*capture.*failed.*'
                                                       r'cuBLAS'):
-            self.run_chain(True, cublas=True)
+            self.run_chain(True, cublas=True, options=AcceleratorOptions(on_error='raise'))
 
     def test_can_accelerate_false(self):
         (_, dbl, _), accelerator = self.check_same(capturable=False)
@@ -257,11 +290,11 @@ class TestAccelerator(unittest.TestCase):
             self.assertEqual(dbl._accel.graph is not None, i >= 3)
 
         self.check_same(accel_kwargs={'on_step': on_step,
-                                      'options': AcceleratorOptions(capture_after=3)})
+                                      'options': AcceleratorOptions(capture_after=3, on_error='raise')})
 
     def test_derived_trigger_code_needs_its_own_declaration(self):
         dbl = TripleDoubler(target_device_idx=0)
-        accelerator = Accelerator(AcceleratorOptions())
+        accelerator = Accelerator(AcceleratorOptions(on_error='raise'))
         accelerator.apply([dbl])
         self.assertIsNone(dbl._accel)
         reasons = {obj.name: reason for obj, _, reason in accelerator.rows}
@@ -278,7 +311,7 @@ class TestAccelerator(unittest.TestCase):
         self.assertIn('can_accelerate', vars(PsfCoronagraph))
 
     def test_excluded_object(self):
-        (_, dbl, _), accelerator = self.check_same(accel_kwargs={'options': AcceleratorOptions(exclude=['Doubler'])})
+        (_, dbl, _), accelerator = self.check_same(accel_kwargs={'options': AcceleratorOptions(exclude=['Doubler'], on_error='raise')})
         self.assertIsNone(dbl._accel)
         reasons = {obj.name: reason for obj, _, reason in accelerator.rows}
         self.assertEqual(reasons['Doubler'], 'excluded')
@@ -292,12 +325,96 @@ class TestAccelerator(unittest.TestCase):
         dbl.inputs_changed = True
         dbl.post_trigger()
 
+    def check_fallback(self, short, **kwargs):
+        ref, _, _ = self.run_chain(False, **kwargs)
+        with self.assertLogs('iteras.accelerator', level='WARNING') as logs:
+            out, (gen, dbl, cnt), accelerator = self.run_chain(True, options=AcceleratorOptions(), **kwargs)
+        warnings = [r for r in logs.records if r.levelname == 'WARNING' and 'Python code' in r.getMessage()]
+        self.assertEqual(len(warnings), 1)
+        self.assertIn(short.split()[0], warnings[0].getMessage())
+        # Exactly the results of the run without accelerator, also at the step of the error
+        np.testing.assert_array_equal(out, ref)
+        self.assertEqual(cnt.count, 12)
+        self.assertTrue(dbl._accel.fallback)
+        self.assertTrue(self.status(accelerator, 'Doubler').startswith(
+            f'Python code after an error ({short})'))
+        self.assertIsNone(dbl._accel.graph)
+        report = accelerator.report()
+        self.assertNotIn('2 of 3 objects accelerated', report)
+        self.assertIn('1 of 3 objects accelerated', report)   # only the generator
+        return accelerator
+
+    def test_failed_capture_falls_back_by_default(self):
+        self.check_fallback('capture failed', cublas=True)
+
+    def test_reallocated_array_falls_back_by_default(self):
+        self.check_fallback('array reallocated', realloc=True)
+
+    def test_capture_failure_restores_the_state(self):
+        def run(accelerate, steps=10):
+            gen = WaveGenerator(amp=[1.0], freq=[37.0], constant=[0.5], output_size=4, target_device_idx=0)
+            obj = StatefulDoubler(target_device_idx=0)
+            obj.inputs['in_value'].set(gen.outputs['output'])
+            loop = LoopControl()
+            loop.add(gen, 0)
+            loop.add(obj, 1)
+            if accelerate:
+                Accelerator(AcceleratorOptions()).apply([gen, obj])
+            loop.start(run_time=steps * 1e-3, dt=1e-3)
+            out = []
+            for _ in range(steps):
+                loop.iter()
+                out.append(cpuArray(obj.out.value).copy())
+            loop.finish()
+            return np.array(out), obj
+
+        ref, ref_obj = run(False)
+        with self.assertLogs('iteras.accelerator', level='WARNING'):
+            out, obj = run(True)
+        self.assertTrue(obj._accel.fallback)
+        self.assertEqual(ref_obj.n, 10)
+        # Not 11: the increment of the failed capture is undone
+        self.assertEqual(obj.n, 10)
+        np.testing.assert_array_equal(out, ref)
+
+    def test_finish_logs_a_warning_after_a_fallback(self):
+        gen = WaveGenerator(amp=[1.0], freq=[37.0], output_size=4, target_device_idx=0)
+        dbl = Doubler(target_device_idx=0, cublas=True)
+        dbl.inputs['in_value'].set(gen.outputs['output'])
+        loop = LoopControl()
+        loop.add(gen, 0)
+        loop.add(dbl, 1)
+        accelerator = Accelerator(AcceleratorOptions())
+        accelerator.apply([gen, dbl])
+        loop.start(run_time=3e-3, dt=1e-3)
+        with self.assertLogs('iteras.accelerator', level='WARNING'):
+            for _ in range(3):
+                loop.iter()
+        with self.assertLogs('iteras.accelerator', level='INFO') as logs:
+            accelerator.finish()
+        self.assertEqual([r.levelname for r in logs.records], ['WARNING'])
+        self.assertIn('objects accelerated', logs.records[0].getMessage())
+        loop.finish()
+
+    def test_finish_logs_info_without_fallback(self):
+        _, _, accelerator = self.run_chain(True)
+        with self.assertLogs('iteras.accelerator', level='INFO') as logs:
+            accelerator.finish()
+        self.assertEqual([r.levelname for r in logs.records], ['INFO'])
+
 
 class TestAcceleratorOptions(unittest.TestCase):
 
     def test_capture_after_must_be_positive(self):
         with self.assertRaises(ValueError):
             AcceleratorOptions(capture_after=0)
+
+    def test_on_error_default_and_validation(self):
+        self.assertEqual(AcceleratorOptions().on_error, 'fallback')
+        self.assertEqual(AcceleratorOptions(on_error='raise').on_error, 'raise')
+        with self.assertRaisesRegex(ValueError, 'on_error'):
+            AcceleratorOptions(on_error='ignore')
+        self.assertEqual(AcceleratorOptions(on_error='raise').as_dict()['on_error'], 'raise')
 
     def test_simul_sections(self):
         from specula.simul import Simul
@@ -410,7 +527,8 @@ class TestAcceleratorOnCpu(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'More than one Architecture section'):
             sim.run_allocator(params)
         self.assertEqual(AcceleratorOptions(exclude=['b', 'a']).as_dict(),
-                         {'exclude': ['a', 'b'], 'capture_after': 1, 'check_pointers': True})
+                         {'exclude': ['a', 'b'], 'capture_after': 1, 'check_pointers': True,
+                          'on_error': 'fallback'})
 
     def test_internal_objects(self):
         '''
@@ -435,7 +553,7 @@ class TestAcceleratorOnCpu(unittest.TestCase):
 
         container = Container()
         container.name = 'cont'
-        accelerator = Accelerator(AcceleratorOptions())
+        accelerator = Accelerator(AcceleratorOptions(on_error='raise'))
         accelerator.apply([container])
         self.assertIsNotNone(container._accel)
         self.assertEqual([p._accel is not None for p in container.parts], [True, False, False, False])
@@ -447,7 +565,7 @@ class TestAcceleratorOnCpu(unittest.TestCase):
 
         container = Container()
         container.name = 'cont'
-        accelerator = Accelerator(AcceleratorOptions(exclude=['cont']))
+        accelerator = Accelerator(AcceleratorOptions(exclude=['cont'], on_error='raise'))
         accelerator.apply([container])
         self.assertIsNone(container._accel)
         self.assertIsNone(container.parts[0]._accel)

@@ -136,7 +136,7 @@ class TestNonlinearModalrecAccelerated(unittest.TestCase):
         loop.add(source, 0)
         loop.add(rec, 1)
         if accelerate:
-            Accelerator(AcceleratorOptions()).apply([source, rec])
+            Accelerator(AcceleratorOptions(on_error='raise')).apply([source, rec])
         loop.start(run_time=steps * 1e-3, dt=1e-3)
         out = []
         for _ in range(steps):

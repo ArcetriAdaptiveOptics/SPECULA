@@ -84,7 +84,7 @@ class TestMirrorCommandsCombinatorAccelerated(unittest.TestCase):
         for name, value in values.items():
             comb.inputs[f'in_commands{name}'].set(value)
         if accelerate:
-            Accelerator(AcceleratorOptions()).apply([comb])
+            Accelerator(AcceleratorOptions(on_error='raise')).apply([comb])
         comb.setup()
         outputs = []
         for step in range(5):

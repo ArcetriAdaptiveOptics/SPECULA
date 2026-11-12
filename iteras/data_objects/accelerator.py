@@ -27,20 +27,30 @@ class Accelerator:
     report_file : str, optional
         File where the accelerator writes, at the end of the run, which objects were
         accelerated and why the others were not (default: only logged).
+    on_error : str, optional
+        What to do when an object that declares it can be accelerated cannot (its
+        capture fails, or an array it uses is reallocated): 'fallback' (default) logs
+        a warning and runs the object as Python code from that step on, with the
+        same results as without the accelerator; 'raise' stops the simulation with
+        an AcceleratorError (for tests and debugging).
     '''
 
     def __init__(self,
                  exclude: list = None,
                  capture_after: int = 1,
                  check_pointers: bool = True,
-                 report_file: str = None):
+                 report_file: str = None,
+                 on_error: str = 'fallback'):
         self.exclude = list(exclude or [])
         if int(capture_after) < 1:
             raise ValueError(f'Accelerator: capture_after must be at least 1, got {capture_after}')
         self.capture_after = int(capture_after)
         self.check_pointers = bool(check_pointers)
         self.report_file = report_file
+        if on_error not in ('fallback', 'raise'):
+            raise ValueError(f"Accelerator: on_error must be 'fallback' or 'raise', got {on_error!r}")
+        self.on_error = on_error
 
     def as_dict(self):
         return {'exclude': sorted(self.exclude), 'capture_after': self.capture_after,
-                'check_pointers': self.check_pointers}
+                'check_pointers': self.check_pointers, 'on_error': self.on_error}

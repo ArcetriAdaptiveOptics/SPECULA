@@ -40,7 +40,7 @@ class TestPsfCoronagraph(unittest.TestCase):
                                       target_device_idx=0)
             psf_coro.inputs['in_ef'].set(ef)
             if accelerate:
-                Accelerator(AcceleratorOptions()).apply([psf_coro])
+                Accelerator(AcceleratorOptions(on_error='raise')).apply([psf_coro])
             psf_coro.setup()
             yy, xx = np.mgrid[0:32, 0:32] / 32.0
             out = []
