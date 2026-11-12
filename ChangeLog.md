@@ -5,6 +5,7 @@
 
 ### New processing and data objects
 
+- `SimpleSpotSupervisor`: reacquisition of a lost spot for a single-subaperture, fixed-window WCoG tip/tilt sensor (MORFEO LO NGS). Every `look_frames` frames it fits a fixed-width Gaussian over the whole frame (FFT correlation, SNR normalised by the MAD noise of the look), and when the peak is above `snr_thr` and outside `capture_radius` (with no detection inside it) it issues a tip/tilt feedforward that brings the spot back to the reference. The slopes stay those of a plain `ShSlopec`.
 - ...
 
 ### Interface changes
