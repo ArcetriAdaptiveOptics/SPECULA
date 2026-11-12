@@ -191,17 +191,28 @@ class GraphRunner:  # pragma: gpu
         changed = changed_ref(self.refs)
         if changed is not None:
             holder, attr = changed
-            where = attr if holder is self.obj else f'{type(holder).__name__}.{attr}'
+            inputs = {id(v): name for name, value in self.obj.local_inputs.items()
+                      for v in _items(value)}
+            if holder is self.obj:
+                where = f'its array {attr}'
+            elif id(holder) in inputs:
+                # The cause is in another class: say it, or the user looks for it in this one
+                where = (f'the array {type(holder).__name__}.{attr} of its input '
+                         f'{inputs[id(holder)]} (reallocated by the object that produces it)')
+            else:
+                where = f'its array {type(holder).__name__}.{attr}'
             raise AcceleratorError(self.error_message(
-                f'its array {where} was reallocated after the capture of its CUDA graph, '
+                f'{where} was reallocated after the capture of its CUDA graph, '
                 'which would use stale memory (arrays used by trigger_code() must be '
                 'updated in place, or invalidate_graph() called)'))
 
     def error_message(self, what):
         obj = self.obj
         return (f'Accelerator: {obj.name} ({type(obj).__name__}) declares, with can_accelerate(), '
-                f'that it can be accelerated, but {what}. Fix the class, or exclude the object '
-                f'(Accelerator option "exclude")')
+                f'that it can be accelerated, but {what}. Fix the class, or exclude the object: '
+                f'add it to the "exclude" list of the Accelerator section of the parameter '
+                f"file, e.g. accelerator: {{class: 'Accelerator', exclude: ['{obj.name}']}} "
+                f'(see the Errors section of docs/accelerator.rst)')
 
     def launch(self):
         '''Launch the graph, and set the generation time of the outputs that trigger_code() sets'''

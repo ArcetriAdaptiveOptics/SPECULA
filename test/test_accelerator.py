@@ -211,6 +211,13 @@ class TestAccelerator(unittest.TestCase):
                                                       r'reallocated.*exclude'):
             self.run_chain(True, realloc=True)
 
+    def test_error_message_suggests_exclude_snippet(self):
+        for kwargs in ({'realloc': True}, {'cublas': True}):
+            with self.assertRaisesRegex(
+                    AcceleratorError,
+                    r"accelerator: \{class: 'Accelerator', exclude: \['Doubler'\]\}"):
+                self.run_chain(True, **kwargs)
+
     def test_failed_capture_is_an_error(self):
         self.run_chain(False, cublas=True)
         with self.assertRaisesRegex(AcceleratorError, r'Doubler \(Doubler\) declares.*capture.*failed.*'
