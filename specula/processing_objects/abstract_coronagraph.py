@@ -34,7 +34,7 @@ class Coronagraph(BaseProcessingObj):
         wavelengthInNm: float
             Wavelength in nm
         fov: float
-            Desired field of view in lambda/D on focal plane
+            Desired field of view on the focal plane, in arcsec
         fov_errinf: float, optional
             Relative error allowed on the inner part of the FOV (default: 0.1)
         fov_errsup: float, optional
@@ -225,5 +225,5 @@ class Coronagraph(BaseProcessingObj):
         else:
             self.phase_shift = 1.0
 
-        # Cannot be used if self._pupil_to_focal_plane is called in trigger_code()
-        # super().build_stream()
+        # Not accelerated (no can_accelerate()): self._pupil_to_focal_plane
+        # cannot be called in a CUDA graph

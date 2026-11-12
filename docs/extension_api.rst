@@ -108,7 +108,7 @@ Methods to override
        ``inputs`` and ``outputs`` after ``setup()``.
    * - ``setup()``
      - Initialization that needs the connected inputs. Must call the base class
-       method first. Call ``build_stream()`` here to use a CUDA graph.
+       method first.
    * - ``prepare_trigger(t)``
      - Work that cannot be captured in a CUDA graph (host-side code,
        reallocations), run when the object is ready. Must call the base class
@@ -129,9 +129,6 @@ Methods to override
    * - ``get_resolved_seed()``
      - Return the random seed used, if chosen at construction, so that a replay
        reproduces the same values. Default: ``None``.
-   * - ``graph_input_ptrs()``
-     - Override to exclude, from the check made at each launch of the CUDA
-       graph, inputs that the graph does not read.
    * - ``can_accelerate()``
      - Called by the :doc:`accelerator <accelerator>` just before it captures
        ``trigger_code()`` in a CUDA graph launched at each step instead. Return
@@ -142,9 +139,13 @@ Methods to override
        ``prepare_trigger()``, which runs at each step); matrix products use
        ``specula.lib.graph_matmul.matmul()``. Otherwise return ``False``, or a
        string saying why (it is called again at the next trigger). Default:
-       ``True`` for objects that build their own CUDA graph, ``False`` otherwise.
+       ``False``.
        A derived class that redefines ``trigger_code()`` is not accelerated
        unless it declares ``can_accelerate()`` itself.
+   * - ``internal_objects()``
+     - Processing objects that the object creates and triggers itself (like
+       the slices of ``DistributedSH``), which are not simulation objects: the
+       accelerator also accelerates them. Default: none.
 
 Hooks called by Simul
 ~~~~~~~~~~~~~~~~~~~~~
@@ -223,16 +224,14 @@ Methods called by the framework
 
 ``check_ready()``, ``trigger()``, ``send_outputs()`` and the other methods
 used by the loop are called by the framework and should not be overridden.
-Two methods can be called by derived classes to use CUDA graphs:
-``build_stream()``, normally in ``setup()``, and ``invalidate_graph()``, when
-something frozen in the graph at capture time changes, so that the graph is
-captured again at the next step.
+Derived classes call ``invalidate_graph()`` when something frozen in the CUDA
+graph at capture time changes, so that the graph is captured again at the next
+step.
 
-The GPU work of an object must run on the default stream (the current one) or
-on the stream created by ``build_stream()``, which is a blocking stream: CUDA
-then orders it with the work of the other objects, which read its outputs on
-the default stream, possibly without the host waiting (the accelerator, the
-asynchronous copies of ``DataStore``). An object must not write its outputs
+The GPU work of an object must run on the default stream (the current one), or
+on a blocking stream: CUDA then orders it with the work of the other objects,
+which read its outputs on the default stream, possibly without the host waiting
+(the accelerator, the asynchronous copies of ``DataStore``). An object must not write its outputs
 from a stream it creates as non-blocking (``Stream(non_blocking=True)``): the
 next step could overwrite them while they are still being read.
 

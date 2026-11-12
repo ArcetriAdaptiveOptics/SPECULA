@@ -4,8 +4,12 @@ specula.init(0)  # Default target device
 import pytest
 import unittest
 import inspect
+import os
+import sys
 import time
 import queue
+import signal
+import multiprocessing as mp
 import threading
 from types import SimpleNamespace
 from unittest import mock
@@ -45,6 +49,30 @@ DISPLAY_CLASSES_WITH_WINDOW_XY = [
 
 
 matplotlib.use('Agg')  # Use non-interactive backend for GitHub CI
+
+
+def _simulation_killed_with_display(conn):
+    """Body of a fake simulation process: start the display process, then die with SIGKILL"""
+    os.environ['MPLBACKEND'] = 'Agg'    # inherited by the display process: no GUI windows
+    display_process.init(True)
+    PhaseDisplay(title='Orphan test')
+    display_process.start(precision=specula.global_precision, log_level='INFO')
+    conn.send(display_process._process.pid)
+    time.sleep(1)   # let the display process enter its loop
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+def _process_is_gone(pid):
+    """True if *pid* does not exist (a zombie, e.g. under a subreaper, counts as gone)"""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    try:
+        with open(f'/proc/{pid}/status') as f:
+            return any(line.startswith('State:') and 'Z' in line.split()[1] for line in f)
+    except OSError:
+        return True
 
 
 class _RecordingPhaseDisplay(PhaseDisplay):
@@ -251,6 +279,43 @@ class TestDisplays(unittest.TestCase):
             display_process.init(False)
 
         self.assertEqual(process.exitcode, 0)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'uses SIGKILL and /proc')
+    # The killed simulation cannot release its semaphores: harmless
+    @pytest.mark.filterwarnings('ignore:.*resource_tracker.*:UserWarning')
+    def test_display_process_exits_when_simulation_is_killed(self):
+        """The display process exits by itself if the simulation dies abruptly.
+
+        daemon=True only terminates the display process when the simulation exits
+        normally; after SIGKILL (or a segfault, or the OOM killer) nobody does it,
+        and the display process used to poll its queue forever. Now the display
+        loop notices that its parent is dead and returns: the process must be
+        gone within a few seconds (about 0.2 s when measured).
+        """
+        ctx = mp.get_context('spawn')
+        parent_conn, child_conn = ctx.Pipe(duplex=False)
+        sim = ctx.Process(target=_simulation_killed_with_display, args=(child_conn,))
+        sim.start()
+        child_conn.close()
+        display_pid = None
+        try:
+            self.assertTrue(parent_conn.poll(60), 'the simulation did not start the display process')
+            display_pid = parent_conn.recv()
+            sim.join(60)
+            self.assertEqual(sim.exitcode, -signal.SIGKILL)
+
+            # Bounded wait for the orphaned display process to exit
+            deadline = time.monotonic() + 10
+            while not _process_is_gone(display_pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(_process_is_gone(display_pid),
+                            'the display process is still alive after the simulation was killed')
+        finally:
+            if sim.is_alive():
+                sim.kill()
+            sim.join()
+            if display_pid is not None and not _process_is_gone(display_pid):
+                os.kill(display_pid, signal.SIGKILL)
 
     @pytest.mark.filterwarnings('ignore:.*FigureCanvasAgg is non-interactive.*:UserWarning')
     @pytest.mark.filterwarnings('ignore:.*Matplotlib is currently using agg*:UserWarning')

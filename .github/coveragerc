@@ -5,6 +5,6 @@
 # - GPU-only code blocks, marked with "# pragma: gpu" on their first line
 [report]
 exclude_also =
-    @unittest\.skipIf\((specula\.)?cp is None
+    @unittest\.skipIf\(((specula|iteras)\.)?cp is None
     @unittest\.skipUnless\(CUPY_AVAILABLE
     pragma: gpu

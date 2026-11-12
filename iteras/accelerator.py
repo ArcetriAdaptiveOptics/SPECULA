@@ -1,10 +1,10 @@
 '''
 Accelerator: run the GPU work of the processing objects as a chain of CUDA graphs.
 
-With the accelerator off, each object runs its trigger_code() as Python code launching
-its kernels one by one (or replays its own CUDA graph, waiting for it in
-post_trigger()). In small simulations, this host work, not the GPU, sets the
-time per step.
+The accelerator is on by default (Simul(accelerate=True), command line option
+--no-accelerate to turn it off). With the accelerator off, each object runs its
+trigger_code() as Python code launching its kernels one by one. In small
+simulations, this host work, not the GPU, sets the time per step.
 
 With the accelerator, on each GPU:
 
@@ -13,10 +13,7 @@ With the accelerator, on each GPU:
 * the GPU work of the objects (graphs, and the kernels of the phases that
   still run as Python code) goes to the default stream of the device, in
   trigger order, so that it runs in the right order without the host waiting
-  for the GPU between objects (BaseProcessingObj.post_trigger() does not wait).
-  The graphs of the objects with their own stream (see build_stream()) are
-  launched there, so that the objects of a trigger level run in parallel, and
-  the default stream waits for them on the GPU (GraphRunner.after_trigger());
+  for the GPU between objects (BaseProcessingObj.post_trigger() does not wait);
 * check_ready(), prepare_trigger() and post_trigger() still run as Python code
   at each step, so that values computed on the host from the time or the
   inputs (like the time of the generators, copied to the GPU in
@@ -44,9 +41,7 @@ the object can be excluded with the "exclude" option.
 
 States of an accelerated object (GraphRunner):
 
-* first triggers (capture_after): trigger_code() runs as Python code. The own
-  CUDA graph of the object, if it built one (see build_stream()), is released
-  at its first trigger and never used again;
+* first triggers (capture_after): trigger_code() runs as Python code;
 * then, at each trigger, can_accelerate() is asked: while it does not return
   True, trigger_code() runs as Python code; when it does, the graph is
   captured and launched;
@@ -55,9 +50,10 @@ States of an accelerated object (GraphRunner):
 
 Objects that are not accelerated (on the CPU, excluded, or whose class
 overrides trigger() or redefines trigger_code() without declaring
-can_accelerate()) run as when the accelerator is off, with their own CUDA
-graph if they built one.
+can_accelerate()) run as when the accelerator is off.
 '''
+import weakref
+
 import iteras
 from iteras.base_data_obj import BaseDataObj
 from iteras.log import get_iteras_logger
@@ -149,7 +145,7 @@ class GraphRunner:  # pragma: gpu
     Runs the trigger_code() of an accelerated object: as Python code for the first
     triggers (capture_after), then captured in a CUDA graph launched at each
     trigger. Set as obj._accel by Accelerator.apply(); BaseProcessingObj.trigger()
-    calls trigger(), BaseProcessingObj.post_trigger() calls after_trigger().
+    calls trigger().
     '''
 
     def __init__(self, obj, options):
@@ -164,8 +160,6 @@ class GraphRunner:  # pragma: gpu
 
     def trigger(self):
         '''The computation of a step: launch the graph, or run or capture trigger_code()'''
-        if self.triggers == 0:
-            self.release_own_graph()
         self.triggers += 1
         if self.graph is None:
             self.run_or_capture()
@@ -213,7 +207,7 @@ class GraphRunner:  # pragma: gpu
         '''Launch the graph, and set the generation time of the outputs that trigger_code() sets'''
         # NVTX range only, to mark the graph kernels in Nsight Systems
         with tracer.no_record(), tracer('cuda_graph', self.obj):
-            self.graph.launch(stream=self.launch_stream())
+            self.graph.launch(stream=iteras.cp.cuda.get_current_stream())
         t = self.obj.current_time
         for o in self.outputs:
             o.generation_time = t
@@ -248,6 +242,9 @@ class GraphRunner:  # pragma: gpu
                 f'({type(error).__name__}: {first[:200]})')) from error
         self.graph = graph
         self.pool = pool
+        # A deleted MemoryPool does not release its memory to the device (CuPy >= 13):
+        # free it explicitly when this runner (and its object) is garbage collected
+        weakref.finalize(self, pool.free_all_blocks)
         self.outputs = [o for o, b in zip(outputs, before) if o.generation_time == t and b != t]
         self.refs = array_refs(obj) if self.options.check_pointers else []
         # The capture did not run the GPU work of this step
@@ -256,35 +253,6 @@ class GraphRunner:  # pragma: gpu
         obj.gpu_bytes_used += pool.total_bytes()
         self.status = 'accelerated'
         _logger.debug(f'Accelerator: {obj.name}: graph captured ({pool.total_bytes() / 2**20:.1f} MB)')
-
-    def launch_stream(self):
-        '''
-        Stream where the graph is launched: the object's own stream, if it
-        has one (see build_stream()), so that objects of the same trigger level run
-        in parallel as when the accelerator is off, otherwise the default stream. An own
-        stream is a blocking stream: the graph follows the work queued before it on
-        the default stream.
-        '''
-        if self.obj.stream is not None:
-            return self.obj.stream
-        return iteras.cp.cuda.get_current_stream()
-
-    def after_trigger(self):
-        '''
-        Called by post_trigger(): the work queued from now on the default stream
-        follows the graph launched on the object's own stream (on the GPU,
-        the host does not wait)
-        '''
-        if self.graph is not None and self.obj.stream is not None:
-            iteras.cp.cuda.get_current_stream().wait_event(self.obj.stream.record())
-
-    def release_own_graph(self):
-        '''The CUDA graph that the object captured by itself (see build_stream()) is not used'''
-        obj = self.obj
-        obj.cuda_graph = None
-        obj._cuda_graph_invalid = False
-        if obj._graph_mempool is not None:
-            obj._graph_mempool.free_all_blocks()
 
     def invalidate(self):
         '''Something frozen in the graph changed: capture it again at the next trigger'''
@@ -305,25 +273,36 @@ class Accelerator:
     def __init__(self, options):
         self.options = options
         self.rows = []          # (object, GraphRunner or None, reason it is not accelerated)
+        self.labels = {}        # id(object) -> name in the report, for the internal objects
 
     def apply(self, objs):
-        '''Set a GraphRunner on each object of *objs* (processing objects of this process) that can be accelerated'''
-        from iteras.base_processing_obj import BaseProcessingObj
+        '''
+        Set a GraphRunner on each object of *objs* (processing objects of this
+        process) that can be accelerated, and on their internal objects (see
+        BaseProcessingObj.internal_objects()), which are excluded with their container
+        '''
         for obj in objs:
-            reason = None
-            if obj.target_device_idx < 0:
-                reason = 'on the CPU'
-            elif obj.name in self.options.exclude:
-                reason = 'excluded'
-            elif type(obj).trigger is not BaseProcessingObj.trigger:
-                reason = 'its class overrides trigger()'
-            elif not _can_accelerate_covers_trigger_code(type(obj)):
-                reason = (f'{_owner(type(obj), "trigger_code").__name__}.trigger_code() is not covered '
-                          f'by {_owner(type(obj), "can_accelerate").__name__}.can_accelerate()')
-            runner = None
-            if reason is None:
-                runner = obj._accel = GraphRunner(obj, self.options)
-            self.rows.append((obj, runner, reason))
+            self.apply_one(obj, excluded=obj.name in self.options.exclude)
+            for i, part in enumerate(obj.internal_objects()):
+                self.labels[id(part)] = f'{obj.name}[{i}]'
+                self.apply_one(part, excluded=obj.name in self.options.exclude)
+
+    def apply_one(self, obj, excluded):
+        from iteras.base_processing_obj import BaseProcessingObj
+        reason = None
+        if obj.target_device_idx < 0:
+            reason = 'on the CPU'
+        elif excluded:
+            reason = 'excluded'
+        elif type(obj).trigger is not BaseProcessingObj.trigger:
+            reason = 'its class overrides trigger()'
+        elif not _can_accelerate_covers_trigger_code(type(obj)):
+            reason = (f'{_owner(type(obj), "trigger_code").__name__}.trigger_code() is not covered '
+                      f'by {_owner(type(obj), "can_accelerate").__name__}.can_accelerate()')
+        runner = None
+        if reason is None:
+            runner = obj._accel = GraphRunner(obj, self.options)
+        self.rows.append((obj, runner, reason))
 
     def runners(self):
         return [runner for _, runner, _ in self.rows if runner is not None]
@@ -337,7 +316,8 @@ class Accelerator:
                 reason = runner.status
             if reason == 'accelerated':
                 n += 1
-            lines.append(f'  {obj.name:30s} {type(obj).__name__:26s} {reason}')
+            name = self.labels.get(id(obj), obj.name)
+            lines.append(f'  {name:30s} {type(obj).__name__:26s} {reason}')
         lines.insert(1, f'  {n} of {len(self.rows)} objects accelerated')
         return '\n'.join(lines)
 

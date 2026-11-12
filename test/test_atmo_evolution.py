@@ -20,7 +20,8 @@ from specula.processing_objects.atmo_propagation import AtmoPropagation
 from specula.data_objects.layer import Layer
 from specula.data_objects.simul_params import SimulParams
 
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, accelerate, graph_captured
+from iteras.accelerator import AcceleratorError
 
 
 class TestAtmoEvolution(unittest.TestCase):
@@ -422,6 +423,7 @@ class TestAtmoEvolution(unittest.TestCase):
                     loop.add(obj, idx=0)
                 loop.add(atmo, idx=1)
                 loop.start(run_time=0.4, dt=simul_params.time_step)
+                accelerate(atmo)
                 layers[target_device_idx] = []
                 for _ in range(40):
                     loop.iter()
@@ -435,7 +437,7 @@ class TestAtmoEvolution(unittest.TestCase):
                     theta = np.radians(cpuArray(wind_direction.output.value))
                     np.testing.assert_allclose(cpuArray(atmo.rot_matrix[:, 0, 0]), np.cos(theta), atol=1e-10)
                     np.testing.assert_allclose(cpuArray(atmo.rot_matrix[:, 0, 1]), np.sin(theta), atol=1e-10)
-                assert (atmo.cuda_graph is not None) == (target_device_idx >= 0)
+                assert graph_captured(atmo) == (target_device_idx >= 0)
                 assert len(atmo.layer_lists) == (2 if cls is AtmoEvolutionUpDown else 1)
                 if cls is AtmoEvolutionUpDown:
                     # Different extra delta times: the up list is at a different position
@@ -444,48 +446,6 @@ class TestAtmoEvolution(unittest.TestCase):
 
             for gpu_layer, cpu_layer in zip(layers[0], layers[-1]):
                 np.testing.assert_allclose(gpu_layer, cpu_layer, rtol=1e-10, atol=1e-8)
-
-    @cpu_and_gpu
-    def test_shared_stream(self, target_device_idx, xp):
-        """
-        Test that the evolution can run in the device stream shared with
-        other objects (allow_parallel=False), with the same layers as in its own stream
-        """
-        simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
-        layers = {}
-        for allow_parallel in [True, False]:
-            seeing = WaveGenerator(constant=0.8, amp=0.3, freq=5.0,
-                                   target_device_idx=target_device_idx)
-            wind_speed = WaveGenerator(constant=[25.5, 30.0], amp=[5.0, 5.0], freq=[3.0, 3.0],
-                                       target_device_idx=target_device_idx)
-            wind_direction = WaveGenerator(constant=[90, -212.7], amp=[20.0, 20.0],
-                                           freq=[2.0, 2.0], target_device_idx=target_device_idx)
-            atmo = AtmoEvolution(simul_params, L0=23, data_dir=self.data_dir,
-                                 heights=[0, 10000], Cn2=[0.5, 0.5], fov=60.0,
-                                 pixel_phasescreens=256, target_device_idx=target_device_idx,
-                                 precision=0)
-            atmo.inputs['seeing'].set(seeing.output)
-            atmo.inputs['wind_speed'].set(wind_speed.output)
-            atmo.inputs['wind_direction'].set(wind_direction.output)
-
-            loop = LoopControl()
-            for obj in [seeing, wind_speed, wind_direction]:
-                loop.add(obj, idx=0)
-            loop.add(atmo, idx=1)
-            loop.start(run_time=0.2, dt=simul_params.time_step)
-            atmo.build_stream(allow_parallel=allow_parallel)
-            assert (atmo.cuda_graph is not None) == (target_device_idx >= 0)
-            if target_device_idx >= 0:
-                assert (atmo.stream is BaseProcessingObj.device_stream(0)) == (not allow_parallel)
-            layers[allow_parallel] = []
-            for _ in range(20):
-                loop.iter()
-                layers[allow_parallel] += [cpuArray(l.phaseInNm).copy() for l in atmo.layer_list]
-
-        # Not bit-identical: if the phase screens are not cached, the first object
-        # generates them and the second one loads them from file
-        for shared, own in zip(layers[False], layers[True]):
-            np.testing.assert_allclose(shared, own, rtol=1e-12, atol=1e-9)
 
     @cpu_and_gpu
     def test_zero_and_negative_seeing(self, target_device_idx, xp):
@@ -540,9 +500,10 @@ class TestAtmoEvolution(unittest.TestCase):
             loop.add(obj, idx=0)
         loop.add(atmo, idx=1)
         loop.start(run_time=0.03, dt=simul_params.time_step)
+        accelerate(atmo)
         for _ in range(3):
             loop.iter()
-        assert (atmo.cuda_graph is not None) == (target_device_idx >= 0)
+        assert graph_captured(atmo) == (target_device_idx >= 0)
         for layer in atmo.layer_list:
             phase = cpuArray(layer.phaseInNm)
             assert np.all(np.isfinite(phase)) and np.any(phase != 0)
@@ -601,7 +562,7 @@ class TestAtmoEvolution(unittest.TestCase):
 
     @cpu_and_gpu
     def test_reallocated_input_raises_with_cuda_graph(self, target_device_idx, xp):
-        """With a CUDA graph, an input reallocated by its producer (here BaseSlicer,
+        """When accelerated, an input reallocated by its producer (here BaseSlicer,
         which rebinds its output value at each step) raises an error, instead of
         being silently ignored. Without a graph (CPU) it works."""
         simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
@@ -623,12 +584,13 @@ class TestAtmoEvolution(unittest.TestCase):
         loop.add(wind_speed, idx=1)
         loop.add(atmo, idx=2)
         loop.start(run_time=0.03, dt=simul_params.time_step)
-        if atmo.cuda_graph:
-            with self.assertRaisesRegex(RuntimeError, 'wind_speed has been reallocated'):
+        accelerate(atmo)
+        if target_device_idx >= 0:  # pragma: gpu
+            with self.assertRaisesRegex(AcceleratorError, 'was reallocated'):
                 for _ in range(3):
                     loop.iter()
         else:
             for _ in range(3):
                 loop.iter()
             self.assertTrue(np.any(cpuArray(atmo.layer_list[0].phaseInNm) != 0))
-        self.assertEqual(atmo.cuda_graph is not None, target_device_idx >= 0)
+        self.assertEqual(graph_captured(atmo), target_device_idx >= 0)

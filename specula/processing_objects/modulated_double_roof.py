@@ -175,6 +175,9 @@ class ModulatedDoubleRoof(ModulatedPyramid):
         return self.roof1_tlt
 
 
+    def can_accelerate(self):
+        return self.stream_enable
+
     def trigger_code(self):
         ey, ex = self.step_phasors()
         psf_bfm = self.psf_bfm.value

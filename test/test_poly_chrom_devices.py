@@ -10,7 +10,7 @@ from specula.data_objects.simul_params import SimulParams
 from specula.lib.make_mask import make_mask
 from specula.processing_objects.poly_chrom_sh import PolyChromSH
 from specula.processing_objects.poly_crom_pyramid import PolyCromPyramid
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, accelerate, graph_captured
 
 
 class TestPolyChromDevices(unittest.TestCase):
@@ -87,10 +87,10 @@ class TestPolyChromDevices(unittest.TestCase):
         self._compare(self._pyr, target_device_idx, xp)
 
     @unittest.skipIf(cp is None, 'GPU not available')
-    def test_instances_use_own_graph(self):
+    def test_instances_are_accelerated(self):
         '''
-        The instances are triggered with their own CUDA graph, with the same
-        result as when they run trigger_code() as Python code
+        When the container is accelerated, its instances are too, each with its
+        CUDA graph, with the same result as when they run trigger_code() as Python code
         '''
         n_devices = min(2, cp.cuda.runtime.getDeviceCount())
         for make in (self._sh, self._pyr):
@@ -98,12 +98,11 @@ class TestPolyChromDevices(unittest.TestCase):
             ef.A = make_mask(120)
             graph = make(0, n_devices=n_devices)
             python = make(0, n_devices=n_devices)
+            # Before setup(), as in Simul: setup() accelerates the instances
+            accelerate(graph)
             for wfs in (graph, python):
                 wfs.inputs['in_ef'].set(ef)
                 wfs.setup()
-            for wfs in python._wfs_instances:
-                wfs.cuda_graph = None
-                wfs._cuda_graph_invalid = False
 
             rng = np.random.default_rng(2)
             for t in (1, 2, 3):
@@ -117,7 +116,8 @@ class TestPolyChromDevices(unittest.TestCase):
                                            cpuArray(python.outputs['out_i'].i),
                                            rtol=1e-5, atol=1e-6 * float(python.outputs['out_i'].i.max()),
                                            err_msg=f'step {t}')
-            self.assertTrue(all(wfs.cuda_graph is not None for wfs in graph._wfs_instances))
+            self.assertTrue(all(graph_captured(wfs) for wfs in graph._wfs_instances))
+            self.assertFalse(any(graph_captured(wfs) for wfs in python._wfs_instances))
 
     def test_allocator_hooks(self):
         for cls in (PolyChromSH, PolyCromPyramid):
