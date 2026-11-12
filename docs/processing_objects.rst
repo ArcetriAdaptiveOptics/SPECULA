@@ -168,9 +168,11 @@ Every new processing object should define both.
 Optional declarations
 +++++++++++++++++++++
 
-Every declared input and output must be created by the constructor, also when it is
-used only for some constructor parameters. ``sanity_check()`` checks it before
-*setup()*.
+Every input and output declared in ``input_names()`` and ``output_names()`` must be
+created in the constructor, even if the object uses it only in some configurations.
+For example, ``SH`` always creates the ``sodium_altitude`` and ``sodium_intensity``
+inputs, although it uses them only with a laser launch telescope. ``sanity_check()``
+checks this before *setup()*.
 
 An input that may be left unconnected in the configuration file is created with
 *optional=True* in :py:class:`~iteras.connections.InputValue`; *setup()* checks that the
@@ -178,8 +180,8 @@ other inputs are connected. Its description usually contains ``(optional)`` (for
 ``(optional)`` or ``(optional, ...)``): this marker is documentation only, shown in the
 summary tables, and is not used by the checks.
 
-An output that is not computed for some constructor parameters is created anyway, and is
-never updated.
+An output that is not computed in some configurations (for example ``out_recmat`` of
+``ImShSynimGenerator`` with ``compute_rec=False``) is created anyway, and is never updated.
 
 Name patterns
 +++++++++++++
