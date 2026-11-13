@@ -527,11 +527,14 @@ class TestModalrecMixedPrecision(unittest.TestCase):
     @cpu_and_gpu
     def test_recmat_replaced_after_capture(self, target_device_idx, xp):
         from test.specula_testlib import accelerate, graph_captured
-        recmat_np = np.random.default_rng(0).standard_normal((3, 8))
+        # 4 modes, the last one discarded by ncutmodes, also from the new recmat
+        recmat_np = np.random.default_rng(0).standard_normal((4, 8))
         rec = Modalrec(Recmat(recmat_np, target_device_idx=target_device_idx),
-                       target_device_idx=target_device_idx)
+                       ncutmodes=1, target_device_idx=target_device_idx)
         slopes = Slopes(length=8, target_device_idx=target_device_idx)
         rec.inputs['in_slopes'].set(slopes)
+        with self.assertRaises(ValueError):   # 2 modes after the cut, 3 expected
+            rec.recmat = Recmat(recmat_np[:3], target_device_idx=target_device_idx)
         if target_device_idx >= 0:
             accelerate(rec)
         rec.setup()
@@ -545,7 +548,7 @@ class TestModalrecMixedPrecision(unittest.TestCase):
             rec.check_ready(t)
             rec.trigger()
             rec.post_trigger()
-        np.testing.assert_allclose(cpuArray(rec.modes.value), 2 * recmat_np @ s, rtol=1e-5)
+        np.testing.assert_allclose(cpuArray(rec.modes.value), 2 * recmat_np[:3] @ s, rtol=1e-5)
         self.assertEqual(graph_captured(rec), target_device_idx >= 0)
 
     @unittest.skipIf(specula.cp is None, 'Cupy not found')
