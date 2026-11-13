@@ -186,8 +186,10 @@ class PSF(BaseProcessingObj):
         in_ef = self.local_inputs['in_ef']
         psf, self.total_psf = self._calc_psf(in_ef.phi_at_lambda(self.wavelengthInNm), in_ef.A,
                                              out=self.psf.value)
-        # 0-d array division, stays on the device
-        self.sr.value = psf[self.out_size[0] // 2, self.out_size[1] // 2] / self._ref_peak
+        # 0-d array division, stays on the device. In place (set_value()) after the
+        # first trigger: also when this runs as Python code, a new array would fail
+        # the check of the arrays of an accelerated reader
+        self.sr.set_value(psf[self.out_size[0] // 2, self.out_size[1] // 2] / self._ref_peak)
 
     def can_accelerate(self):
         # trigger_code() only launches GPU work (the Strehl ratio is logged in post_trigger())

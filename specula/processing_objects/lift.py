@@ -543,9 +543,11 @@ class Lift(BaseProcessingObj):
         currentPhaseEstimate, coeffs, niters = self.phaseEstimation(psf) 
 
         coeffs_xp = self.to_xp(coeffs)
-        self.outputs['out_pistons'].value = coeffs_xp[:self.nPistons]
+        # In place: a new array at each step would fail the check of the arrays of an
+        # accelerated reader (e.g. an Integrator)
+        self.outputs['out_pistons'].set_value(coeffs_xp[:self.nPistons])
         self.outputs['out_pistons'].generation_time = self.current_time
-        self.outputs['out_zern'].value = coeffs_xp[self.nPistons:]
+        self.outputs['out_zern'].set_value(coeffs_xp[self.nPistons:])
         self.outputs['out_zern'].generation_time = self.current_time
 
         # self.outputs["phase_estimate"] = currentPhaseEstimate

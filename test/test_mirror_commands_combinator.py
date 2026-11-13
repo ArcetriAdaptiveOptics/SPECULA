@@ -66,14 +66,18 @@ class TestMirrorCommandsCombinator(unittest.TestCase):
 class TestMirrorCommandsCombinatorAccelerated(unittest.TestCase):
     '''The product uses graph_matmul.matmul(): the combinator is captured in a CUDA graph'''
 
-    def _run(self, accelerate, matrix_dtype, input_dtype):
+    def _run(self, accelerate, matrix_dtype, input_dtype, fortran=False):
         from specula import cpuArray
         from specula.base_value import BaseValue
         from iteras.accelerator import Accelerator
         from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
         rng = np.random.default_rng(2)
-        recmat = Recmat(rng.standard_normal((6, 2)).astype(matrix_dtype), target_device_idx=0,
-                        precision=int(matrix_dtype == np.float32))
+        matrix = rng.standard_normal((6, 2)).astype(matrix_dtype)
+        if fortran:
+            matrix = np.asfortranarray(matrix)
+        recmat = Recmat(matrix, target_device_idx=0, precision=int(matrix_dtype == np.float32))
+        if fortran:
+            self.assertFalse(recmat.recmat[:4].flags.c_contiguous)
         comb = MirrorCommandsCombinator(k_vector=[0.5], recmat=recmat,
                                         dims_LO=[1, 0, 1], dims_P=2, dims_F=1,
                                         out_dims=[4, 2, 2], target_device_idx=0, precision=1)
@@ -110,3 +114,11 @@ class TestMirrorCommandsCombinatorAccelerated(unittest.TestCase):
                     out, comb = self._run(True, matrix_dtype, input_dtype)
                 np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
                 self.assertEqual(comb._accel.status, 'accelerated')
+
+    def test_accelerated_fortran_recmat(self):
+        # The rows of a Fortran-ordered recmat are contiguous neither by rows nor by columns
+        ref, _ = self._run(False, np.float32, np.float32, fortran=True)
+        with self.assertNoLogs('iteras.accelerator', level='WARNING'):
+            out, comb = self._run(True, np.float32, np.float32, fortran=True)
+        np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+        self.assertEqual(comb._accel.status, 'accelerated')

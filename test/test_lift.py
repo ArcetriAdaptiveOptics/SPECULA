@@ -183,6 +183,25 @@ class TestLift(unittest.TestCase):
         self.assertEqual(lift.outputs['out_zern'].generation_time, 123)
 
     @cpu_and_gpu
+    def test_trigger_writes_outputs_in_place(self, target_device_idx, xp):
+        """The output arrays stay the same from one trigger to the next (an accelerated
+        reader, e.g. an Integrator, checks that its input arrays are not reallocated)"""
+        lift = build_lift(n_pistons=2, target_device_idx=target_device_idx)
+        fake_psf = np.ones((lift.gridSize, lift.gridSize), dtype=np.float32)
+        lift.local_inputs['in_pixels'] = type('_', (), {'get_value': lambda self: fake_psf})()
+        pistons = lift.outputs['out_pistons'].value
+        zern = lift.outputs['out_zern'].value
+        for step in range(2):
+            coeffs = np.arange(lift.nmodes, dtype=np.float32) * (step + 1)
+            lift.phaseEstimation = lambda psf, c=coeffs: (lift.xp.zeros_like(lift.mask), c, 1)
+            lift.current_time = step
+            lift.trigger()
+            self.assertIs(lift.outputs['out_pistons'].value, pistons)
+            self.assertIs(lift.outputs['out_zern'].value, zern)
+            np.testing.assert_array_equal(cpuArray(pistons), coeffs[:lift.nPistons])
+            np.testing.assert_array_equal(cpuArray(zern), coeffs[lift.nPistons:])
+
+    @cpu_and_gpu
     def test_compute_cog_available_and_consistent(self, target_device_idx, xp):
         lift = build_lift(target_device_idx=target_device_idx)
         frame = lift.xp.zeros((16, 16), dtype=lift.dtype)

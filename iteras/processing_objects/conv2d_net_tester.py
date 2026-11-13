@@ -187,7 +187,13 @@ class Conv2dNetTester(BaseProcessingObj):
         error = preds - modes
         self._accumulate(error, modes, reference)
 
-        self.outputs['prediction'].value = preds
+        # In place when the batch has the same shape: a new array at each step would
+        # fail the check of the arrays of an accelerated reader
+        out = self.outputs['prediction']
+        if out.value is not None and out.value.shape == preds.shape and out.value.dtype == preds.dtype:
+            out.value[...] = preds
+        else:
+            out.value = preds
         self.outputs['prediction'].generation_time = self.current_time
         self.outputs['loss'].set_value(float(self.xp.mean(error ** 2)))
         self.outputs['loss'].generation_time = self.current_time

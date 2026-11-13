@@ -83,3 +83,25 @@ class TestSlopec(unittest.TestCase):
         slopec.apply_slopes_corrections()
         np.testing.assert_allclose(cpuArray(slopec.slopes.slopes), slopes @ recmat,
                                    rtol=1e-5, atol=1e-6)
+
+    @cpu_and_gpu
+    def test_recmat_and_filtmat_with_other_precision(self, target_device_idx, xp):
+        """Matrices with a precision different from the slopes one: the slopes are cast
+        to the matrix dtype (in a CUDA graph capture the product needs equal dtypes)"""
+        rng = np.random.default_rng(0)
+        recmat = rng.normal(size=(NSLOPES, NSLOPES))
+        filt_intmat = rng.normal(size=(NSLOPES, NMODES))
+        filt_recmat = rng.normal(size=(NSLOPES, NMODES)) * 0.1
+        slopes = rng.normal(size=NSLOPES)
+        slopec = _TestSlopec(recmat=Recmat(recmat, precision=1, target_device_idx=target_device_idx),
+                             filt_intmat=Intmat(filt_intmat, precision=1, target_device_idx=target_device_idx),
+                             filt_recmat=Recmat(filt_recmat, precision=1, target_device_idx=target_device_idx),
+                             precision=0, target_device_idx=target_device_idx)
+        self.assertNotEqual(slopec.slopes.slopes.dtype, slopec.recmat.recmat.dtype)
+        out = slopec.slopes.slopes
+        out[:] = xp.asarray(slopes)
+        slopec.apply_slopes_corrections()
+        self.assertIs(slopec.slopes.slopes, out)
+        expected = slopes @ recmat
+        expected = expected - (expected @ filt_recmat) @ filt_intmat.T
+        np.testing.assert_allclose(cpuArray(out), expected, rtol=1e-4, atol=1e-5)

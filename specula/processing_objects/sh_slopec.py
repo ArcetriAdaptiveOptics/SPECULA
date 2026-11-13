@@ -191,11 +191,16 @@ class ShSlopec(Slopec):
         if self.subapdata:
             out = self.computeXYweights(self.subapdata.np_sub, self.exp_weight, self.weighted_pix_rad,
                                           self.quadcell_mode, self.windowing)
-            self.mask_weighted = self.to_xp(out['mask_weighted'], dtype=self.dtype)
-            self.xweights = self.to_xp(out['x'], dtype=self.dtype)
-            self.yweights = self.to_xp(out['y'], dtype=self.dtype)
-            self.xcweights = self.to_xp(out['xc'], dtype=self.dtype)
-            self.ycweights = self.to_xp(out['yc'], dtype=self.dtype)
+            # Updated in place after the first call (from prepare_trigger() with
+            # vecWeiPixRadT): a new array would fail the check of the arrays of
+            # the accelerated object
+            new = [self.to_xp(out[k], dtype=self.dtype) for k in ('mask_weighted', 'x', 'y', 'xc', 'yc')]
+            if self.mask_weighted is None:
+                self.mask_weighted, self.xweights, self.yweights, self.xcweights, self.ycweights = new
+            else:
+                old = (self.mask_weighted, self.xweights, self.yweights, self.xcweights, self.ycweights)
+                for o, n in zip(old, new):
+                    o[:] = n
             # Denominator, x and y weights as rows of a single (3, np_sub*np_sub) array.
             # Updated in place, since its address is frozen in the CUDA graph.
             weights = self.xp.vstack([self.mask_weighted.ravel(), self.xweights.ravel(), self.yweights.ravel()])

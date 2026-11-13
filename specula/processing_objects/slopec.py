@@ -229,7 +229,8 @@ class Slopec(BaseProcessingObj):
 
     def vecmat(self, v, m):
         '''Vector-matrix product v @ m, also in a CUDA graph (see graph_matmul.matmul())'''
-        return matmul(v, m, self.xp)
+        # The vector in the dtype of the matrix: inside a capture the product needs equal dtypes
+        return matmul(v.astype(m.dtype, copy=False), m, self.xp)
 
     def apply_slopes_corrections(self):
         '''

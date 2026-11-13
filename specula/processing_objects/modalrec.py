@@ -29,6 +29,9 @@ class Modalrec(BaseModalrec):
             recmat.reduce_size(ncutmodes)
 
         self.recmat = recmat
+        # In the dtype of this object, like the slopes: inside a CUDA graph capture the
+        # product needs equal dtypes. A copy only if the dtype differs
+        self._recmat = self.to_xp(recmat.recmat, dtype=self.dtype)
         self.modes.value = self.xp.zeros(self.recmat.nmodes, dtype=self.dtype)
 
     def can_accelerate(self):
@@ -36,5 +39,5 @@ class Modalrec(BaseModalrec):
         return True
 
     def trigger_code(self):
-        self.modes.value[:] = matmul(self.recmat.recmat, self.slopes, self.xp)
+        self.modes.value[:] = matmul(self._recmat, self.slopes, self.xp)
         self.modes.generation_time = self.current_time

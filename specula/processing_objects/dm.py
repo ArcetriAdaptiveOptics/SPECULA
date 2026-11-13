@@ -270,10 +270,13 @@ class DM(BaseProcessingObj):
         if self.stroke is not None:
             cmd = self.xp.minimum(self.xp.maximum(-self.stroke, cmd), self.stroke)
 
+        # The command in the dtype of the influence function (not a copy of the
+        # influence function in the DM dtype): the products need equal dtypes
+        cmd_ifunc = (self.sign * cmd).astype(self._ifunc_act.dtype, copy=False)
         if self._ifunc_sparse is not None:
-            shape = self._ifunc_sparse.vecmat(self.sign * cmd)
+            shape = self._ifunc_sparse.vecmat(cmd_ifunc)
         else:
-            shape = matmul(self.sign * cmd, self._ifunc_act, self.xp)
+            shape = matmul(cmd_ifunc, self._ifunc_act, self.xp)
         self.layer.phaseInNm[self._ifunc.idx_inf_func] = shape
         self.layer.generation_time = self.current_time
         self.clip_command.value[:] = cmd
@@ -306,7 +309,9 @@ class DM(BaseProcessingObj):
         by the ifunc setter, not by direct changes to ifunc_obj.influence_function.
         '''
         if self.m2c is not None:
-            self._m2c_sel = self.xp.ascontiguousarray(self.to_xp(self.m2c[:, self._sel]))
+            # In the dtype of this object, like the modes: inside a CUDA graph capture
+            # the product needs equal dtypes
+            self._m2c_sel = self.xp.ascontiguousarray(self.to_xp(self.m2c[:, self._sel], dtype=self.dtype))
             self._ifunc_act = self.to_xp(self._ifunc.influence_function)
         else:
             self._m2c_sel = None
@@ -377,6 +382,8 @@ class DM(BaseProcessingObj):
         # This also builds again the sparse form of a mostly zero influence
         # function (about 1 s for the 4520 x 172988 M4 one)
         self._apply_mode_selection()
+        # The arrays used by trigger_code() are new: capture the graph again
+        self.invalidate_graph()
 
     @property
     def mask(self):

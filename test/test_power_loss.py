@@ -120,3 +120,47 @@ class TestPowerloss(unittest.TestCase):
         xp.testing.assert_allclose(xp.array(power_loss_psf), xp.array(power_loss_loop), rtol=1e-5, atol=1e-8,
                                    err_msg="Power loss does not match manual calculation")
 
+    @cpu_and_gpu
+    def test_outputs_written_in_place(self, target_device_idx, xp):
+        """The sr and power_loss arrays are the same at each trigger, so that an
+        accelerated reader keeps a valid graph"""
+        wavelength = 500
+        pixel_pupil = 16
+        pixel_pitch = 1 / 16.
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch)
+        layer = Layer(dimx=pixel_pupil, dimy=pixel_pupil, pixel_pitch=pixel_pitch,
+                      height=0.0, target_device_idx=target_device_idx)
+        source = Source(polar_coordinates=[0, 0], magnitude=0.0, height=500,
+                        wavelengthInNm=wavelength, target_device_idx=target_device_idx)
+        prop = AtmoPropagation(simul_params=simul_params, source_dict={'on_axis': source},
+                               doFresnel=False, upwards=True, wavelengthInNm=wavelength,
+                               padding_factor=2, target_device_idx=target_device_idx)
+        prop.inputs['atmo_layer_list'].set([])
+        prop.inputs['common_layer_list'].set([layer])
+        prop.setup()
+        ef = ElectricField(pixel_pupil, pixel_pupil, pixel_pitch, S0=1,
+                           target_device_idx=target_device_idx)
+        power_loss = PowerLoss(simul_params=simul_params, prop=prop, target_device_idx=target_device_idx)
+        power_loss.inputs['in_ef'].set(ef)
+
+        first = None
+        srs = []
+        for t in range(1, 4):
+            # Tilt growing with t: the SR decreases
+            ef.phaseInNm[:] = xp.arange(pixel_pupil)[:, None] * 10.0 * (t - 1)
+            ef.A[:] = 1.0
+            ef.generation_time = t
+            power_loss.check_ready(t)
+            power_loss.trigger()
+            power_loss.post_trigger()
+            values = (power_loss.sr.value, power_loss.power_loss.value)
+            if first is None:
+                first = values
+            self.assertIs(values[0], first[0])
+            self.assertIs(values[1], first[1])
+            srs.append(float(first[0]))
+            self.assertAlmostEqual(float(first[1]), 10 * np.log10(srs[-1]), places=4)
+        self.assertAlmostEqual(srs[0], 1.0, places=5)
+        self.assertLess(srs[2], srs[1])
+        self.assertLess(srs[1], 1.0)
+

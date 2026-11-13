@@ -109,10 +109,10 @@ class TestNonlinearModalrec(unittest.TestCase):
 class SlopesSource(BaseProcessingObj):
     '''Random slopes, drawn on the host at each step'''
 
-    def __init__(self, n, target_device_idx):
+    def __init__(self, n, target_device_idx, precision=None):
         super().__init__(target_device_idx=target_device_idx)
         self.rng = np.random.default_rng(1)
-        self.out = Slopes(length=n, target_device_idx=target_device_idx)
+        self.out = Slopes(length=n, target_device_idx=target_device_idx, precision=precision)
         self.outputs['out_slopes'] = self.out
 
     def trigger_code(self):
@@ -123,14 +123,14 @@ class SlopesSource(BaseProcessingObj):
 @unittest.skipIf(cp is None, 'Cupy not found')
 class TestNonlinearModalrecAccelerated(unittest.TestCase):
 
-    def run_loop(self, accelerate, steps=6):
+    def run_loop(self, accelerate, steps=6, slopes_precision=None):
         from iteras.accelerator import Accelerator
         from iteras.data_objects.accelerator import Accelerator as AcceleratorOptions
         rng = np.random.default_rng(0)
         intmat_array = rng.standard_normal((8, 3))
         calib = calibration(np.vstack([3.0 * np.tanh(AMPLITUDES / 3.0)] * 3), 0)
         rec = build_rec(np.linalg.pinv(intmat_array), calib, 0)
-        source = SlopesSource(8, 0)
+        source = SlopesSource(8, 0, precision=slopes_precision)
         rec.inputs['in_slopes'].set(source.outputs['out_slopes'])
         loop = LoopControl()
         loop.add(source, 0)
@@ -149,6 +149,14 @@ class TestNonlinearModalrecAccelerated(unittest.TestCase):
         ref, _ = self.run_loop(False)
         out, rec = self.run_loop(True)
         self.assertIsNotNone(rec._accel.graph)
+        np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-6)
+
+    def test_accelerated_with_slopes_in_other_precision(self):
+        # Single precision slopes, double precision reconstructor
+        ref, _ = self.run_loop(False, slopes_precision=1)
+        out, rec = self.run_loop(True, slopes_precision=1)
+        self.assertIsNotNone(rec._accel.graph)
+        self.assertEqual(rec.slopes.dtype, rec.dtype)
         np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-6)
 
 

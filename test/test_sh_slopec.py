@@ -918,6 +918,60 @@ class TestShSlopec(unittest.TestCase):
             np.testing.assert_allclose(step[0], ref_step[0] @ recmat, rtol=1e-4, atol=1e-5)
 
     @cpu_and_gpu
+    def test_recmat_with_other_precision(self, target_device_idx, xp):
+        """
+        A recmat in a precision different from the slopes one: inside a CUDA graph
+        capture the product needs equal dtypes, the graph must be captured anyway.
+        """
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
+        n_slopes = 2 * subapdata.n_subaps
+        recmat = np.random.default_rng(3).normal(size=(n_slopes, n_slopes))
+        attrs = dict(recmat=Recmat(recmat, precision=1, target_device_idx=target_device_idx))
+        _, eager = self._run_slopec_steps(subapdata, frames, target_device_idx, False, attrs=attrs,
+                                          precision=0)
+        slopec, res = self._run_slopec_steps(subapdata, frames, target_device_idx, True, attrs=attrs,
+                                             precision=0)
+        self.assertNotEqual(slopec.slopes.slopes.dtype, slopec.recmat.recmat.dtype)
+        self.assertEqual(graph_captured(slopec), target_device_idx >= 0)
+        for step, eager_step in zip(res, eager):
+            np.testing.assert_allclose(step[0], eager_step[0], rtol=1e-5, atol=1e-6)
+
+    @cpu_and_gpu
+    def test_vec_wei_pix_rad_t_change_updates_weights_in_place(self, target_device_idx, xp):
+        """
+        A change of weighted_pix_rad during the run (vecWeiPixRadT) writes the weights
+        in place: an accelerated ShSlopec keeps its CUDA graph, with the new weights.
+        """
+        subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp, nframes=5)
+        vec_wei_pix_rad_t = xp.asarray([[1.0, 0.0], [2.0, 2.5]])
+        pixels = Pixels(frames[0].shape[1], frames[0].shape[0], target_device_idx=target_device_idx)
+        slopec = ShSlopec(subapdata, vecWeiPixRadT=vec_wei_pix_rad_t, target_device_idx=target_device_idx)
+        slopec.inputs['in_pixels'].set(pixels)
+        slopec.setup()
+        accelerate(slopec)
+        names = ('mask_weighted', 'xweights', 'yweights', 'xcweights', 'ycweights')
+        arrays = [getattr(slopec, name) for name in names]
+        for i, frame in enumerate(frames):
+            t = slopec.seconds_to_t(i + 1)
+            pixels.pixels[:] = pixels.xp.asarray(frame)
+            pixels.generation_time = t
+            slopec.check_ready(t)
+            slopec.trigger()   # radius 1 until 2.5 s, then 2, after the capture
+            slopec.post_trigger()
+        self.assertAlmostEqual(float(slopec.weighted_pix_rad), 2.0)
+        self.assertEqual(graph_captured(slopec), target_device_idx >= 0)
+
+        expected = ShSlopec(subapdata, weightedPixRad=2.0, target_device_idx=target_device_idx)
+        for name, array in zip(names, arrays):
+            self.assertIs(getattr(slopec, name), array, name)
+            np.testing.assert_allclose(cpuArray(array), cpuArray(getattr(expected, name)),
+                                       atol=1e-6, err_msg=name)
+        # The last slopes are computed with the new weights
+        _, ref = self._run_slopec_steps(subapdata, frames[-1:], target_device_idx, False,
+                                        weightedPixRad=2.0)
+        np.testing.assert_allclose(cpuArray(slopec.slopes.slopes), ref[0][0], rtol=1e-5, atol=1e-6)
+
+    @cpu_and_gpu
     def test_debug_log_slopes_statistics(self, target_device_idx, xp):
         """With DEBUG logging, post_trigger() logs the slopes statistics"""
         subapdata, _, frames = self._frames_and_subapdata(target_device_idx, xp)
