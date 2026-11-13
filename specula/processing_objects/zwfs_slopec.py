@@ -113,8 +113,9 @@ class ZwfsSlopec(Slopec):
         self.subap_counts.value[0] = self.total_intensity / self.nsubaps()
 
         norm_factor = self.xp.sum(metaintensity) / self.nsubaps()
-        # zero slopes if the total intensity is not positive
-        self.slopes.slopes = metaintensity / self.xp.where(norm_factor > 0, norm_factor, self.xp.inf)
+        # zero slopes if the total intensity is not positive. In place: a new array
+        # at each step would fail the check of the arrays of an accelerated reader
+        self.slopes.slopes[:] = metaintensity / self.xp.where(norm_factor > 0, norm_factor, self.xp.inf)
 
     def post_trigger(self):
         super().post_trigger()

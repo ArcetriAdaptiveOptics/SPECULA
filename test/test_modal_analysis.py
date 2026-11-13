@@ -462,3 +462,39 @@ class TestModalAnalysisUnwrapping(unittest.TestCase):
                           target_device_idx=target_device_idx)
         future_warnings = [w for w in caught if issubclass(w.category, FutureWarning)]
         self.assertEqual(len(future_warnings), 0)
+
+
+@unittest.skipIf(specula.cp is None, 'Cupy not found')
+class TestModalAnalysisAccelerated(unittest.TestCase):
+
+    def _run(self, accel, precision, steps=4):
+        from test.specula_testlib import accelerate
+        xp = specula.cp
+        npixels, nmodes = 20, 4
+        rng = np.random.default_rng(0)
+        # The influence functions (and their inverse) are in the global precision
+        ma = ModalAnalysis(type_str='zernike', npixels=npixels, nmodes=nmodes, obsratio=0.0,
+                           diaratio=1.0, target_device_idx=0, precision=precision)
+        ef = ElectricField(npixels, npixels, 0.1, target_device_idx=0, precision=precision)
+        ma.inputs['in_ef'].set(ef)
+        if accel:
+            accelerate(ma)
+        ma.setup()
+        out = []
+        for step in range(steps):
+            t = ma.seconds_to_t(1e-3 * step)
+            ef.phaseInNm[:] = xp.asarray(rng.standard_normal((npixels, npixels)))
+            ef.generation_time = t
+            ma.check_ready(t)
+            ma.trigger()
+            ma.post_trigger()
+            out.append(cpuArray(ma.outputs['out_modes'].value).copy())
+        return np.array(out), ma
+
+    def test_accelerated_with_object_precision(self):
+        from test.specula_testlib import graph_captured
+        precision = 1 - specula.global_precision
+        ref, _ = self._run(False, precision)
+        out, ma = self._run(True, precision)
+        self.assertTrue(graph_captured(ma))
+        np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)

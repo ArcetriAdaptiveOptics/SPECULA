@@ -11,6 +11,8 @@ class Modalrec(BaseModalrec):
     Performs pure matrix-vector multiplication: modes = recmat @ slopes.
     The *nmodes* parameter is deprecated and ignored: the number of modes is
     set by the recmat (use *ncutmodes* to discard the last modes).
+    The recmat can be replaced during a run by assigning *recmat*: *ncutmodes*
+    is applied to it, and it must give the same number of modes.
     """
 
     def __init__(self,
@@ -25,16 +27,35 @@ class Modalrec(BaseModalrec):
             warnings.warn('Modalrec: nmodes is deprecated and ignored, the number of modes '
                           'is set by the recmat (use ncutmodes to discard the last modes)',
                           FutureWarning, stacklevel=2)
-        if ncutmodes:
-            recmat.reduce_size(ncutmodes)
-
+        self.ncutmodes = ncutmodes
         self.recmat = recmat
         self.modes.value = self.xp.zeros(self.recmat.nmodes, dtype=self.dtype)
+
+    @property
+    def recmat(self):
+        return self._recmat_obj
+
+    @recmat.setter
+    def recmat(self, recmat):
+        if self.ncutmodes:
+            recmat.reduce_size(self.ncutmodes)
+        # The output keeps its size: a new array would fail the check of the arrays
+        # of an accelerated reader
+        if self.modes.value is not None and recmat.nmodes != len(self.modes.value):
+            raise ValueError(f'Modalrec: the new recmat gives {recmat.nmodes} modes, '
+                             f'{len(self.modes.value)} are expected')
+        self._recmat_obj = recmat
+        # In the dtype of this object, like the slopes: inside a CUDA graph capture the
+        # product needs equal dtypes. A copy only if the dtype differs: later in-place
+        # changes to recmat.recmat are then not seen, assign a new recmat instead
+        self._recmat = self.to_xp(recmat.recmat, dtype=self.dtype)
+        # The array used by trigger_code() is new: capture the graph again
+        self.invalidate_graph()
 
     def can_accelerate(self):
         # The product uses graph_matmul.matmul(), which can be captured
         return True
 
     def trigger_code(self):
-        self.modes.value[:] = matmul(self.recmat.recmat, self.slopes, self.xp)
+        self.modes.value[:] = matmul(self._recmat, self.slopes, self.xp)
         self.modes.generation_time = self.current_time

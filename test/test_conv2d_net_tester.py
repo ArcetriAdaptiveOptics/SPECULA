@@ -259,6 +259,25 @@ class TestConv2dNetTesterTrigger(unittest.TestCase):
 
             self.assertEqual(tester.count, 2)  # 1.0 and 0.5 both pass >= 0.5
 
+    def test_prediction_written_in_place_for_same_batch_shape(self):
+        """The prediction array is the same at each trigger with the same batch shape,
+        so that an accelerated reader keeps a valid graph; a new shape reallocates it"""
+        with tempfile.TemporaryDirectory() as d:
+            tester, _, _ = build_tester(d)
+            feed_batch(tester, seed=1)
+            tester.trigger()
+            first = tester.outputs['prediction'].value
+            loss1 = float(tester.outputs['loss'].value)
+            feed_batch(tester, seed=2)
+            tester.trigger()
+            self.assertIs(tester.outputs['prediction'].value, first)
+            np.testing.assert_allclose(tester.outputs['loss'].value,
+                                       np.mean(batch_errors(tester, seed=2) ** 2), rtol=1e-5)
+            self.assertNotAlmostEqual(float(tester.outputs['loss'].value), loss1)
+            feed_batch(tester, batch=2, seed=3)
+            tester.trigger()
+            self.assertEqual(tester.outputs['prediction'].value.shape, (2, NMODES))
+
     def test_multiple_triggers_accumulate_count_and_errors(self):
         with tempfile.TemporaryDirectory() as d:
             tester, _, _ = build_tester(d)

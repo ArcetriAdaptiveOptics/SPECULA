@@ -137,6 +137,30 @@ class TestSprintFit(unittest.TestCase):
                 self.assertLessEqual(len(n_sens), 4)
 
     @cpu_and_gpu
+    def test_outputs_written_in_place(self, target_device_idx, xp):
+        """The misreg, error and IM output arrays are the same at each estimation,
+        so that an accelerated reader keeps a valid graph"""
+        im0, s = _sensitivities(1)
+        sprint = _make_estimator(target_device_idx, im0, s, 1)
+        first = None
+        for p_true in (P_TRUE, 0.5 * P_TRUE):
+            measured = _measured(sprint, im0, s, [-7.3], p_true=p_true)
+            sprint._demodulate_slopes = lambda: measured
+            sprint.current_time = sprint.last_estimation_time + sprint.estimation_dt
+            sprint.trigger_code()
+            values = (sprint.misreg_output.value, sprint.error_output.value,
+                      sprint.estimated_intmat.intmat)
+            if first is None:
+                first = values
+            for value, first_value in zip(values, first):
+                self.assertIs(value, first_value)
+            np.testing.assert_allclose(_estimate(sprint), p_true, atol=1e-6)
+            np.testing.assert_allclose(specula.cpuArray(sprint.misreg_output.value), _estimate(sprint))
+            self.assertEqual(float(sprint.error_output.value[0]), float(sprint.current_error))
+            np.testing.assert_allclose(specula.cpuArray(sprint.estimated_intmat.intmat),
+                                       specula.cpuArray(sprint._compute_nominal_im()), rtol=1e-12)
+
+    @cpu_and_gpu
     def test_variable_projection_converges_with_a_large_effect(self, target_device_idx, xp):
         """Large mis-registration effect (|S p_true| / |IM0| ~ 1.5): fast convergence.
 

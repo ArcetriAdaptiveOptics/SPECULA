@@ -145,6 +145,34 @@ class TestPSF(unittest.TestCase):
         self.assertAlmostEqual(float(psf.sr.value), 1.0, places=6)
 
     @cpu_and_gpu
+    def test_sr_output_written_in_place(self, target_device_idx, xp):
+        """Not accelerated: the out_sr array is the same at each trigger (also for
+        PsfCoronagraph), so that an accelerated reader keeps a valid graph"""
+        for cls in (PSF, PsfCoronagraph):
+            simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)
+            psf = cls(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                      nd=1.0, target_device_idx=target_device_idx)
+            psf.inputs['in_ef'].set(ef)
+            psf.setup()
+            first = None
+            srs = []
+            for t in range(1, 4):
+                # Tilt growing with t: the SR decreases
+                ef.phaseInNm[:] = xp.arange(ef.size[0])[:, None] * 20.0 * (t - 1)
+                ef.A[:] = 1.0
+                ef.generation_time = t
+                psf.check_ready(t)
+                psf.trigger()
+                psf.post_trigger()
+                if first is None:
+                    first = psf.outputs['out_sr'].value
+                self.assertIs(psf.outputs['out_sr'].value, first)
+                srs.append(float(first))
+            self.assertAlmostEqual(srs[0], 1.0, places=6)
+            self.assertLess(srs[2], srs[1])
+            self.assertLess(srs[1], 1.0)
+
+    @cpu_and_gpu
     def test_psf_integration(self, target_device_idx, xp):
         """Test PSF integration over multiple frames"""
         simul_params, ef, wavelengthInNm = self.get_basic_setup(target_device_idx)

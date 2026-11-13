@@ -843,3 +843,79 @@ class TestDM(unittest.TestCase):
         with self.assertRaises(ValueError):
             dm.ifunc = ifunc[:, :-1]
         self.assertIs(dm.ifunc, ifunc)
+
+
+@unittest.skipIf(specula.cp is None, 'Cupy not found')
+class TestDMAccelerated(unittest.TestCase):
+
+    @staticmethod
+    def _sparse_ifunc():
+        '''Segment-like influence functions: each actuator moves a 2x2 block'''
+        rng = np.random.default_rng(3)
+        ifunc = np.zeros((9, 6, 6))
+        for a in range(9):
+            y, x = divmod(a, 3)
+            ifunc[a, 2 * y:2 * y + 2, 2 * x:2 * x + 2] = rng.uniform(0.5, 1.5, (2, 2))
+        return ifunc.reshape(9, 36)
+
+    def _make_dm(self, sparse, use_m2c):
+        '''DM in single precision, with IFunc and M2C in double precision'''
+        simul_params = SimulParams(time_step=1, pixel_pupil=6, pixel_pitch=1)
+        rng = np.random.default_rng(4)
+        ifunc_np = self._sparse_ifunc() if sparse else rng.standard_normal((9, 36))
+        ifunc = IFunc(ifunc_np, mask=np.ones((6, 6)), target_device_idx=0, precision=0)
+        m2c = M2C(rng.standard_normal((9, 5)), target_device_idx=0, precision=0) if use_m2c else None
+        nmodes = 5 if use_m2c else 9
+        dm = DM(simul_params, height=0, ifunc=ifunc, m2c=m2c, nmodes=nmodes,
+                target_device_idx=0, precision=1)
+        in_dm = BaseValue(value=np.zeros(nmodes), target_device_idx=0, precision=0)
+        dm.inputs['in_command'].set(in_dm)
+        return dm, in_dm
+
+    def _steps(self, dm, in_dm, steps, t0=0, seed=5):
+        rng = np.random.default_rng(seed)
+        out = []
+        for step in range(t0, t0 + steps):
+            t = dm.seconds_to_t(1e-3 * step)
+            in_dm.value[:] = specula.cp.asarray(rng.standard_normal(in_dm.value.shape[0]))
+            in_dm.generation_time = t
+            dm.check_ready(t)
+            dm.trigger()
+            dm.post_trigger()
+            out.append(cpuArray(dm.outputs['out_layer'].phaseInNm).copy())
+        return np.array(out)
+
+    def _run(self, accel, sparse, use_m2c, steps=4):
+        from test.specula_testlib import accelerate
+        dm, in_dm = self._make_dm(sparse, use_m2c)
+        if accel:
+            accelerate(dm)
+        dm.setup()
+        return self._steps(dm, in_dm, steps), dm, in_dm
+
+    def test_accelerated_with_ifunc_in_other_precision(self):
+        from test.specula_testlib import graph_captured
+        for sparse in (False, True):
+            for use_m2c in (False, True):
+                with self.subTest(sparse=sparse, use_m2c=use_m2c):
+                    ref, dm_ref, _ = self._run(False, sparse, use_m2c)
+                    self.assertEqual(dm_ref._ifunc_sparse is not None, sparse)
+                    out, dm, _ = self._run(True, sparse, use_m2c)
+                    self.assertTrue(graph_captured(dm))
+                    np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+    def test_ifunc_setter_after_capture(self):
+        '''A new ifunc after the capture: the graph is captured again, and uses it'''
+        from test.specula_testlib import graph_captured
+        for use_m2c in (False, True):
+            with self.subTest(use_m2c=use_m2c):
+                ref, dm_ref, in_ref = self._run(False, False, use_m2c)
+                out, dm, in_dm = self._run(True, False, use_m2c)
+                self.assertTrue(graph_captured(dm))
+                dm_ref.ifunc = 2 * dm_ref.ifunc
+                dm.ifunc = 2 * dm.ifunc
+                ref2 = self._steps(dm_ref, in_ref, 4, t0=4, seed=6)
+                out2 = self._steps(dm, in_dm, 4, t0=4, seed=6)
+                self.assertTrue(graph_captured(dm))
+                self.assertEqual(dm._accel.status, 'accelerated')
+                np.testing.assert_allclose(out2, ref2, rtol=1e-5, atol=1e-5)

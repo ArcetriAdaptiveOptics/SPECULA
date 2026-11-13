@@ -468,3 +468,96 @@ class TestModalrecImplicitPolcHostInputs(unittest.TestCase):
         np.testing.assert_allclose(cpuArray(on_host.h_mat.recmat), cpuArray(on_device.h_mat.recmat),
                                    rtol=1e-5, atol=1e-5)
         np.testing.assert_allclose(cpuArray(on_host.recmat.recmat), p @ r, rtol=1e-4, atol=1e-4)
+
+
+class TestModalrecMixedPrecision(unittest.TestCase):
+    '''Slopes and recmat in a precision other than the one of the reconstructor'''
+
+    def _run(self, target_device_idx, xp, rec_precision, slopes_precision, accel=False, steps=4):
+        from test.specula_testlib import accelerate
+        rng = np.random.default_rng(0)
+        recmat_np = rng.standard_normal((3, 8))
+        rec = Modalrec(Recmat(recmat_np, target_device_idx=target_device_idx),
+                       target_device_idx=target_device_idx, precision=rec_precision)
+        slopes = Slopes(length=8, target_device_idx=target_device_idx, precision=slopes_precision)
+        rec.inputs['in_slopes'].set(slopes)
+        if accel:
+            accelerate(rec)
+        rec.setup()
+        out, ref = [], []
+        for step in range(steps):
+            t = rec.seconds_to_t(1e-3 * step)
+            s = rng.standard_normal(8)
+            slopes.slopes[:] = xp.asarray(s)
+            slopes.generation_time = t
+            rec.check_ready(t)
+            rec.trigger()
+            rec.post_trigger()
+            out.append(cpuArray(rec.modes.value).copy())
+            ref.append(recmat_np @ s)
+        return np.array(out), np.array(ref), rec
+
+    @cpu_and_gpu
+    def test_dtypes_and_values(self, target_device_idx, xp):
+        for rec_precision, slopes_precision in ((None, 1), (1, None), (1, 1)):
+            with self.subTest(rec_precision=rec_precision, slopes_precision=slopes_precision):
+                out, ref, rec = self._run(target_device_idx, xp, rec_precision, slopes_precision)
+                self.assertEqual(rec.slopes.dtype, rec.dtype)
+                self.assertEqual(rec.modes.value.dtype, rec.dtype)
+                np.testing.assert_allclose(out, ref, rtol=1e-4, atol=1e-4)
+
+    @cpu_and_gpu
+    def test_slopes_list_in_other_precision(self, target_device_idx, xp):
+        recmat_np = np.random.default_rng(0).standard_normal((3, 8))
+        rec = Modalrec(Recmat(recmat_np, target_device_idx=target_device_idx),
+                       target_device_idx=target_device_idx, precision=0)
+        slopes = [Slopes(length=4, target_device_idx=target_device_idx, precision=1) for _ in range(2)]
+        rec.inputs['in_slopes_list'].set(slopes)
+        rec.setup()
+        self.assertEqual(rec.slopes.dtype, rec.dtype)
+        s = np.arange(8, dtype=np.float32)
+        t = rec.seconds_to_t(1e-3)
+        for i, sl in enumerate(slopes):
+            sl.slopes[:] = xp.asarray(s[4 * i:4 * (i + 1)])
+            sl.generation_time = t
+        rec.check_ready(t)
+        rec.trigger()
+        np.testing.assert_allclose(cpuArray(rec.modes.value), recmat_np @ s, rtol=1e-6)
+
+    @cpu_and_gpu
+    def test_recmat_replaced_after_capture(self, target_device_idx, xp):
+        from test.specula_testlib import accelerate, graph_captured
+        # 4 modes, the last one discarded by ncutmodes, also from the new recmat
+        recmat_np = np.random.default_rng(0).standard_normal((4, 8))
+        rec = Modalrec(Recmat(recmat_np, target_device_idx=target_device_idx),
+                       ncutmodes=1, target_device_idx=target_device_idx)
+        slopes = Slopes(length=8, target_device_idx=target_device_idx)
+        rec.inputs['in_slopes'].set(slopes)
+        with self.assertRaises(ValueError):   # 2 modes after the cut, 3 expected
+            rec.recmat = Recmat(recmat_np[:3], target_device_idx=target_device_idx)
+        if target_device_idx >= 0:
+            accelerate(rec)
+        rec.setup()
+        s = np.arange(8, dtype=np.float64)
+        slopes.slopes[:] = xp.asarray(s)
+        for step in range(5):
+            if step == 3:   # after the capture
+                rec.recmat = Recmat(2 * recmat_np, target_device_idx=target_device_idx)
+            t = rec.seconds_to_t(1e-3 * step)
+            slopes.generation_time = t
+            rec.check_ready(t)
+            rec.trigger()
+            rec.post_trigger()
+        np.testing.assert_allclose(cpuArray(rec.modes.value), 2 * recmat_np[:3] @ s, rtol=1e-5)
+        self.assertEqual(graph_captured(rec), target_device_idx >= 0)
+
+    @unittest.skipIf(specula.cp is None, 'Cupy not found')
+    def test_accelerated(self):
+        from test.specula_testlib import graph_captured
+        xp = specula.cp
+        for rec_precision, slopes_precision in ((None, 1), (1, None), (1, 1)):
+            with self.subTest(rec_precision=rec_precision, slopes_precision=slopes_precision):
+                ref, _, _ = self._run(0, xp, rec_precision, slopes_precision)
+                out, _, rec = self._run(0, xp, rec_precision, slopes_precision, accel=True)
+                self.assertTrue(graph_captured(rec))
+                np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)

@@ -110,6 +110,9 @@ class ModalAnalysis(BaseProcessingObj):
             self.phase2modes = ifunc.inverse(remove_piston=False)
 
         self._n_modes = self.phase2modes.nmodes()
+        # In the dtype of this object, like the phase: inside a CUDA graph capture the
+        # product needs equal dtypes. A copy only if the dtype differs
+        self._ifunc_inv = self.to_xp(self.phase2modes.ifunc_inv, dtype=self.dtype)
         if nmodes is not None and nmodes > self._n_modes:
             raise ValueError(f'nmodes ({nmodes}) is larger than the number of available modes ({self._n_modes})')
         self._n_inputs = n_inputs
@@ -249,7 +252,7 @@ class ModalAnalysis(BaseProcessingObj):
                 ph[i] = current_ef.phaseInNm[idx]
 
         # modes and rms are views on the output values
-        modes[:] = matmul(ph, self.phase2modes.ifunc_inv, self.xp)
+        modes[:] = matmul(ph, self._ifunc_inv, self.xp)
         rms[:] = self.xp.std(ph, axis=1)
         for output in outputs:
             output.generation_time = self.current_time

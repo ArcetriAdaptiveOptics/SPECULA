@@ -90,9 +90,11 @@ class PowerLoss(BaseProcessingObj):
         calc_psf(in_ef.phi_at_lambda(self.prop_obj.wavelengthInNm), in_ef.A, imwidth=self.pad_size,
                  xp=self.xp, complex_dtype=self.complex_dtype, out=self.psf.value)
 
-        self.sr.value = self.psf.value[self.pad_size // 2, self.pad_size // 2] / self.psf_ref
+        # In place (set_value()) after the first trigger: a new array at each step would
+        # fail the check of the arrays of an accelerated reader
+        self.sr.set_value(self.psf.value[self.pad_size // 2, self.pad_size // 2] / self.psf_ref)
         self.logger.info(f'SR at {int(self.prop_obj.wavelengthInNm)}nm : {self.sr.value}')
-        self.power_loss.value = 10 * np.log10(self.psf.value[self.pad_size // 2, self.pad_size // 2] / self.psf_ref)
+        self.power_loss.set_value(10 * np.log10(self.psf.value[self.pad_size // 2, self.pad_size // 2] / self.psf_ref))
         self.logger.info(f'Power loss at {int(self.prop_obj.wavelengthInNm)}nm : {self.power_loss.value}')
 
     def post_trigger(self):

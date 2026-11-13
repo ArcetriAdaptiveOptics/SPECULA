@@ -326,9 +326,11 @@ class BaseSprintEstimator(BaseProcessingObj):
 
         # Update outputs
         self.estimated_intmat.generation_time = t
-        self.misreg_output.value = self.misreg_params.copy()
+        # Outputs updated in place: a new array would fail the check of the arrays
+        # of an accelerated reader
+        self.misreg_output.set_value(self.misreg_params)
         self.misreg_output.generation_time = t
-        self.error_output.value = self.xp.array([self.current_error], dtype=self.dtype)
+        self.error_output.value[0] = self.current_error
         self.error_output.generation_time = t
 
     def _demodulate_slopes(self):
@@ -476,8 +478,11 @@ class BaseSprintEstimator(BaseProcessingObj):
         error_rel, self.misreg_params, im_nominal, G_opt = best
         self.current_error = error_rel
 
-        # Store final IM
-        self.estimated_intmat.intmat = im_nominal
+        # Store final IM, in place after the first estimation (allocated with 0 slopes)
+        if self.estimated_intmat.intmat.shape == im_nominal.shape:
+            self.estimated_intmat.intmat[:] = im_nominal
+        else:
+            self.estimated_intmat.intmat = im_nominal
 
         delta_total = self.misreg_params - params_before
         self.logger.info(f"  Final params: {cpuArray(self.misreg_params)}")
