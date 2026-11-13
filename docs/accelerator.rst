@@ -24,6 +24,7 @@ section whose class is ``Accelerator`` in the parameter files:
       class: 'Accelerator'
       exclude: ['psf']            # objects not accelerated
       report_file: 'accelerator.txt'   # which objects were accelerated, and why not the others
+      on_error: 'fallback'        # default; 'raise' stops at the first error
 
 It works with the :doc:`allocator <allocator>` and with :ref:`MPI
 <running_with_mpi>`: each process accelerates the objects it runs, on their devices.
@@ -131,25 +132,61 @@ Errors
 ------
 
 ``can_accelerate()`` declares that ``trigger_code()`` can be captured and
-replayed. If that is not true, the simulation stops with an
-``AcceleratorError`` that names the object: it is a bug of the class, to be
-fixed there (meanwhile, the object can be listed in ``exclude``):
+replayed. If that is not true, it is a bug of the class, to be fixed there.
+By default (``on_error: 'fallback'``) the simulation goes on: the accelerator
+logs a warning that names the object and the error, for example::
+
+    Accelerator: control_tt (BaseSlicer) declares, with can_accelerate(),
+    that it can be accelerated, but the capture of its trigger_code() in a CUDA graph failed
+    (RuntimeError: the current stream is capturing, so H2D transfers are disallowed). ...
+    It runs as Python code (please report the error)
+
+and runs that object as Python code from that step on. The results are those
+of a run without the accelerator, only that object is slower; the final
+report lists it as ``Python code after an error (...)``, and is logged as a
+warning. Please report the error, so that the class can be fixed. With
+``on_error: 'raise'`` (used by the tests) the simulation stops with an
+``AcceleratorError`` instead.
+
+To silence the warning until the class is fixed, exclude the object: add its
+name (the name of its section in the parameter file, as shown in the message)
+to the ``exclude`` list of the ``Accelerator`` section. If the parameter files
+have no such section, add one, in the main file or in an override file:
+
+.. code-block:: yaml
+
+    accelerator:
+      class: 'Accelerator'
+      exclude: ['control_tt']
+
+The excluded object runs as Python code, the others stay accelerated. To turn
+the accelerator off for the whole simulation, use ``--no-accelerate`` instead.
+
+The causes of the errors:
 
 * CuPy refuses, with an exception, the calls that cannot be part of a graph:
-  cuBLAS, cuRAND and the copies between host and GPU. If the capture of an
-  object fails, the simulation stops. A ``CCD`` with photon, excess,
-  clock-induced charge or charge transfer noise, for example, says in
+  cuBLAS, cuRAND and the copies between host and GPU: the capture of the
+  object fails. A ``CCD`` with photon, excess, clock-induced charge or charge
+  transfer noise, for example, says in
   ``can_accelerate()`` that it cannot be accelerated (its random numbers come
-  from cuRAND or need copies from the host), and runs as Python code.
+  from cuRAND or need copies from the host), and runs as Python code. A
+  common cause of a copy from the host is indexing a GPU array with a Python
+  list (or a NumPy array), for example a list of indices from the parameter
+  file: convert it once, in ``__init__()``, with ``self.xp.asarray()``.
 * The graph reads and writes the arrays the object had when it was captured.
   Before each launch, the accelerator checks that the arrays of the object, of
   the data objects it holds and of its inputs are still the same (same memory
-  address). An array that was reallocated, for example by ``prepare_trigger()``,
-  would make the graph use stale or freed memory: the simulation stops, naming
-  the array. An object that replaces arrays on purpose (like the dynamic filters
-  when their gain changes) calls ``invalidate_graph()``, and its graph is
-  captured again. The check takes a few microseconds per object;
-  ``check_pointers: false`` disables it.
+  address). An array that was reallocated, for example by ``prepare_trigger()``
+  or ``post_trigger()``, would make the graph use stale or freed memory: it is
+  detected before the launch, so no graph runs on stale memory. An object that
+  replaces arrays on purpose (like the dynamic filters when their gain changes)
+  calls ``invalidate_graph()``, and its graph is captured again. The check takes
+  a few microseconds per object; ``check_pointers: false`` disables it.
+* If the array is one of an input, the cause is the object that produces it,
+  not the one named in the error: an output must be written in place
+  (``value[...] = ...`` or ``BaseValue.set_value()``), not replaced. This
+  matters also when the producer is not accelerated (on the CPU, or excluded),
+  since the objects that read its output may be.
 
 What is not checked: a Python value computed in ``trigger_code()`` from
 something that changes at each step (the time, a counter, a value read from
@@ -195,6 +232,10 @@ See :class:`iteras.data_objects.accelerator.Accelerator`.
     reallocated (default ``true``).
 ``report_file``
     File where the table of the accelerated objects is written at the end.
+``on_error``
+    ``'fallback'`` (default): an object whose capture fails, or whose arrays are
+    reallocated, runs as Python code from that step on, with a warning.
+    ``'raise'``: the simulation stops with an ``AcceleratorError``.
 
 Measured gains and accuracy
 ---------------------------

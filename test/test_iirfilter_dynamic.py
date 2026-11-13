@@ -109,7 +109,7 @@ class TestDynamicFiltersAccelerated(unittest.TestCase):
         filt.inputs['reset'].set(reset)
         accelerator = None
         if accelerate:
-            accelerator = Accelerator(AcceleratorOptions())
+            accelerator = Accelerator(AcceleratorOptions(on_error='raise'))
             accelerator.apply([filt])
         filt.setup()
         outputs = []

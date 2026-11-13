@@ -7,7 +7,8 @@ from specula.data_objects.electric_field import ElectricField
 from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.psf_coronagraph import PsfCoronagraph
 from test.specula_testlib import cpu_and_gpu
-from specula import cpuArray, np
+from specula import cp, cpuArray, np
+from test.specula_testlib import accelerate
 
 
 class TestPsfCoronagraph(unittest.TestCase):
@@ -39,7 +40,7 @@ class TestPsfCoronagraph(unittest.TestCase):
                                       target_device_idx=0)
             psf_coro.inputs['in_ef'].set(ef)
             if accelerate:
-                Accelerator(AcceleratorOptions()).apply([psf_coro])
+                Accelerator(AcceleratorOptions(on_error='raise')).apply([psf_coro])
             psf_coro.setup()
             yy, xx = np.mgrid[0:32, 0:32] / 32.0
             out = []
@@ -358,3 +359,38 @@ class TestPsfCoronagraph(unittest.TestCase):
             psf_coro.post_trigger()
         self.assertIn('peak suppression', debug.call_args.args[0])
 
+
+    @unittest.skipIf(cp is None, 'Cupy not found')
+    def test_accelerated_profile_metrics_match_normal_run(self):
+        """The profile output written at each step (compute_metrics_in_trigger) must not be
+        reallocated, or the accelerated PsfCoronagraph raises an AcceleratorError."""
+        def run(accelerated):
+            simul_params, ef, wavelengthInNm = self.get_basic_setup(0, pixel_pupil=24)
+            psf_coro = PsfCoronagraph(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                                      nd=2.0, start_time=0.0, compute_profile_metrics=True,
+                                      compute_metrics_in_trigger=True, target_device_idx=0)
+            psf_coro.inputs['in_ef'].set(ef)
+            if accelerated:
+                accelerate(psf_coro)
+            psf_coro.setup()
+            y, x = cp.ogrid[:24, :24]
+            res, ptrs = [], []
+            for t in range(1, 5):
+                ef.phaseInNm[:] = 5.0 * t * (x + 0.5 * y)
+                ef.A[:] = 1.0
+                ef.generation_time = t
+                psf_coro.check_ready(t)
+                psf_coro.trigger()
+                psf_coro.post_trigger()
+                prof = psf_coro.coronagraph_psf_profile.value
+                res.append(cpuArray(prof).copy())
+                ptrs.append(prof.data.ptr)
+            return psf_coro, res, ptrs
+
+        _, ref, _ = run(False)
+        psf_coro, out, ptrs = run(True)
+        self.assertEqual(psf_coro._accel.status, 'accelerated')
+        for a, b in zip(ref, out):
+            np.testing.assert_allclose(b, a, rtol=1e-5, atol=1e-7 * np.abs(a).max())
+        self.assertGreater(np.abs(out[0] - out[3]).max(), 1e-6 * np.abs(out[0]).max())
+        self.assertEqual(len(set(ptrs)), 1)

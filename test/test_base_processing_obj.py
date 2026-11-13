@@ -217,7 +217,7 @@ class TestBaseProcessingObj(unittest.TestCase):
     def _accelerate(obj):  # pragma: gpu
         '''Accelerate *obj* as Simul does, returning its GraphRunner'''
         obj.can_accelerate = lambda: True
-        Accelerator(AcceleratorOptions()).apply([obj])
+        Accelerator(AcceleratorOptions(on_error='raise')).apply([obj])
         return obj._accel
 
     @staticmethod

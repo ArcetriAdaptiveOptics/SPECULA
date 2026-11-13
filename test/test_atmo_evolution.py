@@ -12,6 +12,7 @@ from specula import np
 from specula.data_objects.source import Source
 from specula.base_time_obj import BaseTimeObj
 from specula.base_processing_obj import BaseProcessingObj
+from specula.base_value import BaseValue
 from specula.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.atmo_evolution import AtmoEvolution
 from specula.processing_objects.atmo_evolution_up_down import AtmoEvolutionUpDown
@@ -562,15 +563,25 @@ class TestAtmoEvolution(unittest.TestCase):
 
     @cpu_and_gpu
     def test_reallocated_input_raises_with_cuda_graph(self, target_device_idx, xp):
-        """When accelerated, an input reallocated by its producer (here BaseSlicer,
-        which rebinds its output value at each step) raises an error, instead of
+        """When accelerated, an input reallocated by its producer (here a producer that
+        rebinds its output value at each step) raises an error, instead of
         being silently ignored. Without a graph (CPU) it works."""
+        class Rebinder(BaseProcessingObj):
+            """Produces [25.5, 30.0], with a new array at each step"""
+            def __init__(self, target_device_idx=None):
+                super().__init__(target_device_idx=target_device_idx)
+                self.out = BaseValue(value=self.xp.zeros(2, dtype=self.dtype),
+                                     target_device_idx=target_device_idx)
+                self.outputs['out_value'] = self.out
+
+            def trigger_code(self):
+                self.out.value = self.xp.array([25.5, 30.0], dtype=self.dtype)
+                self.out.generation_time = self.current_time
+
         simul_params = SimulParams(pixel_pupil=32, pixel_pitch=0.05, time_step=0.01)
         seeing = WaveGenerator(constant=0.8, target_device_idx=target_device_idx)
-        all_speeds = WaveGenerator(constant=[25.5, 30.0, 12.0], target_device_idx=target_device_idx)
-        wind_speed = BaseSlicer(indices=[0, 1], target_device_idx=target_device_idx)
+        wind_speed = Rebinder(target_device_idx=target_device_idx)
         wind_direction = WaveGenerator(constant=[90, 33.3], target_device_idx=target_device_idx)
-        wind_speed.inputs['in_value'].set(all_speeds.output)
         atmo = AtmoEvolution(simul_params, L0=23, data_dir=self.data_dir, heights=[0, 10000],
                              Cn2=[0.5, 0.5], pixel_phasescreens=256,
                              target_device_idx=target_device_idx)
@@ -579,14 +590,15 @@ class TestAtmoEvolution(unittest.TestCase):
         atmo.inputs['wind_direction'].set(wind_direction.output)
 
         loop = LoopControl()
-        for obj in [seeing, all_speeds, wind_direction]:
+        for obj in [seeing, wind_direction]:
             loop.add(obj, idx=0)
         loop.add(wind_speed, idx=1)
         loop.add(atmo, idx=2)
         loop.start(run_time=0.03, dt=simul_params.time_step)
         accelerate(atmo)
         if target_device_idx >= 0:  # pragma: gpu
-            with self.assertRaisesRegex(AcceleratorError, 'was reallocated'):
+            with self.assertRaisesRegex(AcceleratorError,
+                                        r'of its input wind_speed.*was reallocated'):
                 for _ in range(3):
                     loop.iter()
         else:

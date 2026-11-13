@@ -8,7 +8,8 @@ from specula.data_objects.simul_params import SimulParams
 from specula.processing_objects.psf import PSF
 from specula.processing_objects.psf_coronagraph import PsfCoronagraph
 from test.specula_testlib import cpu_and_gpu
-from specula import cpuArray, np
+from specula import cp, cpuArray, np
+from test.specula_testlib import accelerate
 
 
 class TestPSF(unittest.TestCase):
@@ -556,3 +557,44 @@ class TestPSF(unittest.TestCase):
         self.assertEqual(psf_coro.count, n_frames)
         self.assertGreater(float(cpuArray(psf_coro.std_psf.value).max()), 0.0)
         self.assertGreater(float(cpuArray(psf_coro.std_coronagraph_psf.value).max()), 0.0)
+
+    @unittest.skipIf(cp is None, 'Cupy not found')
+    def test_accelerated_profile_metrics_match_normal_run(self):
+        """Profile outputs written at each step (compute_metrics_in_trigger) must not be
+        reallocated, or the accelerated PSF raises an AcceleratorError."""
+        names = ['psf_profile', 'psf_fwhm', 'encircled_energy']
+
+        def run(accelerated):
+            simul_params, ef, wavelengthInNm = self.get_basic_setup(0, pixel_pupil=24)
+            psf = PSF(simul_params=simul_params, wavelengthInNm=wavelengthInNm,
+                      nd=2.0, start_time=0.0, compute_profile_metrics=True,
+                      compute_metrics_in_trigger=True, ee_radius_in_lambda_d=1.0,
+                      target_device_idx=0)
+            psf.inputs['in_ef'].set(ef)
+            if accelerated:
+                accelerate(psf)
+            psf.setup()
+            y, x = cp.ogrid[:24, :24]
+            res, ptrs = [], []
+            for t in range(1, 5):
+                ef.phaseInNm[:] = 0.01 * t * ((x - 12) ** 2 + (y - 12) ** 2)
+                ef.A[:] = 1.0
+                ef.generation_time = t
+                psf.check_ready(t)
+                psf.trigger()
+                psf.post_trigger()
+                res.append([cpuArray(getattr(psf, n).value).copy() for n in names])
+                ptrs.append([getattr(psf, n).value.data.ptr for n in names])
+            return psf, res, ptrs
+
+        _, ref, _ = run(False)
+        psf, out, ptrs = run(True)
+        self.assertEqual(psf._accel.status, 'accelerated')
+        for a, b in zip(ref, out):
+            for n, ra, rb in zip(names, a, b):
+                np.testing.assert_allclose(rb, ra, rtol=1e-5, atol=1e-7 * np.abs(ra).max(), err_msg=n)
+        # The profile changes with the phase
+        self.assertGreater(np.abs(out[0][0] - out[3][0]).max(), 1e-6)
+        # Same arrays at every step
+        for p in ptrs[1:]:
+            self.assertEqual(p, ptrs[0])

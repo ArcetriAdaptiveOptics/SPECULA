@@ -330,7 +330,7 @@ class TestMVMAccelerated(unittest.TestCase):
         mvm.inputs['in_vector'].set(vector)
         accelerator = None
         if accelerate:
-            accelerator = Accelerator(AcceleratorOptions())
+            accelerator = Accelerator(AcceleratorOptions(on_error='raise'))
             accelerator.apply([mvm])
         mvm.setup()
         outputs = []

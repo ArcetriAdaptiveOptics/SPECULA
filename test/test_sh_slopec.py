@@ -831,7 +831,8 @@ class TestShSlopec(unittest.TestCase):
                 slopec.trigger()
                 slopec.post_trigger()
             else:
-                with self.assertRaisesRegex(AcceleratorError, 'Pixels.pixels was reallocated'):
+                with self.assertRaisesRegex(AcceleratorError,
+                                            'Pixels.pixels of its input in_pixels.*was reallocated'):
                     slopec.trigger()
                 break
 

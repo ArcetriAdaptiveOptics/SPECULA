@@ -258,16 +258,21 @@ class PSF(BaseProcessingObj):
 
     def _set_radial_profile_output(self, psf, profile_output, norm_peak=None):
         profile, radial_dist, _ = self._compute_radial_profile_data(psf, peak=norm_peak)
-        profile_output.value = self.xp.vstack([radial_dist, profile])
+        # In place (set_value()): when called by post_trigger(), at each step, a new
+        # array would fail the check of the arrays of an accelerated object
+        profile_output.set_value(self.xp.vstack([radial_dist, profile]))
         profile_output.generation_time = self.current_time
 
     def _set_profile_outputs(self, psf, profile_output, fwhm_output,
                              ee_output, ee_at_radius_output):
         profile, radial_dist, fwhm, ee, ee_at_radius = self._compute_profile_metrics(psf)
-        profile_output.value = self.xp.vstack([radial_dist, profile])
-        fwhm_output.value = fwhm
-        ee_output.value = self.xp.vstack([radial_dist, ee])
-        ee_at_radius_output.value = ee_at_radius
+        # In place (set_value()): when called by post_trigger(), at each step, a new
+        # array would fail the check of the arrays of an accelerated object
+        profile_output.set_value(self.xp.vstack([radial_dist, profile]))
+        fwhm_output.set_value(fwhm)
+        ee_output.set_value(self.xp.vstack([radial_dist, ee]))
+        if ee_at_radius is not None:
+            ee_at_radius_output.set_value(ee_at_radius)
 
         profile_output.generation_time = self.current_time
         fwhm_output.generation_time = self.current_time

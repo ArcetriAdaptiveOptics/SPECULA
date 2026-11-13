@@ -62,7 +62,8 @@ class BaseOperation(BaseProcessingObj):
             If True, concatenate ``value1`` and ``value2`` before applying
             constant operations.
         value2_remap : list of int, optional
-            Optional index mapping applied to ``value2`` before the binary operation.
+            Optional index mapping applied to ``value2`` before the binary operation:
+            ``value2[i]`` is applied to ``value1[value2_remap[i]]``.
             Cannot be used together with ``concat``.
         target_device_idx : int [1], optional
             Target device index (CPU/GPU). If None, a global setting is used.
@@ -132,7 +133,9 @@ class BaseOperation(BaseProcessingObj):
 
         As an exception from standard broadcasting rule, if ``value2`` has a shorter first
         dimension than ``value1``, then the binary operation will only be applied to the first
-        elements of ``value1``, while the rest will left untouched.
+        elements of ``value1``, while the rest will left untouched. With ``value2_remap``,
+        ``value2[i]`` is applied to ``value1[value2_remap[i]]`` instead, whatever the length
+        of ``value2``.
 
         **Constraints**
 
@@ -179,6 +182,10 @@ class BaseOperation(BaseProcessingObj):
         self.sub = sub
         self.concat = concat
         self.out_value = BaseValue(target_device_idx=target_device_idx, precision=precision)
+        # Device copy, made once: indexing with a host list copies it to the
+        # device at each step, which a CUDA graph capture does not allow
+        if value2_remap is not None:
+            value2_remap = self.xp.asarray(value2_remap, dtype=self.xp.int64)
         self.value2_remap = value2_remap
 
         self.inputs['in_value1'] = InputValue(type=BaseValue)
@@ -252,12 +259,11 @@ class BaseOperation(BaseProcessingObj):
             out[:] = self.xp.minimum(out, self.constant_min)
 
         if not self.concat and (self.sum or self.sub or self.mul or self.div):
-            value2_is_shorter = len(value2) < len(value1)
-
-            if value2_is_shorter:
-                self.v2[:len(value2)] = value2
-            elif self.value2_remap is not None:
+            # The remap comes first: it is typically used with a shorter value2
+            if self.value2_remap is not None:
                 self.v2[self.value2_remap] = value2
+            elif len(value2) < len(value1):
+                self.v2[:len(value2)] = value2
             else:
                 self.v2 = value2  # Move reference
 

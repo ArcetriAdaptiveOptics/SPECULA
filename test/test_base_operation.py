@@ -4,11 +4,12 @@ from specula.loop_control import LoopControl
 
 import unittest
 
-from specula import cpuArray, np
+from specula import cp, cpuArray, np
+from iteras.processing_objects.wave_generator import WaveGenerator
 from specula.processing_objects.base_operation import BaseOperation
 from specula.base_value import BaseValue
 
-from test.specula_testlib import cpu_and_gpu
+from test.specula_testlib import cpu_and_gpu, accelerate, graph_captured
 
 class TestBaseOperation(unittest.TestCase):
 
@@ -1037,3 +1038,79 @@ class TestBaseOperation(unittest.TestCase):
             cpuArray(op.outputs['out_value'].value),
             cpuArray(expected)
         )
+
+    def _run_remap(self, target_device_idx, xp, **flags):
+        v1 = xp.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+        v2 = xp.array([10.0, 20.0, 30.0])
+        value1 = BaseValue(value=v1, target_device_idx=target_device_idx)
+        value2 = BaseValue(value=v2, target_device_idx=target_device_idx)
+        value1.generation_time = value1.seconds_to_t(1)
+        value2.generation_time = value2.seconds_to_t(1)
+        op = BaseOperation(value2_remap=[5, 0, 3], target_device_idx=target_device_idx, **flags)
+        op.inputs['in_value1'].set(value1)
+        op.inputs['in_value2'].set(value2)
+        loop = LoopControl()
+        loop.add(op, idx=0)
+        loop.run(run_time=2, dt=1, t0=1)
+        return cpuArray(op.outputs['out_value'].value)
+
+    @cpu_and_gpu
+    def test_value2_remap_sum_shorter_value2(self, target_device_idx, xp):
+        """value2 shorter than value1: value2[i] goes to value1[remap[i]], not to value1[i].
+        With the pre-fix logic (the "shorter" branch first, remap ignored) the result
+        would be [11, 22, 33, 4, 5, 6]."""
+        out = self._run_remap(target_device_idx, xp, sum=True)
+        # 10 -> index 5, 20 -> index 0, 30 -> index 3; the others get + 0
+        np.testing.assert_array_almost_equal(out, [21.0, 2.0, 3.0, 34.0, 5.0, 16.0])
+
+    @cpu_and_gpu
+    def test_value2_remap_mul_shorter_value2(self, target_device_idx, xp):
+        """Elements of value1 not in the remap are multiplied by the neutral element 1.
+        Pre-fix logic would give [10, 40, 90, 4, 5, 6]."""
+        out = self._run_remap(target_device_idx, xp, mul=True)
+        np.testing.assert_array_almost_equal(out, [20.0, 2.0, 3.0, 120.0, 5.0, 60.0])
+
+    @cpu_and_gpu
+    def test_value2_remap_sub_div_shorter_value2(self, target_device_idx, xp):
+        out = self._run_remap(target_device_idx, xp, sub=True)
+        np.testing.assert_array_almost_equal(out, [-19.0, 2.0, 3.0, -26.0, 5.0, -4.0])
+        out = self._run_remap(target_device_idx, xp, div=True)
+        np.testing.assert_array_almost_equal(out, [1.0 / 20.0, 2.0, 3.0, 4.0 / 30.0, 5.0, 6.0 / 10.0])
+
+    @unittest.skipIf(cp is None, 'Cupy not found')
+    def test_value2_remap_accelerated(self):
+        def run(accelerated, mul):
+            g1 = WaveGenerator(amp=[1, 2, 3, 4, 5, 6], freq=[37.0], constant=[10.0], target_device_idx=0)
+            g2 = WaveGenerator(amp=[1, 2, 3], freq=[53.0], constant=[2.0], target_device_idx=0)
+            op = BaseOperation(mul=mul, sum=not mul, value2_remap=[5, 0, 3], target_device_idx=0)
+            op.inputs['in_value1'].set(g1.outputs['output'])
+            op.inputs['in_value2'].set(g2.outputs['output'])
+            loop = LoopControl()
+            loop.add(g1, 0)
+            loop.add(g2, 0)
+            loop.add(op, 1)
+            if accelerated:
+                accelerate(op)
+            loop.start(run_time=6e-3, dt=1e-3)
+            res = []
+            for _ in range(6):
+                loop.iter()
+                v1 = cpuArray(g1.outputs['output'].value)
+                v2 = cpuArray(g2.outputs['output'].value)
+                expected = v1.copy()
+                if mul:
+                    expected[[5, 0, 3]] *= v2
+                else:
+                    expected[[5, 0, 3]] += v2
+                np.testing.assert_allclose(cpuArray(op.outputs['out_value'].value), expected, rtol=1e-5)
+                res.append(expected)
+            loop.finish()
+            return op, np.array(res)
+
+        for mul in (False, True):
+            with self.subTest(mul=mul):
+                op, res = run(True, mul)
+                self.assertEqual(op._accel.status, 'accelerated')
+                self.assertTrue(graph_captured(op))
+                # The inputs change at each step
+                self.assertGreater(np.abs(np.diff(res, axis=0)).max(), 1e-2)

@@ -18,6 +18,12 @@ class BaseSlicer(BaseProcessingObj):
         if indices is not None and slice_args is not None:
             raise ValueError("Cannot specify both 'indices' and 'slice_args'")
 
+        # Device copy of the indices, made once: indexing with a host list copies
+        # it to the device at each step, which a CUDA graph capture does not allow.
+        # An int index gives a one-element output, as allocated below.
+        if indices is not None:
+            indices = self.xp.asarray([indices] if isinstance(indices, int) else indices,
+                                      dtype=self.xp.int64)
         self.indices = indices
         # Use slice arguments to create a slice object
         if slice_args is not None:
@@ -28,7 +34,7 @@ class BaseSlicer(BaseProcessingObj):
         # Initialize output BaseValue
         n_elements = None
         if self.indices is not None:
-            n_elements = 1 if isinstance(self.indices, int) else len(self.indices)
+            n_elements = len(self.indices)
         elif self.slice_obj is not None:
             start = self.slice_obj.start
             stop = self.slice_obj.stop
@@ -52,17 +58,23 @@ class BaseSlicer(BaseProcessingObj):
         return {'out_value': OutputDesc(BaseValue, 'Output sliced vector')}
 
     def can_accelerate(self):
-        # The output arrays are allocated at the capture, then rewritten by the graph
+        # The indices are on the device, and the output is written in place
         return True
 
     def trigger_code(self):
         value = self.local_inputs['in_value'].value
         if self.indices is not None:
-            self.out_value.value = value[self.indices]
+            sliced = value[self.indices]
         elif self.slice_obj is not None:
-            # Use slice object to extract the desired values
-            self.out_value.value = value[self.slice_obj]
+            sliced = value[self.slice_obj]
         else:
-            # No slicing, copy the whole value
-            self.out_value.value = value.copy()
+            sliced = value
+        out = self.out_value.value
+        if out.shape != sliced.shape or out.dtype != sliced.dtype:
+            # First trigger only: output allocated with the shape and type of the input.
+            # Afterwards it is written in place, so that the objects reading it (and
+            # their CUDA graphs, also when this object is not accelerated) keep the same array
+            self.out_value.value = sliced.copy()
+        else:
+            out[...] = sliced
         self.out_value.generation_time = self.current_time
