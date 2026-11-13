@@ -40,7 +40,9 @@ def compute_radial_profile(image, center_in_px_y=None, center_in_px_x=None,
     y_coord, x_coord = xp.indices(image.shape, dtype=dtype)
     y_coord = y_coord - dtype(center_in_px_y)
     x_coord = x_coord - dtype(center_in_px_x)
-    r_coord = xp.sqrt(x_coord**2 + y_coord**2)
+    # x * x, not x**2: on the GPU the float64 power can be inexact (e.g. 53**2 = 2808.999...)
+    # and put an integer radius in the previous bin
+    r_coord = xp.sqrt(x_coord * x_coord + y_coord * y_coord)
 
     radial_bin = xp.floor(r_coord).astype(np.int32).ravel()
     image_flat = image.ravel().astype(dtype, copy=False)

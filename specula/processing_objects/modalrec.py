@@ -29,10 +29,21 @@ class Modalrec(BaseModalrec):
             recmat.reduce_size(ncutmodes)
 
         self.recmat = recmat
-        # In the dtype of this object, like the slopes: inside a CUDA graph capture the
-        # product needs equal dtypes. A copy only if the dtype differs
-        self._recmat = self.to_xp(recmat.recmat, dtype=self.dtype)
         self.modes.value = self.xp.zeros(self.recmat.nmodes, dtype=self.dtype)
+
+    @property
+    def recmat(self):
+        return self._recmat_obj
+
+    @recmat.setter
+    def recmat(self, recmat):
+        self._recmat_obj = recmat
+        # In the dtype of this object, like the slopes: inside a CUDA graph capture the
+        # product needs equal dtypes. A copy only if the dtype differs: later in-place
+        # changes to recmat.recmat are then not seen, assign a new recmat instead
+        self._recmat = self.to_xp(recmat.recmat, dtype=self.dtype)
+        # The array used by trigger_code() is new: capture the graph again
+        self.invalidate_graph()
 
     def can_accelerate(self):
         # The product uses graph_matmul.matmul(), which can be captured
