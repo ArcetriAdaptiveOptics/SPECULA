@@ -8,6 +8,7 @@ main:
   total_time:        0.080                  # [s] Total simulation running time
   time_step:         0.002                  # [s] Simulation time step
   zenithAngleInDeg:  30.0                   # [deg] Airmass correction
+  display_server:    true
 
 
 data_store:
@@ -58,7 +59,6 @@ lgs1_source:
 
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-  simul_params_ref:  'main'
   tag: 'EELT480pp0.0803m_obs0.283_spider2023'
 
 atmo:
@@ -128,11 +128,7 @@ slopec1:
 
 rec:
   class:              'Modalrec'
-#  recmat_object:      'maory_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.50_mn1000_ce'         # reconstruction matrix tag
-#  recmat_object:      'MORFEO_LTAO'         # reconstruction matrix tag
-#  recmat_object:      '/tmp/ltao_full_rec'         # reconstruction matrix tag
-#  recmat_object:      '/tmp/test_morfeo_scao_rec'         # reconstruction matrix tag
-  recmat_object:      '/tmp/test_morfeo_scao_rec_2000modes'         # reconstruction matrix tag
+  recmat_object:      'test_morfeo_scao_rec_2000modes'         # reconstruction matrix tag
   inputs:
     in_slopes_list:        ['slopec1.out_slopes']
   outputs:  ['out_modes']
@@ -140,7 +136,8 @@ rec:
 control:
   class:             'Integrator'
   delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
-  int_gain_data:     'g0.40_4519'  
+  int_gain:          [0.2]
+  n_modes:           [1000]
   inputs:
       delta_comm: 'rec.out_modes'     
   outputs:  ['out_comm']
@@ -150,6 +147,7 @@ dm:
   simul_params_ref:  'main'
   ifunc_object:      'M4_eso_zonal_486p_5352a_slaved'
   m2c_object:        'M4_eso_39.5m_486p_20230215'
+  nmodes:            1000
   height:            0                      # DM height [m]
   inputs:
       in_command: 'control.out_comm'
@@ -165,50 +163,3 @@ psf:
   inputs:
       in_ef:  'prop.out_on_axis_source_ef'
   outputs:  ['out_psf', 'out_sr']
-
-# sc1_disp:
-#  class:            'SlopecDisplay'
-#  inputs:
-#    slopes:       'slopec1.out_slopes'
-#    subapdata:    'slopec1.out_subapdata'
-#  figsize:       [8, 6]  # Default size in inches
-
-psf_disp:
- class:            'PsfDisplay'
- inputs:
-   psf:       "psf.out_psf"
- title:            'PSF'
- figsize:       [8, 6]  # Default size in inches
-
-sr_disp:
-  class:            'PlotDisplay'
-  inputs:
-    value:       'psf.out_sr'
-  title:            'SR'
-
-# cmd_disp:
-#   class:            'ModesDisplay'
-#   inputs:
-#     modes:       "rec.out_modes"
-#   title:            'rec.out_modes'
-
-# dm_disp:
-#   class:            'PhaseDisplay'
-#   inputs:
-#     phase:       "dm.out_layer"
-#   title:            'DM'
-#   figsize:       [8, 6]  # Default size in inches
-
-# ph1_disp:
-#   class:            'PhaseDisplay'
-#   inputs:
-#     phase:       "prop.out_on_axis_source_ef"
-#   title:            'PHASE ON AXIS'
-#   figsize:       [8, 6]  # Default size in inches
-
-# pixels_disp:
-#   class:            'PixelsDisplay'
-#   inputs:
-#     pixels:      "detector1.out_pixels"
-#   title:            "Pixels"
-#   figsize:       [8, 6]  # Default size in inches

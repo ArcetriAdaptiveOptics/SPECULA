@@ -1,0 +1,17 @@
+# override for display settings (MORFEO SCAO)
+
+main_override:
+  display_server:    false
+
+psf_disp:
+  class:            'PsfDisplay'
+  inputs:
+    psf:       'psf.out_psf'
+  title:            'PSF'
+  figsize:       [9, 8]  # size in inches
+
+sr_disp:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'psf.out_sr'
+  title:            'SR'

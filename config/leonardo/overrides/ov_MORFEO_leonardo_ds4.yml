@@ -59,6 +59,4 @@ slopec_ref1_override: { target_device_idx: 0, target_rank: 0 }
 slopec_ref2_override: { target_device_idx: 1, target_rank: 0 }
 slopec_ref3_override: { target_device_idx: 2, target_rank: 0 }
 
-subtract_ref_override: { value2_remap_data: 'ref_input_index2.fits' }
-
 
