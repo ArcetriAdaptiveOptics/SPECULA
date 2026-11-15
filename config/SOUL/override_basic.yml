@@ -1,0 +1,30 @@
+# override for basic/stepping SOUL pyramid simulation
+
+remove: ['data_store']
+
+main_override:
+  total_time:        0.002264               # [s] Total simulation running time
+  stepping:          True
+  display_server:    False
+
+wind_direction_override:
+  constant:          [0.,30.,-30.,45.]      # [degrees] Wind direction value
+
+# Passing through a processing object allows
+# the pupilstop to be used with MPI as well
+pupilstop_ctrl:
+  class: 'PupilstopController'
+  pupilstop_ref: pupilstop
+
+prop_override:
+  inputs:
+    atmo_layer_list: ['atmo.layer_list']
+    common_layer_list: ['pupilstop_ctrl.out_layer',
+                  'dm.out_layer:-1']
+
+data_store:
+  class:             'DataStore'
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  data_format:       'fits'
+  inputs:
+    input_list: ['wfsPhi-prop.out_on_axis_source_ef']

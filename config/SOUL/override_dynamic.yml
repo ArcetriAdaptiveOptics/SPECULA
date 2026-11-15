@@ -1,0 +1,24 @@
+# override for dynamic integrator configuration for SOUL pyramid simulation
+# (DynamicIntegrator class)
+
+remove: ['data_store']
+
+main_override:
+  total_time:        30.00                  # [s] Total simulation running time
+
+input:
+  class:             'TerminalInput'
+  output_list:       ['gain:float', 'reset:int']
+
+control_override:
+  class:             'DynamicIntegrator'
+  int_gain:          [0.3]
+  ff:                [0.99]
+  n_modes:           [500]
+  inputs:
+      delta_comm: 'rec.out_modes'
+      int_gain: 'input.gain'
+      reset: 'input.reset'
+
+psf_override:
+  outputs: ['out_sr']
