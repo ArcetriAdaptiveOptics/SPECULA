@@ -1,11 +1,12 @@
----
+# this file includes dynamic integrator configuration for SOUL pyramid simulation
+# (DynamicIntegrator class)
 
 main:
   class:             'SimulParams'
   root_dir:          '/raid1/guido/PASSATA/LBT'         # Root directory for calibration manager  
   pixel_pupil:       220                    # Linear dimension of pupil phase array
   pixel_pitch:       0.037372727            # [m] Pitch of the pupil phase array
-  total_time:        30.00                # [s] Total simulation running time
+  total_time:        30.00                  # [s] Total simulation running time
   time_step:         0.000588               # [s] Simulation time step
   zenithAngleInDeg:  0.000
   display_server:    True
@@ -26,7 +27,6 @@ wind_speed:
 
 wind_direction:
   class:             'WaveGenerator'
-  #constant:          [0.,30.,-30.,45.]   # [degrees] Wind direction value
   constant:          [0.,0.,0.,0.]   # [degrees] Wind direction value
 
 
@@ -91,12 +91,9 @@ detector:
   size:              [120,120]               # Detector size in pixels
   dt:                0.000588                # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
-  #photon_noise:      True                    # activate photon noise
-  #readout_noise:     True                    # activate readout noise
-  #excess_noise:      True
-  photon_noise:      False                    # activate photon noise
-  readout_noise:     False                    # activate readout noise
-  excess_noise:      False
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  excess_noise:      True
   readout_level:     0.4                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.32                    # quantum efficiency * total transmission
   inputs:
@@ -122,7 +119,7 @@ control:
   class:             'DynamicIntegrator'
   delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.3]
-  ff:                [0.977895]
+  ff:                [0.99]
   n_modes:           [500]
   inputs:
       delta_comm: 'rec.out_modes'

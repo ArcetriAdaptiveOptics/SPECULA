@@ -4,7 +4,7 @@ main:
   root_dir:          '/raid1/guido/PASSATA/LBT' # Root directory for calibration manager  
   pixel_pupil:       220                    # Linear dimension of pupil phase array
   pixel_pitch:       0.037372727            # [m] Pitch of the pupil phase array
-  total_time:        0.002                # [s] Total simulation running time
+  total_time:        0.002264               # [s] Total simulation running time
   time_step:         0.000588               # [s] Simulation time step
   zenithAngleInDeg:  0.000
   stepping:   True
@@ -80,9 +80,9 @@ detector:
   size:              [120,120]               # Detector size in pixels
   dt:                0.000588                # [s] Detector integration time
   bandw:             300                     # [nm] Sensor bandwidth
-  photon_noise:      False                    # activate photon noise
-  readout_noise:     False                    # activate readout noise
-  excess_noise:      False
+  photon_noise:      True                    # activate photon noise
+  readout_noise:     True                    # activate readout noise
+  excess_noise:      True
   readout_level:     0.4                     # readout noise in [e-/pix/frame]
   quantum_eff:       0.32                    # quantum efficiency * total transmission
   inputs:
