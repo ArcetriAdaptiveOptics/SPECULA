@@ -7,10 +7,23 @@ Entries are short; the PR linked to each one has the details.
 
 ### New processing and data objects
 
-- ...
+- `GerchbergSaxton`: Gerchberg-Saxton phase retrieval, with the same inputs and outputs as `Lift` (#846)
+- `NonlinearModalrec` and `NonlinearResponseCalibrator`: modal reconstructor with a per-mode saturation correction from calibrated response curves (#862)
+- `Conv2dNetTrainer` and `Conv2dNetTester`: training and scoring of a CNN on 2D maps buffered during the simulation, with the new `Slopes2D`; needs torch (`pip install specula[nn]`) (#863)
+- `DistributedExtSourcePyramid`: extended source points split over several GPUs (#874)
+- `PeriodicRandomGenerator`: random value redrawn every `update_interval` seconds (#852)
 
 ### Interface changes
 
+- The simulation framework (base classes, `Simul`, generic data and processing objects, math and control objects) is now the `iteras` package; `specula.*` imports, class names and parameter files are unchanged (#828, #843, #847)
+- New Allocator (placement of the objects on nodes, processes and GPUs) and Accelerator (CUDA graphs of the simulation loop) (#851)
+- `DataStore`/`DataSource`: new `npz` and `hdf5` data formats (#843)
+- Accelerator: new `on_error` option; by default an object whose capture fails runs as Python code, with a warning (#917)
+- `Intmat.generate_rec()` honours `cut_modes` (truncated SVD) (#873)
+- `DataBuffer`: new `align` option (default `True`), emits only the steps in which all the inputs were updated (#852)
+- `WaveGenerator`: new `duty_cycle` option for square waves (#852)
+- `PolyChromSH`, `PolyCromPyramid`: new `n_devices`, to spread the wavelengths over several GPUs (#875)
+- `toccd()`: new `out` argument (#885)
 - Every input declared in `input_names()` must be created by the constructor (`optional=True` for unconnected ones); `sanity_check()` runs before `setup()` (#916)
 - Accelerator on by default (`--no-accelerate` to turn it off) and the only CUDA graph mechanism: `build_stream()` and the object streams removed, classes opt in with `can_accelerate()`; new `internal_objects()` (#897)
 - Accelerator: matrix products between objects with different precisions computed in one precision; change `Modalrec.recmat` by assignment, not in place (#919)
@@ -31,7 +44,7 @@ Entries are short; the PR linked to each one has the details.
 - `IirFilterData`: transfer functions and plots are discrete-time by default (`dt=True`) (#848)
 - `IirFilterData.lpf_from_fc()` and `LowPassFilter` with `n_ord=1`: first-order Butterworth filter (#848)
 - `PhaseUnwrapper`: new interval unwrapping mode (`interval_unwrap`, `err_1`, `err_2`) (#841)
-- `SH`: exact integration of the PSF over the detector pixels, the pixel scale is exactly `sensor_pxscale`; `set_fov_res_to_turbpxsc` deprecated, `squaremask=False` not supported (#839)
+- `SH`: exact integration of the PSF over the detector pixels, the pixel scale is exactly `sensor_pxscale`; `set_fov_res_to_turbpxsc` deprecated, `squaremask=False` not supported; builds on #836 by @salma2vec (#839)
 - `SH` with LGS: closed-form Fourier coefficients of the convolution kernels, no kernel files saved (#908)
 - `ModulatedPyramid`: physical model of the pyramid defects and new `pyr_roof_ld` roof defect; `fp_obs` is a diameter in lambda/D; new `default_mod_step()` (#912)
 - `PolyCromPyramid`: parameters in lambda/D given at a reference wavelength (new `ref_wavelength_idx`) (#912)
@@ -66,6 +79,23 @@ Entries are short; the PR linked to each one has the details.
 - Fixed `LowPassFilter` without `n_ord` and `amplif_fact` (#848)
 - `IirFilterData`: complex zeros and poles; `num`/`den` of different widths aligned as in `IirFilter` (#848)
 - Fixed sign error in far-field propagation and Fresnel propagation distance, added power-loss warning (#842)
+- `ModulatedPyramid`: one modulation step at a time, pruned FFT (-80% GPU memory, 20-40% faster) (#886)
+- GPU memory: memory cached by the cupy pools released after setup and first trigger (MORFEO 19 -> 10 GB) (#902), `IFunc`/`IFuncInv` restored without copies (#903), file uploads staged in a temporary pool (#905)
+- `SH`: field of each subaperture row computed directly into the padded cube (#900)
+- `PSF`: preallocated buffers and in-place FFT (#884)
+- `compute_ifs_covmat()`: batched FFTs and tiled symmetric product (#889, #899)
+- `PolyChromSH`, `PolyCromPyramid`: the instances use their own CUDA graphs (#882)
+- `MVM`, `SsrFilter` and `MirrorCommandsCombinator` can be accelerated (#853)
+- `rebin2d()`: faster on GPU (#883); FITS `has()` reads only the header (#894)
+- `toccd()`: exact area weights, much faster; fixed non-square and non-contiguous arrays on GPU (#885)
+- Fixed `BaseOperation` ignoring `value2_remap` when `value2` is shorter than `value1`; fixed the capture of `BaseSlicer` and `PSF` (#917)
+- Fixed `PAPLCoronagraph` pupil stop, which was not applied (#872)
+- `AtmoInfiniteEvolution`: bilinear interpolation of the fractional shift, positions in double precision (#854)
+- Fixed `transferDataTo()` skipping scalar attributes (#852)
+- Fixed `DistributedSH` rows not computed when `n_slices` does not divide `subap_on_diameter` (#859)
+- Fixed display server startup on Windows and `LoopControl.niters()` rounding (#864)
+- Removed unused code (#857, #870)
+- Docs: science camera tutorial and static aberrations (#845)
 
 ### Upgrade notes
 
@@ -78,6 +108,12 @@ Entries are short; the PR linked to each one has the details.
 - First-order low-pass filters change (#848); pass the plant explicitly to the `IirFilterData` analysis methods (#849), and `dt=None` for the previous continuous-time functions (#848)
 - `make_mask` spiders are thinner: use a larger `spider_width` (about 5 instead of 3) to keep a similar mask (#879)
 - `PsfCoronagraph` integrated and std profiles were too small by the PSF peak (#909); `Lift` and SPRINT estimates change (#876, #880)
+- Reconstructors computed with `cut_modes` change (#873)
+- With connected objects in different precisions, the precision of some matrix products changes (#919)
+- Runs using `BaseOperation` with `value2_remap` and a shorter `value2` (e.g. MORFEO `subtract_ref`) change (#917)
+- `PAPLCoronagraph` results change, also with the default stop ratios (#872)
+- `AtmoInfiniteEvolution` layers change for winds not along an axis (#854)
+- `DataBuffer` drops the steps in which not all inputs were updated: `align: false` keeps them (#852)
 - Custom processing objects: create every declared input in the constructor, not in `setup()` (#916); override `can_accelerate()` instead of calling `build_stream()` (#897)
 
 ## [1.1.0] - 2026-10-20
@@ -101,7 +137,6 @@ Entries are short; the PR linked to each one has the details.
 - `DM`: mode selection resolved once at init; `nmodes` is now the input command length (#799)
 - New `--async-displays` option: displays in a separate process (#781)
 - `make_modal_base_from_ifs_fft()`: KL columns of `m2c` without piston (#787)
-- `toccd()`: new `out` argument (#885)
 - `ShSlopec`: trigger captured in a CUDA graph (9x faster); `Slopec` subclasses implement `compute_slopes()` instead of `trigger_code()` (#776)
 - Displays: new `window_xy` parameter for the window position (#726)
 - `DynamicDarkCalibrator`: new `dark_frame_tag` (#726)
@@ -135,7 +170,6 @@ Entries are short; the PR linked to each one has the details.
 - Fixed `filt_modes` in `make_modal_base_from_ifs_fft()`, which was ignored (#787)
 - Fixed display grouping in a window and `DoublePhaseDisplay` (#783)
 - Fixed upwards Fresnel propagation in `AtmoPropagation`, which propagated backwards (#777)
-- `toccd()`: exact area weights, much faster; fixed non-square and non-contiguous arrays on GPU (#885)
 - CUDA graphs: error if an input array is reallocated after the capture; fixed `ExtSourcePyramid` modifying its input (#776)
 - Fixed `DynamicDarkCalibrator` loads and saves and `PixelsPupDisplay` (#726)
 - Precision fixes: `BaseValue.restore()`, `PhaseScreenCube` (also GPU crash and speed), `AtmoPropagation` Fresnel propagators (#756)
