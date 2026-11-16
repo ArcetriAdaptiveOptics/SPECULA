@@ -27,3 +27,7 @@ pyramid:
   inputs:
     in_ef: 'prop.out_on_axis_source_ef'
     ext_source_coeff: 'extended_source.coeff'
+
+detector_override:
+  inputs:
+    in_i: 'pyramid.out_i'

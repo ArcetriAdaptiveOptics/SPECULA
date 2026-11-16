@@ -76,6 +76,10 @@
 - `IirFilterData`: `get_zeros()` and `get_poles()` return complex arrays (complex roots, e.g. the poles of an underdamped second-order filter, were truncated to their real part); `set_zeros()` and `set_poles()` accept complex roots in conjugate pairs and raise a `ValueError` otherwise.
 - Fixed sign error in far-field propagation. Propagation distance for `doFresnel=true` is no longer reduced. Added power-loss warning for long distance propagation, if more than `power_loss_warning_threshold` of the power falls outside the padded grid.
 
+### Other
+
+- `config/` cleanup (#922).
+
 ## [1.1.0] - 2026-10-20
 
 ### New processing and data objects

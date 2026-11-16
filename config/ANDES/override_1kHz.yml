@@ -3,8 +3,14 @@
 main_override:
   time_step:         0.001                  # [s] Simulation time step
 
-disturbance_ttDefAstigComaM1_override:
+disturbance_M1_override:
   time_hist_object:     'ttDefAstigComaM1_1kHz_seed2_n5000steps_specula'
+
+dm_M1_override:
+  ifunc_object:         'ttDefAstigComaM1'
+  nmodes:               2401
+
+remove: ['windshake_M2', 'dm_M2']
 
 detector_override:
   dt:                0.001                   # [s] Detector integration time

@@ -137,7 +137,7 @@ control:
   class:             'Integrator'
   delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.2]
-  n_modes:           [1000]
+  n_modes:           [2000]
   inputs:
       delta_comm: 'rec.out_modes'     
   outputs:  ['out_comm']
@@ -147,7 +147,7 @@ dm:
   simul_params_ref:  'main'
   ifunc_object:      'M4_eso_zonal_486p_5352a_slaved'
   m2c_object:        'M4_eso_39.5m_486p_20230215'
-  nmodes:            1000
+  nmodes:            2000
   height:            0                      # DM height [m]
   inputs:
       in_command: 'control.out_comm'
