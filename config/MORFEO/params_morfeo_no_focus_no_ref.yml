@@ -8,7 +8,7 @@ main:
   total_time:        2.000                  # [s] Total simulation running time
   time_step:         0.002                  # [s] Simulation time step
   zenithAngleInDeg:  30.0                   # [deg] Airmass correction
-  display_server:    false                   # Display server on auto-selected port
+  display_server:    true                    # Display server on auto-selected port
 
 
 seeing:
@@ -444,14 +444,6 @@ data_store:
 # ---------------
 # Displays
 # ----------------
-
-modes_disp:
-  class:            'ModesDisplay'
-  inputs:
-    modes:       'modal_analysis.out_modes'
-  title:            'residual modes'
-  xrange:           [0, 100]
-  yrange:           [-500.0, 500.0]
 
 #ph_disp:
 #  class:            'PhaseDisplay'

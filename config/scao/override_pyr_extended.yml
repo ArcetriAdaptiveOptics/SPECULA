@@ -1,0 +1,33 @@
+# Override for params_scao_pyr.yml with an extended source (ExtSourcePyramid).
+# Usage:
+#   specula params_scao_pyr.yml calib_pyr_pupdata.yml
+#   specula params_scao_pyr.yml override_pyr_extended.yml calib_pyr_rec.yml
+#   specula params_scao_pyr.yml override_pyr_extended.yml
+
+remove: ['pyramid']
+
+extended_source:
+  class:             'ExtendedSource'
+  simul_params_ref:  'main'
+  wavelengthInNm:     750 # [nm] Wavelength of the extended source
+  source_type:       'TOPHAT'
+  sampling_lambda_over_d: 1.0 # Sampling in lambda/D units
+  size_obj:          0.5 # Size of the extended source in arcsec
+  sampling_type:     'POLAR' # Sampling type for the extended source
+  outputs: ['coeff'] # Output coefficients (tip, tilt, focus and flux)
+
+pyramid:
+  class:             'ExtSourcePyramid'      # The extended source replaces the modulation
+  simul_params_ref:  'main'
+  pup_diam:          30.                     # Pupil diameter in subaps.
+  pup_dist:          36.                     # Separation between pupil centers in subaps.
+  fov:               2.0                     # Requested field-of-view [arcsec]
+  output_resolution: 80                      # Output sampling [usually corresponding to CCD pixels]
+  wavelengthInNm:    750                     # [nm] Pyramid wavelength
+  inputs:
+    in_ef: 'prop.out_on_axis_source_ef'
+    ext_source_coeff: 'extended_source.coeff'
+
+detector_override:
+  inputs:
+    in_i: 'pyramid.out_i'

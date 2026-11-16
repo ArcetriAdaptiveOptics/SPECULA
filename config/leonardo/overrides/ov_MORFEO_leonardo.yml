@@ -65,6 +65,4 @@ slopec_ref3_override: { target_device_idx: 3, target_rank: 7 }
 #detector_ref2_override: { dt: 0.002 }
 #detector_ref3_override: { dt: 0.002 }
 
-subtract_ref_override: { value2_remap_data: 'ref_input_index2.fits' }
-
 

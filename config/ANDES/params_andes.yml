@@ -2,7 +2,7 @@
 
 main:
   class:             'SimulParams'
-  root_dir:          '/raid2/gcarla/git/ANDES/andes/PASSATA_scripts/data/'
+  root_dir:          '/raid2/andes/SPECULA_calib/'
   pixel_pupil:       400
   pixel_pitch:       0.0975                 # 39./400. [m] Pitch of the pupil phase array
   total_time:        5.000                  # [s] Total simulation running time
@@ -254,6 +254,13 @@ psf:
 data_store:
   class:             'DataStore'
   store_dir:         './output'             # Data result directory: 'store_dir'/TN/
+  downsample_factor_by_input:
+    phase:           10 # save one out of every 10
+    res:             1  # save every frame
+    pixels:          10 # save one out of every 10
+    slopes:          1  # save every frame
+    modes:           1  # save every frame
+    sr:              1  # save every frame
   inputs:
     input_list: ['phase-prop.out_wfs_source_ef',
                  'res-modal_analysis.out_modes',
@@ -261,23 +268,3 @@ data_store:
                  'slopes-slopec.out_slopes',
                  'modes-modalrec.out_modes',
                  'sr-psf.out_sr']
-
-#sc_disp:
-#  class:            'SlopecDisplay'
-#  inputs:
-#    slopes:       'slopec.out_slopes'
-#sr_disp:
-#  class:            'PlotDisplay'
-#  inputs:
-#    value:       'psf.out_sr'
-#  title:            'SR'
-#ph_disp:
-#  class:            'PhaseDisplay'
-#  inputs:
-#    phase:       "prop.out_wfs_source_ef"
-#  title:            'PUPIL PHASE'
-#dm_disp:
-#  class:            'PhaseDisplay'
-#  inputs:
-#    phase:       "dm.out_layer"
-#  title:            'DM'

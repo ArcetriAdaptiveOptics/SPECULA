@@ -241,7 +241,7 @@ remove: ['atmo', 'seeing', 'wind_speed', 'wind_direction',
         'rec_focus', 'slicer_focus', 'iir_focus',
         'modal_combination',
         'slicer1', 'slicer2', 'slicer3',
-        'psf', 'modal_analysis', 'data_store', 'modes_disp'
+        'psf', 'modal_analysis', 'data_store'
   ]
 
 remove_0: ['dm2' , 'dm3']

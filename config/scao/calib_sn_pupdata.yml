@@ -1,0 +1,15 @@
+
+sn_calib:
+  class: 'SnCalibrator'
+  output_tag:       'scao_sn'
+  overwrite:       true
+  inputs:
+    in_slopes: 'slopec.out_slopes'
+
+main_override:
+  total_time: 0.002
+
+pyramid_override:
+  mod_amp: 20
+
+remove: ['atmo']

@@ -96,8 +96,7 @@ remove: ['atmo',
         'm2c_m4',
         'psf',
         'modal_analysis',
-        'data_store',
-        'modes_disp'
+        'data_store'
   ]
   
  

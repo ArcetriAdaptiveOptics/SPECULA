@@ -1,0 +1,12 @@
+# override for display settings (MORFEO MCAO)
+
+main_override:
+  display_server:    false
+
+modes_disp:
+  class:            'ModesDisplay'
+  inputs:
+    modes:       'modal_analysis.out_modes'
+  title:            'residual modes'
+  xrange:           [0, 100]
+  yrange:           [-500.0, 500.0]

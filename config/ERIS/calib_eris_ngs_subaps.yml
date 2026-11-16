@@ -5,6 +5,7 @@ sh_subaps:
   subap_on_diameter:  40
   output_tag:        'eris_subaps'
   energy_th:         0.5
+  overwrite: True
   inputs:
     in_i: 'sh.out_i'
 

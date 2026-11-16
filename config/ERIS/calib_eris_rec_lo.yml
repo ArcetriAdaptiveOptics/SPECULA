@@ -4,7 +4,8 @@ pushpull:
   class:     'PushPullGenerator'
   ncycles:    2
   nmodes:     10
-  vect_amplitude_data:  'data50_1127'
+  vect_amplitude_data:  'data50_1127' # A file containing data on vector amplitude
+                                      # a similar file is generated in the “scao_tutorial” tutorial
   outputs: ['output']
 
 main_override:

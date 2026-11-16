@@ -5,5 +5,3 @@ main_override:
   root_dir:        '/leonardo_work/IscrC_SPECIAL/raid1/guido/PASSATA/MAORYC'         # Root directory for calibration manager
   total_time:      0.100
   display_server:  false
-
-subtract_ref_override: { value2_remap_data: 'ref_input_index2.fits' }

@@ -12,10 +12,10 @@ main:
 
 
 seeing:
-  class:             'FuncGenerator'
+  class:             'RandomGenerator'
   amp:               0.6
   constant:          0.6                  # range of [0.4, 1.2]
-  func_type:         'RANDOM_UNIFORM'
+  distribution:      'UNIFORM'
   outputs: ['output']
 
 
@@ -54,8 +54,8 @@ petals:
   tag: 'ifunc_160p_2petals'
 
 petals_error:
-  class: 'FuncGenerator'
-  func_type: 'RANDOM_UNIFORM'
+  class: 'RandomGenerator'
+  distribution: 'UNIFORM'
   constant: [0.0, 0.0]  # [nm] Average for each petal
   amp: [0.0,1000.0]  # [nm] St. Dev. for each petal
   outputs: ['output']

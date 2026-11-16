@@ -1,0 +1,34 @@
+# override for display settings
+
+main_override:
+  display_server:    false
+
+dm_disp:
+  class:            'PhaseDisplay'
+  inputs:
+    phase:       "dm.out_layer"
+  title:            'DM'
+
+sc_disp:
+  class:            'SlopecDisplay'
+  inputs:
+    slopes:       'slopec.out_slopes'
+
+sr_disp:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'psf.out_sr'
+  title:            'SR'
+
+ph_disp:
+  class:            'PhaseDisplay'
+  inputs:
+    phase:       "prop.out_source_ngs_ef"
+  title:            'PUPIL PHASE'
+
+psf_disp:
+  class:            'PsfDisplay'
+  log_scale: True
+  inputs:
+    psf:       "psf.out_psf"
+  title:            'PSF'

@@ -1,5 +1,3 @@
-
-
 pushpull:
   class:     'PushPullGenerator'
   nmodes:     2000
@@ -7,7 +5,7 @@ pushpull:
   outputs: ['output']
 
 main_override:
-  total_time:  8.0000 # 18.076
+  total_time:  8.0000
 
 prop_override:
   inputs:
@@ -19,35 +17,27 @@ dm_override:
   inputs:
       in_command: 'pushpull.output'
 
-sh_lgs1_override:
-  convolGaussSpotSize: 1.8
-
 detector1_override:
   photon_noise:      False
   readout_noise:     False
 
-sh_lgs1_override:
-  convolGaussSpotSize: 1.8
-
-calibrator:
-  class: 'ImRecCalibrator'
-  nmodes: 4519
+im_calibrator:
+  class: 'ImCalibrator'
+  nmodes: 2000
   im_tag:     'test_morfeo_scao_im_2000modes'
-  rec_tag:     'test_morfeo_scao_rec_2000modes'
-  pupdata_tag: 'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
-  data_dir: '/tmp'
+  overwrite: True
   inputs:
     in_slopes: 'slopec1.out_slopes'
     in_commands: 'pushpull.output'
+  outputs: ['out_intmat']
 
-# pixels_disp:
-#   class:            'PixelsDisplay'
-#   inputs:
-#     pixels:      "detector1.out_pixels"
-#   title:            "Pixels"
-#   figsize:       [8, 6]  # Default size in inches
+rec_calibrator:
+  class: 'RecCalibrator'
+  nmodes: 2000
+  rec_tag:     'test_morfeo_scao_rec_2000modes'
+  pupdata_tag: 'morfeo_np_ps480p0.080_shs68x68_wl589_fv16.1_np14_th0.25'
+  overwrite: True
+  inputs:
+    in_intmat: 'im_calibrator.out_intmat'
 
 remove: ['atmo', 'rec', 'control']
- 
-
-

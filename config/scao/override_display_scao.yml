@@ -1,0 +1,47 @@
+# override for display settings
+
+main_override:
+  display_server:    false
+
+sc_disp:
+  class:            'SlopecDisplay'
+  inputs:
+    slopes:       'slopec.out_slopes'
+
+sr_disp:
+  class:            'PlotDisplay'
+  inputs:
+    value:       'psf.out_sr'
+  title:            'SR'
+
+ph_disp:
+  class:            'PhaseDisplay'
+  inputs:
+    phase:       "prop.out_on_axis_source_ef"
+  title:            'PUPIL PHASE'
+
+dm_disp:
+  class:            'PhaseDisplay'
+  inputs:
+    phase:       "dm.out_layer"
+  title:            'DM'
+
+psf_disp:
+  class:            'PsfDisplay'
+  inputs:
+    psf:       "psf.out_psf"
+  title:            'PSF'
+  figsize:       [9, 8]  # size in inches
+
+cmd_disp:
+  class:            'ModesDisplay'
+  inputs:
+    modes:       "rec.out_modes"
+  title:            'rec.out_modes'
+
+pixels_disp:
+  class:            'PixelsDisplay'
+  inputs:
+    pixels:      "detector.out_pixels"
+  title:            "Pixels"
+

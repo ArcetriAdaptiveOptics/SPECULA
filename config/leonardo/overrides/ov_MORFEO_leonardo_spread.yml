@@ -67,6 +67,7 @@ slopec_ref3_override: { target_device_idx: 2, target_rank: 14 }
 tomo_ngs_override: { target_device_idx: 3, target_rank: 7 }
 iir_ngs_override: { target_device_idx: 3, target_rank: 7 }
 iir_focus_override: { target_device_idx: 3, target_rank: 7 }
+inserter_ref_override: { target_device_idx: 3, target_rank: 7 }
 subtract_ref_override: { target_device_idx: 3, target_rank: 7 }
 
 rec_focus_override: { target_device_idx: 3, target_rank: 11 }
@@ -81,8 +82,6 @@ psf_override: { target_device_idx: 3, target_rank: 15 }
 #detector_ref1_override: { dt: 0.002 }
 #detector_ref2_override: { dt: 0.002 }
 #detector_ref3_override: { dt: 0.002 }
-
-subtract_ref_override: { value2_remap_data: 'ref_input_index2.fits' }
 
 
 

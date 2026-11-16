@@ -116,6 +116,10 @@ Entries are short; the PR linked to each one has the details.
 - `DataBuffer` drops the steps in which not all inputs were updated: `align: false` keeps them (#852)
 - Custom processing objects: create every declared input in the constructor, not in `setup()` (#916); override `can_accelerate()` instead of calling `build_stream()` (#897)
 
+### Other
+
+- `config/` cleanup (#922).
+
 ## [1.1.0] - 2026-10-20
 
 ### New processing and data objects

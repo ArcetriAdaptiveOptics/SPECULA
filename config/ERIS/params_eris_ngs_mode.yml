@@ -44,10 +44,12 @@ source_ngs:
   zero_point:        1.6995e-08
 
 
-
 pupilstop:                                 # Default parameters (circular pupil)
   class: 'Pupilstop'
-  tag: 'ut4pupilM3160noLB'
+  simul_params_ref:  'main'
+  mask_diam : 1.                           # pupil mask diameter (relative number)
+  obs_diam : 0.138                         # pupil mask obscuration diameter (relative number)
+
 
 atmo:
   class:                'AtmoEvolution'
@@ -111,7 +113,7 @@ slopec:
   class:             'ShSlopec'
   weightedPixRad:    3
   thr_value:         0
-  subapdata_object:  'eris_M3_noLB_ps160p0.051_shs40x40_wl768_fv2.5_np6_th0.50_chd'       # subaperture data tag
+  subapdata_object:  'eris_subaps'       # subaperture data tag
   inputs:
     in_pixels:        'detector.out_pixels'
   outputs:  ['out_slopes']
@@ -119,7 +121,7 @@ slopec:
 
 modalrec:
   class:              'Modalrec'
-  recmat_object:      'eris_M3_noLB_ps160p0.051_shs40x40_wl768_fv2.5_np6_th0.50_chd_mn945_ce'              # reconstruction matrix tag
+  recmat_object:      'eris_rec'              # reconstruction matrix tag
   inputs:
     in_slopes:        'slopec.out_slopes'
   outputs:  ['out_modes']
@@ -131,7 +133,7 @@ integrator:
   class:        'Integrator'
   delay:             2                      # explicit temporal delay in time steps; additional to the 1-step feedback lag from dm.out_layer:-1
   int_gain:          [0.40]
-  n_modes:           [945]
+  n_modes:           [700]
   inputs:
       delta_comm: 'modalrec.out_modes'     
   outputs:  ['out_comm']
@@ -139,8 +141,8 @@ integrator:
 dm:
   class:             'DM'
   simul_params_ref:  'main'
-  ifunc_object:      'VLT_ifunc_160p_M3_noLB_v1'
-  nmodes:            945
+  ifunc_object:      'VLT_ifunc'
+  nmodes:            700
   height:            0                        # DM height [m]
   inputs:
       in_command: 'integrator.out_comm'
@@ -158,14 +160,14 @@ psf:
 
 modal_analysis:
   class: 'ModalAnalysis'
-  ifunc_inv_object: 'VLT_ifunc_160p_M3_noLB_v1_inv'
+  ifunc_inv_object: 'VLT_ifunc_inv'
   inputs:
     in_ef: 'prop.out_source_on_axis_ef'
   outputs: ['out_modes']
 
 data_store:
   class:             'DataStore'
-  store_dir:         '/raid1/guido/result4comparison/ERIS/'             # Data result directory: 'store_dir'/TN/
+  store_dir:         './output'             # Data result directory: 'store_dir'/TN/
   inputs:
     input_list: ['resMod-modal_analysis.out_modes',
                  'deltaComm-modalrec.out_modes',

@@ -114,7 +114,6 @@ prop:
                   'dm1.out_layer:-1',
                   'dm2.out_layer:-1',
                   'dm3.out_layer:-1',
-  #               'dm_disturb.out_layer'
                   ]
   outputs: ['out_source_on_axis_ef','out_source_lgs1_ef','out_source_lgs2_ef','out_source_lgs3_ef',
             'out_source_lgs4_ef','out_source_lgs5_ef','out_source_lgs6_ef',
