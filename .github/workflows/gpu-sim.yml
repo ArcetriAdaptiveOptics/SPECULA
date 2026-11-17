@@ -1,0 +1,153 @@
+name: GPU tests (simulated H100)
+
+# Optional, non-required check. The runners of specula.yml have no GPU and do
+# not install cupy, so the GPU variants of the tests never run there. This
+# runs them with CuPy on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim). A simulator cannot reproduce
+# hardware-specific behavior or timing.
+#
+# CuPy 13 and later link the CUDA runtime statically, which the simulator
+# cannot run, so this uses CuPy 12.3 (shared runtime, CUDA 12.6 toolkit).
+# CuPy compiles its kernels with NVRTC; CUPY_COMPILE_WITH_PTX makes it emit
+# PTX, which is what the simulator runs.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "specula/**"
+      - "iteras/**"
+      - "test/**"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: gpu-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gpu-sim:
+    name: CuPy 12.3 on a simulated H100
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Set up the simulated H100 and CUDA 12.6 toolkit
+        uses: pantheongpu/setup-pantheonsim@a1b9d4237411f9b2b0e0bb895b4d83377f336a7b # v0.1.9
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "12.6"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest "cupy-cuda12x==12.3.0" "numpy<2"
+
+      # specula.init() falls back to numpy when cupy cannot be imported, and
+      # cpu_and_gpu then skips the GPU legs without a message, so check first
+      # that the simulated H100 is the device cupy and specula use.
+      - name: Check that cupy sees the simulated H100
+        env:
+          CUDA_PATH: /usr/local/cuda-12.6
+          CUPY_COMPILE_WITH_PTX: "1"
+        run: |
+          vgpu run python - <<'PY'
+          import cupy
+          import specula
+          specula.init(0)
+          assert specula.cp is cupy and specula.xp is cupy, "specula fell back to numpy"
+          name = cupy.cuda.runtime.getDeviceProperties(0)["name"].decode()
+          print(name)
+          assert "H100" in name
+          assert float((cupy.arange(10, dtype=cupy.float32) * 2).sum()) == 90.0
+          PY
+
+      # Counts the tests that built objects on a GPU and fails the run if
+      # there are too few, so a run where every GPU leg was skipped cannot
+      # pass (the full run has about 1300 of them).
+      - name: Write the pytest guard plugin
+        run: |
+          mkdir -p "$RUNNER_TEMP/guard"
+          cat > "$RUNNER_TEMP/guard/gpu_guard.py" <<'PY'
+          import collections
+
+          import pytest
+
+          gpu_objects = collections.Counter()
+          current = [None]
+
+
+          def pytest_configure(config):
+              import iteras.base_time_obj as bto
+              original = bto.BaseTimeObj.__init__
+
+              def init(self, *args, **kwargs):
+                  original(self, *args, **kwargs)
+                  if self.target_device_idx >= 0:
+                      gpu_objects[current[0]] += 1
+
+              bto.BaseTimeObj.__init__ = init
+
+
+          def pytest_runtest_setup(item):
+              current[0] = item.nodeid
+
+
+          @pytest.hookimpl(trylast=True)
+          def pytest_sessionfinish(session, exitstatus):
+              print(f"\nGPU guard: {len(gpu_objects)} tests built objects on a GPU")
+              if len(gpu_objects) < 1000:
+                  print("GPU guard: too few tests used the GPU")
+                  session.exitstatus = 1
+          PY
+
+      # Whole test directory, except what needs more than this job installs
+      # (torch, control, orthogram, MPI, a display or web server) and the
+      # files in which a single test takes more than a minute on the simulator.
+      # test_report_names_scaled_gpu_times expects a GPU model that is not
+      # the simulated one, and test_object_file_formats starts a second pytest.
+      # In the full run test_gpu_mem_track had one failure (a memory pool size
+      # off by 18944 bytes) that did not occur when the file ran alone, so
+      # it is run by itself.
+      - name: Run the tests on the simulated H100
+        env:
+          CUDA_PATH: /usr/local/cuda-12.6
+          CUPY_COMPILE_WITH_PTX: "1"
+          PYTHONPATH: ${{ runner.temp }}/guard
+        run: |
+          vgpu run python -m pytest test -p gpu_guard -rs \
+            --ignore-glob='test/test_*display*' \
+            --ignore-glob='test/test_*mpi*' \
+            --ignore-glob='test/test_*distributed*' \
+            --ignore-glob='test/test_*diagram*' \
+            --ignore-glob='test/test_*cnn*' \
+            --ignore-glob='test/test_conv2d*' \
+            --ignore=test/test_efficient_u_net.py \
+            --ignore=test/test_web_frontend.py \
+            --ignore=test/test_terminal_input.py \
+            --ignore=test/test_iteras_tutorials.py \
+            --ignore=test/test_gpu_mem_track.py \
+            --ignore=test/test_object_file_formats.py \
+            --ignore=test/test_accelerator.py \
+            --ignore=test/test_atmo_evolution.py \
+            --ignore=test/test_atmo_evolution_up_down.py \
+            --ignore=test/test_atmo_random_phase.py \
+            --ignore=test/test_double_roof_calibration.py \
+            --ignore=test/test_ext_source_pyr.py \
+            --ignore=test/test_extended_source.py \
+            --ignore-glob='test/test_sprint*' \
+            --deselect test/test_allocator.py::TestReportSolverMachine::test_report_names_scaled_gpu_times
+          vgpu run python -m pytest test/test_gpu_mem_track.py -rs
