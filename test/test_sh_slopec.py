@@ -316,25 +316,30 @@ class TestShSlopec(unittest.TestCase):
         pixels.pixels = intensity
         pixels.generation_time = t_slopec
 
-        vec_wei_pix_rad_t = xp.asarray([
-            [0.5, 0.2],
-            [1.5, 1.0],
-            [3.0, 3.0],
-        ])
-
-        slopec = ShSlopec(subapdata, vecWeiPixRadT=vec_wei_pix_rad_t,
-                          target_device_idx=target_device_idx)
-        slopec.inputs['in_pixels'].set(pixels)
-        slopec.check_ready(t_slopec)
-        slopec.trigger()
-        slopec.post_trigger()
-
-        # At t=2.0 s, rows at 0.2 s and 1.0 s are valid, so selected radius must be 1.5.
-        self.assertAlmostEqual(float(slopec.weighted_pix_rad), 1.5)
-
+        table = [[0.5, 0.2],
+                 [1.5, 1.0],
+                 [3.0, 3.0]]
         expected = ShSlopec(subapdata, weightedPixRad=1.5, target_device_idx=target_device_idx)
-        np.testing.assert_allclose(cpuArray(slopec.mask_weighted),
-                                   cpuArray(expected.mask_weighted), atol=1e-6)
+
+        # A plain list (as given by a YAML file) and an array must behave the same
+        for vec_wei_pix_rad_t in (table, xp.asarray(table)):
+            slopec = ShSlopec(subapdata, vecWeiPixRadT=vec_wei_pix_rad_t,
+                              target_device_idx=target_device_idx)
+            slopec.inputs['in_pixels'].set(pixels)
+            slopec.check_ready(t_slopec)
+            slopec.trigger()
+            slopec.post_trigger()
+
+            # At t=2.0 s, rows at 0.2 s and 1.0 s are valid, so selected radius must be 1.5.
+            self.assertAlmostEqual(float(slopec.weighted_pix_rad), 1.5)
+            np.testing.assert_allclose(cpuArray(slopec.mask_weighted),
+                                       cpuArray(expected.mask_weighted), atol=1e-6)
+
+    def test_vec_wei_pix_rad_t_wrong_shape(self):
+        """vecWeiPixRadT rows must be [weightedPixRad, time]."""
+        _, _, _, _, subapdata = self.get_sh(-1, np, with_laser_launch=False)
+        with self.assertRaises(ValueError):
+            ShSlopec(subapdata, vecWeiPixRadT=[1.0, 0.0])
 
 
     @cpu_and_gpu

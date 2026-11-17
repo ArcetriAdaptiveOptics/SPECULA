@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from specula import fuse
+from specula import fuse, cpuArray
 from specula.base_processing_obj import OutputDesc
 from specula.data_objects.slopes import Slopes
 from specula.data_objects.subap_data import SubapData
@@ -137,7 +137,14 @@ class ShSlopec(Slopec):
         self.ycweights = None
         self.mask_weighted = None
         self.weighted_pix_rad = weightedPixRad
-        self.vec_wei_pix_rad_t = vecWeiPixRadT
+        # Small schedule table, compared with the host time at each step: kept on the host
+        # (a YAML file gives a list, a caller may give a cupy array)
+        self.vec_wei_pix_rad_t = None
+        if vecWeiPixRadT is not None:
+            self.vec_wei_pix_rad_t = cpuArray(vecWeiPixRadT, dtype=np.float64)
+            if self.vec_wei_pix_rad_t.ndim != 2 or self.vec_wei_pix_rad_t.shape[1] != 2:
+                raise ValueError('vecWeiPixRadT must have rows [weightedPixRad, time in s], '
+                                 f'got shape {self.vec_wei_pix_rad_t.shape}')
         self.windowing = windowing
         # Per-subaperture threshold, as a fraction of the brightest pixel of each subaperture
         self.thr_ratio_value = thr_ratio_value
@@ -261,10 +268,10 @@ class ShSlopec(Slopec):
         super().prepare_trigger(t)
 
         if self.vec_wei_pix_rad_t is not None:
-            idxW = self.xp.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[0]
+            idxW = np.where(self.current_time_seconds > self.vec_wei_pix_rad_t[:, 1])[0]
             if len(idxW) > 0:
                 i_last = idxW[-1]
-                weighted_pix_rad = self.xp.asarray(self.vec_wei_pix_rad_t[i_last, 0]).item()
+                weighted_pix_rad = float(self.vec_wei_pix_rad_t[i_last, 0])
                 if weighted_pix_rad != self.weighted_pix_rad:
                     self.weighted_pix_rad = weighted_pix_rad
                     self.logger.debug(f'self.weighted_pix_rad: {self.weighted_pix_rad}')

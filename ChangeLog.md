@@ -52,6 +52,7 @@ Entries are short; the PR linked to each one has the details.
 
 ### Other
 
+- Fixed `ShSlopec` `vecWeiPixRadT` given as a list, e.g. from YAML (#924)
 - Fixed `ImShSynimGenerator` with `compute_rec=False` (#915)
 - Async displays: the display process exits when the simulation dies (#914)
 - Fixed `FocalPlaneFilter` `fp_obs`, now the obstruction diameter in lambda/D (#913)
