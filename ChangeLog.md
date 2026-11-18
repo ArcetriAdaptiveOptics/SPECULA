@@ -49,7 +49,7 @@ Entries are short; the PR linked to each one has the details.
 - `ModulatedPyramid`: physical model of the pyramid defects and new `pyr_roof_ld` roof defect; `fp_obs` is a diameter in lambda/D; new `default_mod_step()` (#912)
 - `PolyCromPyramid`: parameters in lambda/D given at a reference wavelength (new `ref_wavelength_idx`) (#912)
 - `ModulatedDoubleRoof`: defects follow the roof geometry, `pyr_max_side_ld` is applied, `pyr_tip_def_ld` raises an error (#912)
-- `ModalAnalysis`: error if the modal mask shape differs from the input field, or if mask pixels fall on zero-amplitude pixels (new `allow_invalid_mask_pixels` to only warn) (#PR)
+- `ModalAnalysis`: error if the modal mask shape differs from the input field, or if mask pixels fall on zero-amplitude pixels (new `allow_invalid_mask_pixels` to only warn) (#925)
 
 ### Other
 
