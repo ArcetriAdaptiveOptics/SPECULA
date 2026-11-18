@@ -15,7 +15,7 @@ Entries are short; the PR linked to each one has the details.
 
 ### Interface changes
 
-- Requires SynIM 2.1.0 (was 1.3.0): SynIM interaction matrices of rotated or magnified components now use the same pixel-centre convention as `Interp2D` (#877) (#PR)
+- Requires SynIM 2.1.0 (was 1.3.0): SynIM interaction matrices of rotated or magnified components now use the same pixel-centre convention as `Interp2D` (#877) (#926)
 - The simulation framework (base classes, `Simul`, generic data and processing objects, math and control objects) is now the `iteras` package; `specula.*` imports, class names and parameter files are unchanged (#828, #843, #847)
 - New Allocator (placement of the objects on nodes, processes and GPUs) and Accelerator (CUDA graphs of the simulation loop) (#851)
 - `DataStore`/`DataSource`: new `npz` and `hdf5` data formats (#843)
