@@ -564,3 +564,152 @@ class TestIirFilterDataExactStability(unittest.TestCase):
         f_pole = np.arccos(1 / (2 * np.sqrt(0.99))) / (2 * np.pi) * fs
         self.assertAlmostEqual(result['resonance_frequency'], f_pole, delta=1.0)
         self.assertGreater(result['resonance_amplitude'], 10)
+
+
+class TestIirFilterFreeze(unittest.TestCase):
+    """Optional input in_freeze of IirFilter (MORFEO LO double integrator with leak)."""
+
+    DI_NUM = [0.19125, -0.65, 0.5]
+    DI_DEN = [0.995, -1.995, 1.0]
+
+    @staticmethod
+    def _run(data, inputs, freeze=None, delay=0):
+        """Feed inputs[t] (array per step) and freeze[t] (scalar or array, None = not
+        connected); return the out_comm values, one row per step."""
+        from specula.base_value import BaseValue
+        from specula.processing_objects.iir_filter import IirFilter
+
+        flt = IirFilter(data, delay=delay, target_device_idx=-1)
+        inp = BaseValue(value=np.zeros(data.nfilter), target_device_idx=-1)
+        flt.inputs['delta_comm'].set(inp)
+        if freeze is not None:
+            frz = BaseValue(value=np.zeros(1), target_device_idx=-1)
+            flt.inputs['in_freeze'].set(frz)
+        flt.setup()
+        out = []
+        for t, x in enumerate(inputs, start=1):
+            inp.value = np.broadcast_to(np.asarray(x, dtype=float), (data.nfilter,)).copy()
+            inp.generation_time = t
+            if freeze is not None:
+                frz.value = np.atleast_1d(np.asarray(freeze[t - 1], dtype=float)).copy()
+                frz.generation_time = t
+            flt.check_ready(t)
+            flt.trigger()
+            flt.post_trigger()
+            out.append(cpuArray(flt.outputs['out_comm'].value).copy())
+        return np.array(out)
+
+    def _di(self, nmodes=2):
+        return IirFilterData(ordnum=[3] * nmodes, ordden=[3] * nmodes,
+                             num=[self.DI_NUM] * nmodes, den=[self.DI_DEN] * nmodes,
+                             target_device_idx=-1)
+
+    def _integrator(self, g, nmodes=1):
+        return IirFilterData(ordnum=[2] * nmodes, ordden=[2] * nmodes,
+                             num=[[0.0, g]] * nmodes, den=[[-1.0, 1.0]] * nmodes,
+                             target_device_idx=-1)
+
+    N = 20  # steps of constant drive before the input stops
+    M = 15  # steps after the input stops
+
+    def test_momentum_without_freeze(self):
+        """Control case: the double integrator keeps moving after the input stops
+        (velocity decays only as 0.995^k)."""
+        x = [1.0] * self.N + [0.0] * self.M
+        out = self._run(self._di(), x)
+        moved = out[-1] - out[self.N - 1]
+        self.assertTrue(np.all(np.abs(moved) > 0.1 * np.abs(out[self.N - 1])))
+        self.assertTrue(np.all(np.sign(moved) == np.sign(out[self.N - 1])))
+
+    def test_frozen_output_is_constant_whatever_the_input(self):
+        x = [1.0] * self.N + [0.0, 5.0, -3.0, 2.0] + [0.0] * self.M
+        n = len(x)
+        freeze = [0.0] * self.N + [1.0] * (n - self.N)
+        out = self._run(self._di(), x, freeze)
+        ref = self._run(self._di(), x[:self.N])
+        np.testing.assert_array_equal(out[:self.N], ref)
+        held = ref[-1]
+        for row in out[self.N:]:
+            np.testing.assert_array_equal(row, held)
+
+    def test_release_with_zero_input_has_no_residual_velocity(self):
+        x = [1.0] * self.N + [0.0] * (2 * self.M)
+        freeze = [0.0] * self.N + [1.0] * self.M + [0.0] * self.M
+        out = self._run(self._di(), x, freeze)
+        held = out[self.N - 1]
+        np.testing.assert_allclose(out[self.N:], np.tile(held, (2 * self.M, 1)),
+                                   rtol=0, atol=1e-12)
+        # same history, no freeze: it drifts away
+        free = self._run(self._di(), x)
+        self.assertTrue(np.all(np.abs(free[-1] - held) > 0.1 * np.abs(held)))
+
+    def test_release_with_nonzero_input_plain_integrator(self):
+        g = 0.4
+        x = [1.0] * 5 + [0.0, 0.0] + [2.0]
+        freeze = [0.0] * 5 + [1.0, 1.0] + [0.0]
+        out = self._run(self._integrator(g), x, freeze)
+        held = g * 5
+        np.testing.assert_allclose(out[:5, 0], g * np.arange(1, 6))
+        np.testing.assert_allclose(out[5:7, 0], held)
+        np.testing.assert_allclose(out[7, 0], held + g * 2.0, rtol=1e-12)
+
+    def test_release_with_nonzero_input_double_integrator(self):
+        """First output after release = held + num[2] * x, since past inputs are 0
+        and past outputs are all equal to held (den sums to 0.995-1.995+1 = 0.0)."""
+        x = [1.0] * self.N + [0.0] + [2.0]
+        freeze = [0.0] * self.N + [1.0] + [0.0]
+        out = self._run(self._di(1), x, freeze)
+        held = out[self.N - 1, 0]
+        expected = held + self.DI_NUM[2] * 2.0 / self.DI_DEN[2]
+        np.testing.assert_allclose(out[self.N + 1, 0], expected, rtol=1e-12)
+
+    def test_per_filter_freeze(self):
+        rng = np.random.default_rng(0)
+        steps = 40
+        x = rng.standard_normal((steps, 2))
+        fz = np.zeros((steps, 2))
+        fz[15:25, 0] = 1.0
+        out = self._run(self._di(), x, fz)
+        ref = self._run(self._di(), x)
+        # mode 1 never frozen: identical to the reference
+        np.testing.assert_array_equal(out[:, 1], ref[:, 1])
+        # mode 0 held during the freeze, equal to the reference before
+        np.testing.assert_array_equal(out[:15, 0], ref[:15, 0])
+        np.testing.assert_array_equal(out[15:25, 0], out[14, 0])
+
+    def test_scalar_freeze_applies_to_all_filters(self):
+        x = [1.0] * 10 + [3.0] * 5
+        freeze = [0.0] * 10 + [1.0] * 5
+        out = self._run(self._di(), x, freeze)
+        for row in out[10:]:
+            np.testing.assert_array_equal(row, out[9])
+
+    def test_not_connected_is_bitwise_identical(self):
+        rng = np.random.default_rng(1)
+        x = rng.standard_normal((50, 2))
+        a = self._run(self._di(), x)
+        b = self._run(self._di(), x)
+        np.testing.assert_array_equal(a, b)
+        # connected but never frozen: also identical
+        c = self._run(self._di(), x, np.zeros(50))
+        np.testing.assert_array_equal(a, c)
+
+    def test_delay_line_still_delivers_pre_freeze_commands(self):
+        delay = 2
+        x = [1.0] * 6 + [1.0] * 8
+        freeze = [0.0] * 6 + [1.0] * 8
+        out = self._run(self._integrator(0.5), x, freeze, delay=delay)
+        ref = self._run(self._integrator(0.5), x[:6], delay=delay)
+        np.testing.assert_array_equal(out[:6], ref)
+        # commands computed at steps 5 and 6 (last pre-freeze) arrive during the freeze
+        # (computed values are 0.5 * k, delayed by 2 steps, then held at 0.5 * 6)
+        np.testing.assert_allclose(out[:, 0], [0, 0, 0.5, 1.0, 1.5, 2.0, 2.5] + [3.0] * 7,
+                                   atol=1e-12)
+        # after the delay, out_comm is constant
+        self.assertTrue(np.all(out[delay + 6:] == out[delay + 6]))
+
+    def test_wrong_size_raises(self):
+        x = [1.0] * 3
+        freeze = [[1.0, 0.0, 1.0]] * 3
+        with self.assertRaises(ValueError):
+            self._run(self._di(2), x, freeze)
