@@ -12,6 +12,7 @@ Entries are short; the PR linked to each one has the details.
 - `Conv2dNetTrainer` and `Conv2dNetTester`: training and scoring of a CNN on 2D maps buffered during the simulation, with the new `Slopes2D`; needs torch (`pip install specula[nn]`) (#863)
 - `DistributedExtSourcePyramid`: extended source points split over several GPUs (#874)
 - `PeriodicRandomGenerator`: random value redrawn every `update_interval` seconds (#852)
+- `SpotSupervisor` and `ShSlopecMovable`: spot reacquisition for a fixed-window WCoG tip/tilt sensor on a large field (one SNR map per look; hold with zero slopes and frozen controller; window moves, confirmation and feedforward); `IirFilter`: optional input `in_freeze` (#927)
 
 ### Interface changes
 

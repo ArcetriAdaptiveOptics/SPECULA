@@ -30,6 +30,14 @@ class IirFilter(BaseFilter):
     When integration=False, the filter becomes purely feedforward (FIR),
     removing all feedback/memory from previous outputs while maintaining
     the gain characteristics defined by the numerator coefficients.
+
+    Optional input ``in_freeze`` (scalar or one value per filter, > 0.5 = frozen):
+    a frozen filter keeps its last output, and its state is set to rest at
+    that output (all past outputs equal to it, past inputs zero). For an
+    integrating filter (sum of the denominator = 0) the output stays there
+    after the release until new inputs arrive: no command keeps moving with
+    the memory of the filter (e.g. the velocity state of a double
+    integrator). Commands already in the delay line are still delivered.
     """
 
     def __init__(self,
@@ -48,10 +56,16 @@ class IirFilter(BaseFilter):
             precision=precision)
 
         self.inputs['in_ost'] = InputValue(type=BaseValue, optional=True)
+        self.inputs['in_freeze'] = InputValue(type=BaseValue, optional=True)
 
         # IIR-specific state
         self._ist = self.xp.zeros_like(iir_filter_data.num)
         self._ost = self.xp.zeros_like(iir_filter_data.den)
+
+        # Freeze: 1 = frozen, per filter; last output before the current step
+        self._freeze_on = False
+        self._freeze = self.xp.zeros(iir_filter_data.nfilter, dtype=self.dtype)
+        self._last = self.xp.zeros(iir_filter_data.nfilter, dtype=self.dtype)
 
         # Integration control
         self._den_mask = self.xp.ones_like(self.iir_filter_data.den)
@@ -62,7 +76,9 @@ class IirFilter(BaseFilter):
     def input_names(cls):
         result = super().input_names()
         result.update({
-            'in_ost': InputDesc(BaseValue, 'State update to subtract from integrators (optional)')
+            'in_ost': InputDesc(BaseValue, 'State update to subtract from integrators (optional)'),
+            'in_freeze': InputDesc(BaseValue, 'Freeze flag, scalar or per filter: > 0.5 keeps the last output '
+                                              'and sets the state to rest at it (optional)')
         })
         return result
 
@@ -85,6 +101,16 @@ class IirFilter(BaseFilter):
             for j in range(self._ost.shape[1]):
                 self._ost[:, j] -= ost_update_array
 
+        # Copied into the same array at each step (CUDA graph); the masked path
+        # in trigger_code() runs only when the input is connected
+        in_freeze_input = self.local_inputs.get('in_freeze')
+        self._freeze_on = in_freeze_input is not None and in_freeze_input.value is not None
+        if self._freeze_on:
+            freeze = self.xp.atleast_1d(self.xp.asarray(in_freeze_input.value, dtype=self.dtype)).ravel()
+            if freeze.size != self._nfilter and freeze.size != 1:
+                raise ValueError(f"in_freeze size {freeze.size} doesn't match nfilter {self._nfilter}")
+            self._freeze[:] = freeze > 0.5
+
     def can_accelerate(self):
         # trigger_code() only launches GPU work on arrays updated in place
         return True
@@ -95,6 +121,9 @@ class IirFilter(BaseFilter):
         snum = self.iir_filter_data.num.shape
         no = sden[1]
         ni = snum[1]
+
+        if self._freeze_on:
+            self._last[:] = self._ost[:, no - 1]
 
         # Shift state buffers
         self._ost[:, :-1] = self._ost[:, 1:]
@@ -115,6 +144,12 @@ class IirFilter(BaseFilter):
             self._ost[:, :no - 1], axis=1)
 
         output = factor * (num_contrib - den_contrib)
+        if self._freeze_on:
+            # frozen filters: output = last output, state at rest there
+            m = self._freeze[:, None]
+            output = self._freeze * self._last + (1 - self._freeze) * output
+            self._ost[:] = m * self._last[:, None] + (1 - m) * self._ost
+            self._ist[:] = (1 - m) * self._ist
         self._ost[:, no - 1] = output
 
         # Store in buffer
