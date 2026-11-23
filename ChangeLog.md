@@ -53,6 +53,7 @@ Entries are short; the PR linked to each one has the details.
 
 ### Other
 
+- Documentation: the ELT segmented DM tutorial builds the M4 basis with `zern_modes=5`, so that modes 3-4 are the astigmatisms (#PR)
 - Fixed `ShSlopec` `vecWeiPixRadT` given as a list, e.g. from YAML (#924)
 - Fixed `ImShSynimGenerator` with `compute_rec=False` (#915)
 - Async displays: the display process exits when the simulation dies (#914)
