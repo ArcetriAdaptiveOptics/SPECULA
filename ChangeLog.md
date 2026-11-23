@@ -53,6 +53,7 @@ Entries are short; the PR linked to each one has the details.
 
 ### Other
 
+- SPRINT: coherent demodulation of the probe signal, linear in the slopes (#929)
 - Documentation: the ELT segmented DM tutorial builds the M4 basis with `zern_modes=5`, so that modes 3-4 are the astigmatisms (#928)
 - Fixed `ShSlopec` `vecWeiPixRadT` given as a list, e.g. from YAML (#924)
 - Fixed `ImShSynimGenerator` with `compute_rec=False` (#915)
@@ -110,7 +111,7 @@ Entries are short; the PR linked to each one has the details.
 - `DistributedSH` without `fov_ovs_coeff` changes (#866)
 - First-order low-pass filters change (#848); pass the plant explicitly to the `IirFilterData` analysis methods (#849), and `dt=None` for the previous continuous-time functions (#848)
 - `make_mask` spiders are thinner: use a larger `spider_width` (about 5 instead of 3) to keep a similar mask (#879)
-- `PsfCoronagraph` integrated and std profiles were too small by the PSF peak (#909); `Lift` and SPRINT estimates change (#876, #880)
+- `PsfCoronagraph` integrated and std profiles were too small by the PSF peak (#909); `Lift` and SPRINT estimates change (#876, #880, #929)
 - Reconstructors computed with `cut_modes` change (#873)
 - With connected objects in different precisions, the precision of some matrix products changes (#919)
 - Runs using `BaseOperation` with `value2_remap` and a shorter `value2` (e.g. MORFEO `subtract_ref`) change (#917)
