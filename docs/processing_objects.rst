@@ -274,6 +274,17 @@ read it, so that they read the value of the previous iteration before it is over
 As a consequence, only one-step delays are supported: delays other than ``0`` and ``-1`` (e.g. ``:-2``) raise an error.
 Longer delays must be implemented inside the processing objects (for example with the *delay* parameter of the filters).
 
+The two delays have different units. The *delay* parameter of the filters is counted in triggers of the filter:
+a filter is triggered only when its input is refreshed (see `Readiness check`_), and its delay buffer advances
+at each trigger. A ``:-1`` connection is one simulation step (``main.time_step``).
+With a sensor that refreshes its output only at the end of each frame (as the ``CCD``), the filter delay is
+counted in sensor frames, and from the end of a sensor frame to the DM update a loop has *delay* sensor frames
+plus one time step. When the sensor frame equals the time step the two units coincide (``delay: 1`` gives a
+2-frame loop). In a multi-rate simulation the ``:-1`` lag is a fraction of a sensor frame: ``delay: 1`` with a
+sensor frame of 4 time steps gives 1.25 sensor frames.
+With a sensor that refreshes its output at every step, also between frames (e.g. ``WindowedIntegration`` with
+``update_time_on_dt: False``), the filter is triggered at every step and its delay is counted in time steps.
+
 Objects in the same group can be triggered at the same time.
 
 Readiness check
