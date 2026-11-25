@@ -13,9 +13,20 @@ exactly, whatever the sensor frame N. With tau = 0 the DelayLine is transparent.
 DelayLine output changes only when a value is released, so a frame-refreshed sensor
 (N = 4) gives one refresh per frame, not one per step.
 
+Fractional delay: delay_s need not be a multiple of the time step. A value produced at
+t is active from t + delay_s; if that falls inside step n (r = fraction of the step still
+with the previous value) the output of step n is r*previous + (1-r)*new, from step n+1 the
+new value alone, and the generation time is refreshed at both steps. Expectations:
+  - single rate (N = 1): the filter's fractional delay out[n] = r*c[n-k-1] + (1-r)*c[n-k]
+    (delay = k + r) is the step mean of a command delayed by k + r steps, so
+    Integrator(delay=1.75) == Integrator(delay=0) + DelayLine(1.75 steps), also for 0.5;
+  - N = 4, delay 7.5 steps: the residual first changes at lag 8 steps by half of the full
+    first correction, and has the full correction from lag 9 (':-1' adds one step);
+  - unit: input every 4 steps, delay 2.5 -> 0.5*prev + 0.5*new, then new, then held;
+    input every step, delay 1.25 -> out[n] = 0.25*x[n-2] + 0.75*x[n-1].
+
 Direct unit tests: an input refreshed at every step with delay of 3 steps gives
-output(t) = input(t - 3); invalid delays (negative, not a multiple of the time step)
-raise ValueError.
+output(t) = input(t - 3); a negative delay raises ValueError.
 """
 import os
 import shutil
@@ -38,6 +49,7 @@ TIME_STEP = 0.001   # [s]
 STEP_TIME = 0.008   # [s] the unit step starts at the beginning of a sensor frame for N = 1, 2, 4, 8
 TOTAL_TIME = 0.060  # [s]
 THRESHOLD = 1e-6
+GAIN = 1.0          # integrator gain of the single-rate fractional-delay comparison
 
 
 def _read(path):
@@ -56,7 +68,7 @@ class TestDelayLineLoop(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
 
-    def _run(self, n_frame, tau_steps, use_delay_line=True, int_delay=0):
+    def _run(self, n_frame, tau_steps, use_delay_line=True, int_delay=0, int_gain=1.0):
         """Run the loop. Return (lag in steps, residual (t, v), out_value (t, v))."""
         if use_delay_line:
             feedback = 'latency.out_value:-1'
@@ -72,7 +84,7 @@ class TestDelayLineLoop(unittest.TestCase):
             'sensor': {'class': 'WindowedIntegration', 'simul_params_ref': 'main', 'n_elem': 1,
                        'dt': n_frame * TIME_STEP, 'update_time_on_dt': True,
                        'inputs': {'input': 'residual.out_value'}},
-            'control': {'class': 'Integrator', 'int_gain': [1.0], 'delay': int_delay,
+            'control': {'class': 'Integrator', 'int_gain': [int_gain], 'delay': int_delay,
                         'inputs': {'delta_comm': 'sensor.output'}},
             'data_store': {'class': 'DataStore', 'store_dir': self.tmp, 'create_tn': False,
                            'inputs': {'input_list': ['res-residual.out_value',
@@ -114,6 +126,28 @@ class TestDelayLineLoop(unittest.TestCase):
         lag_ref, (_, res_ref), _ = self._run(1, 0, use_delay_line=False, int_delay=1)
         self.assertEqual(lag_ref, 2)
         np.testing.assert_allclose(res_dl, res_ref, atol=1e-12)
+
+    def test_single_rate_matches_filter_fractional_delay(self):
+        """N=1: Integrator(delay=d) == Integrator(delay=0) + DelayLine(d steps), d < 1 and > 1."""
+        for d in (0.5, 1.75):
+            with self.subTest(delay=d):
+                _, (t_dl, res_dl), _ = self._run(1, d, int_gain=GAIN)
+                _, (t_ref, res_ref), _ = self._run(1, 0, use_delay_line=False, int_delay=d,
+                                                   int_gain=GAIN)
+                self.assertTrue(np.all(np.isfinite(res_ref)))
+                np.testing.assert_allclose(t_dl, t_ref)
+                np.testing.assert_allclose(res_dl, res_ref, atol=1e-12)
+
+    def test_n4_fractional_delay_half_correction_then_full(self):
+        """N=4, delay 7.5 steps: first change at lag 8 is half of the full correction,
+        full from lag 9 (until the second command, 4 steps later)."""
+        lag, (t_res, res), _ = self._run(4, 7.5)
+        self.assertEqual(lag, 8)
+        i0 = np.flatnonzero((t_res >= STEP_TIME) & (np.abs(res - 1.0) > THRESHOLD))[0]
+        np.testing.assert_allclose(np.diff(t_res[i0:i0 + 4]), TIME_STEP, atol=1e-9)
+        half, full = 1.0 - res[i0], 1.0 - res[i0 + 1]
+        self.assertAlmostEqual(half / full, 0.5, delta=1e-12 * abs(full))
+        np.testing.assert_allclose(res[i0 + 1:i0 + 4], res[i0 + 1], atol=1e-12)
 
     def test_tau0_is_transparent(self):
         """tau = 0: same residual time series as the loop without DelayLine."""
@@ -196,10 +230,38 @@ class TestDelayLineUnit(unittest.TestCase):
         with self.assertRaises(ValueError):
             DelayLine(simul_params=SimParams(time_step=TIME_STEP), delay_s=-TIME_STEP)
 
-    def test_delay_not_multiple_of_time_step_raises(self):
-        with self.assertRaises(ValueError):
-            DelayLine(simul_params=SimParams(time_step=TIME_STEP), delay_s=0.0015)
+    def test_fractional_delay_slow_input(self):
+        """Input every 4 steps (k=1,5,9), delay 2.5: active at k+2.5, so at step k+2 the
+        output is 0.5*previous + 0.5*new, at k+3 the new value, then held. The generation
+        time changes exactly at those two steps per value."""
+        dl = self._make(2.5)
+        outs, gens = {}, {}
+        for k in range(1, 13):
+            fresh = 10.0 * k if (k - 1) % 4 == 0 else None
+            outs[k], gens[k] = self._step(dl, k, value=fresh)
+        expected = {1: 0, 2: 0, 3: 5, 4: 10, 5: 10, 6: 10, 7: 30, 8: 50, 9: 50, 10: 50,
+                    11: 70, 12: 90}
+        for k, v in expected.items():
+            self.assertAlmostEqual(outs[k], v, msg=k)
+        g0 = gens[1]   # initial generation time, unchanged until the first activation
+        last = None
+        for k in range(1, 13):
+            if k % 4 in (3, 0):   # the two steps of each activation
+                last = k
+            self.assertEqual(gens[k], g0 if last is None else last * self.t, k)
 
+    def test_fractional_delay_every_step(self):
+        """Input every step, delay 1.25: out[n] = 0.25*x[n-2] + 0.75*x[n-1] (x[0] = 0)."""
+        dl = self._make(1.25)
+        x = {0: 0.0}
+        for k in range(1, 12):
+            x[k] = 10.0 * k
+            out, gen = self._step(dl, k, value=x[k])
+            if k == 1:
+                self.assertEqual(out, 0.0)
+            else:
+                self.assertAlmostEqual(out, 0.25 * x[k - 2] + 0.75 * x[k - 1])
+                self.assertEqual(gen, k * self.t)
 
 if __name__ == '__main__':
     unittest.main()
