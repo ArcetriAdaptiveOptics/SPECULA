@@ -285,6 +285,31 @@ sensor frame of 4 time steps gives 1.25 sensor frames.
 With a sensor that refreshes its output at every step, also between frames (e.g. ``WindowedIntegration`` with
 ``update_time_on_dt: False``), the filter is triggered at every step and its delay is counted in time steps.
 
+A fractional *delay* interpolates linearly between two commands instead of shifting them in time.
+For an exact delay in seconds, independent of the rate of the input, use a ``DelayLine`` object: it is triggered
+at every step and releases each input value *delay_s* seconds after it was produced. For example, a loop with a
+sensor frame of 4 time steps and exactly 2 frames from the end of a frame to the DM update:
+
+.. code-block:: yaml
+
+    control:
+      class:            'Integrator'
+      delay:            0
+      inputs:
+        delta_comm:     'rec.out_modes'
+
+    latency:
+      class:            'DelayLine'
+      simul_params_ref: 'main'
+      delay_s:          0.007          # 2 frames (0.008 s) minus the time step of the ':-1' (0.001 s)
+      inputs:
+        in_value:       'control.out_comm'
+
+    dm:
+      class:            'DM'
+      inputs:
+        in_command:     'latency.out_value'
+
 Objects in the same group can be triggered at the same time.
 
 Readiness check
