@@ -16,7 +16,7 @@ Entries are short; the PR linked to each one has the details.
 
 ### Interface changes
 
-- Filters with a fractional `delay` raise an error if their input is not refreshed at every time step (they would mix two sensor frames): use an integer `delay` and `DelayLine`; `control_ref` of `params_morfeo_full.yml` now has `delay: 0` (#PR)
+- Filters with a fractional `delay` raise an error if their input is not refreshed at every time step (they would mix two sensor frames): use an integer `delay` and `DelayLine`; `control_ref` of `params_morfeo_full.yml` now has `delay: 0` (#932)
 - Requires SynIM 2.1.0 (was 1.3.0): SynIM interaction matrices of rotated or magnified components now use the same pixel-centre convention as `Interp2D` (#877) (#926)
 - The simulation framework (base classes, `Simul`, generic data and processing objects, math and control objects) is now the `iteras` package; `specula.*` imports, class names and parameter files are unchanged (#828, #843, #847)
 - New Allocator (placement of the objects on nodes, processes and GPUs) and Accelerator (CUDA graphs of the simulation loop) (#851)
