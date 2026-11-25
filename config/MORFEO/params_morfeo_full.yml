@@ -552,10 +552,9 @@ tomo_polc_ref:
 
 control_ref: 
   class:             'Integrator'
-  delay:             2
+  delay:             0
   int_gain:          [0, 0.01, 0,  0.01, 0,  0, 0.01,  0]
   n_modes:           [3, 30,   67, 30,   65, 3, 30,   65]  # 30 modes/DM, and skip the 3 modes for plate scale
-  delay: 1.75
   inputs:
       delta_comm: 'tomo_polc_ref.out_modes'   
   outputs:  ['out_comm']
