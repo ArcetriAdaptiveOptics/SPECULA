@@ -12,7 +12,7 @@ Entries are short; the PR linked to each one has the details.
 - `Conv2dNetTrainer` and `Conv2dNetTester`: training and scoring of a CNN on 2D maps buffered during the simulation, with the new `Slopes2D`; needs torch (`pip install specula[nn]`) (#863)
 - `DistributedExtSourcePyramid`: extended source points split over several GPUs (#874)
 - `PeriodicRandomGenerator`: random value redrawn every `update_interval` seconds (#852)
-- `DelayLine`: pure time delay (`delay_s`, in seconds), exact at the time-step resolution also when the input is slower than the time step (#PR)
+- `DelayLine`: pure time delay (`delay_s`, in seconds), exact at the time-step resolution also when the input is slower than the time step (#931)
 
 ### Interface changes
 
