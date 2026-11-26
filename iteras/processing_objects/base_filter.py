@@ -31,6 +31,7 @@ class BaseFilter(BaseProcessingObj):
 
         self.delay = delay if delay is not None else 0
         self._nfilter = nfilter
+        self._triggered = False
 
         # Set up delay buffer
         buffer_length = int(np.ceil(self.delay)) + 1
@@ -62,6 +63,23 @@ class BaseFilter(BaseProcessingObj):
         # POLC requires the non-delayed command.
         # Actuators are usually driven with the delayed output.
         self.outputs['out_comm_no_delay'] = self.out_comm_no_delay
+
+    def check_ready(self, t):
+        ready = super().check_ready(t)
+        # A fractional delay interpolates between the last two triggers: it is the
+        # mean over the step of a delayed command only if the filter is triggered
+        # at every step. Otherwise it mixes two sensor frames.
+        if self.delay % 1 != 0:
+            if ready:
+                self._triggered = True
+            elif self._triggered:
+                raise ValueError(
+                    f'{self.name}: fractional delay={self.delay} with an input not refreshed at '
+                    f'every time step (no refresh at t={self.t_to_seconds(t)} s). The filter delay '
+                    f'is counted in filter triggers, and a fractional value would mix two sensor '
+                    f'frames instead of delaying the command. Use an integer delay, and a '
+                    f'DelayLine object for a delay in seconds.')
+        return ready
 
     def prepare_trigger(self, t):
         super().prepare_trigger(t)

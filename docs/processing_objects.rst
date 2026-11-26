@@ -287,8 +287,8 @@ With a sensor that refreshes its output at every step, also between frames (e.g.
 
 A fractional *delay* (``k + r``) outputs ``r`` times the command of ``k + 1`` triggers before plus ``1 - r`` times
 the command of ``k`` triggers before. When the filter is triggered at every step this is the mean over the step of
-a command delayed by ``k + r`` steps; when it is triggered once per sensor frame it mixes two frames, which is not a
-time delay.
+a command delayed by ``k + r`` steps; when it is triggered once per sensor frame it would mix two frames, which is
+not a time delay, so a filter with a fractional *delay* raises an error if its input is not refreshed at every step.
 
 For a delay in seconds, independent of the rate of the input, use a ``DelayLine`` object: it is triggered at every
 step and each input value becomes active *delay_s* seconds after it was produced. When this time falls inside a
