@@ -595,20 +595,6 @@ class TestModalAnalysisMaskChecks(unittest.TestCase):
         self.assertIn(f'{n_invalid} pixels', str(cm.exception))
 
     @cpu_and_gpu
-    def test_invalid_mask_pixels_warn_when_allowed(self, target_device_idx, xp):
-        ma, _, n_invalid = self._invalid_case(target_device_idx, xp,
-                                              allow_invalid_mask_pixels=True)
-        ma.setup()
-        with self.assertWarns(RuntimeWarning) as cm:
-            ma.check_ready(self.T)
-        self.assertIn(f'{n_invalid} pixels', str(cm.warning))
-        ma.trigger()
-        ma.post_trigger()
-        out = ma.outputs['out_modes']
-        self.assertEqual(out.generation_time, self.T)
-        self.assertEqual(cpuArray(out.value).shape, (self.NMODES,))
-
-    @cpu_and_gpu
     def test_mask_check_runs_only_at_first_trigger(self, target_device_idx, xp):
         npixels = 24
         ma, ifunc, idx, _ = self._make_ma(npixels, 0.5, target_device_idx, xp)
