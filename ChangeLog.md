@@ -54,6 +54,7 @@ Entries are short; the PR linked to each one has the details.
 ### Other
 
 - SPRINT: coherent demodulation of the probe signal, linear in the slopes (#929)
+- Documentation: units of the controller `delay` (filter triggers: sensor frames with a CCD-like sensor) and of `:-1` (one time step), with a test (#930)
 - Documentation: the ELT segmented DM tutorial builds the M4 basis with `zern_modes=5`, so that modes 3-4 are the astigmatisms (#928)
 - Fixed `ShSlopec` `vecWeiPixRadT` given as a list, e.g. from YAML (#924)
 - Fixed `ImShSynimGenerator` with `compute_rec=False` (#915)
