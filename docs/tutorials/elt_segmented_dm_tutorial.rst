@@ -470,11 +470,19 @@ capture:
         pupil_mask=pupil_mask, diameter=telescope_diameter,
         influence_functions=zonal_ifunc,
         r0=0.15, L0=25.0,          # only used to *weight* the basis
-        zern_modes=3, oversampling=2,
+        zern_modes=5, oversampling=2,
         if_max_condition_number=None,
         xp=specula.xp, dtype=dtype)
 
     print(f'KL basis: {kl_basis.shape[0]} modes x {kl_basis.shape[1]} pixels')
+
+``zern_modes=5`` puts five Zernike modes at the start of the basis: modes 0-4
+are tip, tilt, focus and the two astigmatisms, and the KL modes follow.
+Keep this order if the basis is used in an MCAO simulation: for example,
+in MORFEO ``LinearCombination`` writes the NGS tip/tilt into modes 0-1 and
+the focus into mode 2, and corrects the plate scale with modes 2-4 of the
+DMs. With fewer Zernike modes, modes 3-4 would be KL modes instead of the
+astigmatisms.
 
 ``r0``/``L0`` here only shape which spatial frequencies the basis
 prioritizes; they are independent of whatever atmosphere you eventually

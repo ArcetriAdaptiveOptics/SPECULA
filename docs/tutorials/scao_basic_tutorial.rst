@@ -237,7 +237,7 @@ Create a YAML configuration file, for example ``params_scao_pyr_basic.yml``:
    # The full list of parameters can be found in the init method of the Integrator class.
    control:
      class:             'Integrator'
-     delay:             2                      # Controller delay in time steps, additional to the 1-step causal feedback lag from dm.out_layer:-1
+     delay:             2                      # Controller delay in frames (controller triggers), additional to the 1-step causal feedback lag from dm.out_layer:-1
      int_gain:          [0.5]                  # Integrator gain (for 'INT' control)
      n_modes:           [54]                   # This means we use 54 modes with the same gain
      inputs:

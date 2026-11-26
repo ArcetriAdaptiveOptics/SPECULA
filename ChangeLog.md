@@ -12,9 +12,12 @@ Entries are short; the PR linked to each one has the details.
 - `Conv2dNetTrainer` and `Conv2dNetTester`: training and scoring of a CNN on 2D maps buffered during the simulation, with the new `Slopes2D`; needs torch (`pip install specula[nn]`) (#863)
 - `DistributedExtSourcePyramid`: extended source points split over several GPUs (#874)
 - `PeriodicRandomGenerator`: random value redrawn every `update_interval` seconds (#852)
+- `DelayLine`: time delay in seconds (`delay_s`), independent of the input rate; a delay inside a step gives the mean over that step (#931)
 
 ### Interface changes
 
+- Filters with a fractional `delay` raise an error if their input is not refreshed at every time step (they would mix two sensor frames): use an integer `delay` and `DelayLine`; `control_ref` of `params_morfeo_full.yml` now has `delay: 0` (#932)
+- Requires SynIM 2.1.0 (was 1.3.0): SynIM interaction matrices of rotated or magnified components now use the same pixel-centre convention as `Interp2D` (#877) (#926)
 - The simulation framework (base classes, `Simul`, generic data and processing objects, math and control objects) is now the `iteras` package; `specula.*` imports, class names and parameter files are unchanged (#828, #843, #847)
 - New Allocator (placement of the objects on nodes, processes and GPUs) and Accelerator (CUDA graphs of the simulation loop) (#851)
 - `DataStore`/`DataSource`: new `npz` and `hdf5` data formats (#843)
@@ -53,6 +56,9 @@ Entries are short; the PR linked to each one has the details.
 
 ### Other
 
+- SPRINT: coherent demodulation of the probe signal, linear in the slopes (#929)
+- Documentation: units of the controller `delay` (filter triggers: sensor frames with a CCD-like sensor) and of `:-1` (one time step), with a test (#930)
+- Documentation: the ELT segmented DM tutorial builds the M4 basis with `zern_modes=5`, so that modes 3-4 are the astigmatisms (#928)
 - Fixed `ShSlopec` `vecWeiPixRadT` given as a list, e.g. from YAML (#924)
 - Fixed `ImShSynimGenerator` with `compute_rec=False` (#915)
 - Async displays: the display process exits when the simulation dies (#914)
@@ -109,7 +115,7 @@ Entries are short; the PR linked to each one has the details.
 - `DistributedSH` without `fov_ovs_coeff` changes (#866)
 - First-order low-pass filters change (#848); pass the plant explicitly to the `IirFilterData` analysis methods (#849), and `dt=None` for the previous continuous-time functions (#848)
 - `make_mask` spiders are thinner: use a larger `spider_width` (about 5 instead of 3) to keep a similar mask (#879)
-- `PsfCoronagraph` integrated and std profiles were too small by the PSF peak (#909); `Lift` and SPRINT estimates change (#876, #880)
+- `PsfCoronagraph` integrated and std profiles were too small by the PSF peak (#909); `Lift` and SPRINT estimates change (#876, #880, #929)
 - Reconstructors computed with `cut_modes` change (#873)
 - With connected objects in different precisions, the precision of some matrix products changes (#919)
 - Runs using `BaseOperation` with `value2_remap` and a shorter `value2` (e.g. MORFEO `subtract_ref`) change (#917)

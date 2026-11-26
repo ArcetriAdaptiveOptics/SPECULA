@@ -336,7 +336,17 @@ class BaseSprintEstimator(BaseProcessingObj):
     def _demodulate_slopes(self):
         """
         Demodulate slopes history to extract measured IM.
-        
+
+        Coherent demodulation, one carrier phase per mode. Each slope is
+        s_i(t) = a_i cos(w t + phi_c) + noise, with a signed a_i and a phase
+        phi_c common to all the slopes. The lock-in gives
+        z_i = amp_i exp(1j phase_i) ~ a_i exp(1j phi_c); the common phase is
+        phi0 = angle(sum_i z_i**2) / 2 (the square removes the sign of a_i)
+        and the IM element is Re(z_i exp(-1j phi0)) = amp_i cos(phase_i - phi0).
+        It is linear in the slopes: no sign flips when phi_c is close to
+        +-90 deg and no rectified noise at low SNR. The global sign is
+        ambiguous (phi0 is defined modulo pi), as before.
+
         Returns
         -------
         im_measured : ndarray, shape (nslopes, nmodes) or None
@@ -363,19 +373,24 @@ class BaseSprintEstimator(BaseProcessingObj):
             # Vectorized demodulation for all slopes at once
             # slopes_array shape: (nt, nslopes)
             # demodulate_signal expects: (nt, nsignals)
+            # single-pass lock-in: amplitudes * exp(1j * phases) is linear in
+            # the slopes (the cumulated mode averages amplitude and phase
+            # separately, which is not)
             amplitudes, phases = demodulate_signal(
-                slopes_array,  # Convert to CPU for demodulation
+                slopes_array,
                 carrier_freq,
                 sampling_freq,
+                cumulated=False,
                 xp=self.xp,
                 dtype=self.dtype
             )
 
-            # amplitudes shape: (nslopes,)
-            # phases shape: (nslopes,)
-
-            # Apply phase correction (vectorized)
-            signed_amplitudes = amplitudes * self.xp.sign(self.xp.cos(phases))
+            # amplitudes, phases shape: (nslopes,)
+            # common carrier phase phi0 = angle(sum(z**2)) / 2, in real arithmetic
+            weights = amplitudes ** 2
+            phi0 = 0.5 * self.xp.arctan2(self.xp.sum(weights * self.xp.sin(2 * phases)),
+                                         self.xp.sum(weights * self.xp.cos(2 * phases)))
+            signed_amplitudes = amplitudes * self.xp.cos(phases - phi0)
 
             # Store in IM
             im_measured[:, mode_idx] = signed_amplitudes

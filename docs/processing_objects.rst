@@ -274,6 +274,48 @@ read it, so that they read the value of the previous iteration before it is over
 As a consequence, only one-step delays are supported: delays other than ``0`` and ``-1`` (e.g. ``:-2``) raise an error.
 Longer delays must be implemented inside the processing objects (for example with the *delay* parameter of the filters).
 
+The two delays have different units. The *delay* parameter of the filters is counted in triggers of the filter:
+a filter is triggered only when its input is refreshed (see `Readiness check`_), and its delay buffer advances
+at each trigger. A ``:-1`` connection is one simulation step (``main.time_step``).
+With a sensor that refreshes its output only at the end of each frame (as the ``CCD``), the filter delay is
+counted in sensor frames, and from the end of a sensor frame to the DM update a loop has *delay* sensor frames
+plus one time step. When the sensor frame equals the time step the two units coincide (``delay: 1`` gives a
+2-frame loop). In a multi-rate simulation the ``:-1`` lag is a fraction of a sensor frame: ``delay: 1`` with a
+sensor frame of 4 time steps gives 1.25 sensor frames.
+With a sensor that refreshes its output at every step, also between frames (e.g. ``WindowedIntegration`` with
+``update_time_on_dt: False``), the filter is triggered at every step and its delay is counted in time steps.
+
+A fractional *delay* (``k + r``) outputs ``r`` times the command of ``k + 1`` triggers before plus ``1 - r`` times
+the command of ``k`` triggers before. When the filter is triggered at every step this is the mean over the step of
+a command delayed by ``k + r`` steps; when it is triggered once per sensor frame it would mix two frames, which is
+not a time delay, so a filter with a fractional *delay* raises an error if its input is not refreshed at every step.
+
+For a delay in seconds, independent of the rate of the input, use a ``DelayLine`` object: it is triggered at every
+step and each input value becomes active *delay_s* seconds after it was produced. When this time falls inside a
+step, the output of that step is the mean over the step of the previous and of the new value, as for the filters
+with an input refreshed at every step. For example, a loop with a sensor frame of 4 time steps and exactly 2 frames
+from the end of a frame to the DM update:
+
+.. code-block:: yaml
+
+    control:
+      class:            'Integrator'
+      delay:            0
+      inputs:
+        delta_comm:     'rec.out_modes'
+
+    latency:
+      class:            'DelayLine'
+      simul_params_ref: 'main'
+      delay_s:          0.007          # 2 frames (0.008 s) minus the time step of the ':-1' (0.001 s)
+      inputs:
+        in_value:       'control.out_comm'
+
+    dm:
+      class:            'DM'
+      inputs:
+        in_command:     'latency.out_value'
+
 Objects in the same group can be triggered at the same time.
 
 Readiness check
