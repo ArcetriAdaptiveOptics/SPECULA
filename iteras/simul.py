@@ -415,6 +415,10 @@ class Simul():
                              'the plugin is installed (or listed in add_modules)')
 
         self.cm = CalibManager(self.mainParams['root_dir'])
+        # The parameters as given, for set_simulation_params(): a copy, since
+        # create_input_list_inputs() later expands input_list into one input per
+        # name in params, and a DataStore must save params.yml as it was written
+        params_as_given = deepcopy(params)
         skip_pars = 'class inputs outputs gui_pos'.split()
         if 'add_modules' in self.mainParams:
             additional_modules = self.mainParams['add_modules']
@@ -623,7 +627,7 @@ class Simul():
                 self.logger.error(f'Exception building {key}')
                 raise
             if isinstance(self.objs[key], BaseProcessingObj):
-                self.objs[key].set_simulation_params(params)
+                self.objs[key].set_simulation_params(params_as_given)
         self._ref_copies = {}
 
     def ref_on_device(self, name, target_device_idx):
@@ -735,7 +739,7 @@ class Simul():
 
                 if local_dest_object and input_name != 'input_list':
                     if not input_name in self.objs[dest_object].inputs:
-                        raise ValueError(f'Object {dest_object} does does not have an input called {input_name}')
+                        raise ValueError(f'Object {dest_object} does not have an input called {input_name}')
 
                 if not isinstance(output_name, (str, list)):
                     raise ValueError(f'Object {dest_object}: invalid input definition type {type(output_name)}')
