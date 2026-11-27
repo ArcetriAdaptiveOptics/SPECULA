@@ -13,6 +13,7 @@ Entries are short; the PR linked to each one has the details.
 - `DistributedExtSourcePyramid`: extended source points split over several GPUs (#874)
 - `PeriodicRandomGenerator`: random value redrawn every `update_interval` seconds (#852)
 - `DelayLine`: time delay in seconds (`delay_s`), independent of the input rate; a delay inside a step gives the mean over that step (#931)
+- `SpotSupervisor` and `ShSlopecMovable`: spot reacquisition for a fixed-window WCoG tip/tilt sensor on a large field (one SNR map per look; hold with zero slopes and frozen controller; window moves, confirmation and feedforward); `IirFilter`: optional input `in_freeze` (#927)
 
 ### Interface changes
 
