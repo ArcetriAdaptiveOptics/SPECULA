@@ -13,6 +13,7 @@ Entries are short; the PR linked to each one has the details.
 - `DistributedExtSourcePyramid`: extended source points split over several GPUs (#874)
 - `PeriodicRandomGenerator`: random value redrawn every `update_interval` seconds (#852)
 - `DelayLine`: time delay in seconds (`delay_s`), independent of the input rate; a delay inside a step gives the mean over that step (#931)
+- `SpotSupervisor` and `ShSlopecMovable`: spot reacquisition for a fixed-window WCoG tip/tilt sensor on a large field (one SNR map per look; hold with zero slopes and frozen controller; window moves, confirmation and feedforward); `IirFilter`: optional input `in_freeze` (#927)
 
 ### Interface changes
 
@@ -52,6 +53,7 @@ Entries are short; the PR linked to each one has the details.
 - `ModulatedPyramid`: physical model of the pyramid defects and new `pyr_roof_ld` roof defect; `fp_obs` is a diameter in lambda/D; new `default_mod_step()` (#912)
 - `PolyCromPyramid`: parameters in lambda/D given at a reference wavelength (new `ref_wavelength_idx`) (#912)
 - `ModulatedDoubleRoof`: defects follow the roof geometry, `pyr_max_side_ld` is applied, `pyr_tip_def_ld` raises an error (#912)
+- `ModalAnalysis`: error if the modal mask shape differs from the input field, or if mask pixels fall on zero-amplitude pixels (#925)
 - `AtmoPropagation` with `doFresnel=True`: atmospheric layers act on the whole padded grid, and downwards the field fills the grid (#935)
 - `PowerLoss`: with Fresnel propagation the received power is the intensity in the receiver plane; new `receiver_diameter` (default: point receiver) (#935)
 

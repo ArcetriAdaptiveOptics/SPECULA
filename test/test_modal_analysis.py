@@ -498,3 +498,121 @@ class TestModalAnalysisAccelerated(unittest.TestCase):
         out, ma = self._run(True, precision)
         self.assertTrue(graph_captured(ma))
         np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)
+
+
+class TestModalAnalysisMaskChecks(unittest.TestCase):
+    """Checks of the modal mask against the input electric fields"""
+
+    NMODES = 4
+    T = 1
+
+    def _basis(self, npixels, diaratio, xp):
+        ifunc, mask = compute_zern_ifunc(npixels, nzern=self.NMODES, obsratio=0.0,
+                                         diaratio=diaratio, xp=xp, dtype=xp.float64)
+        return ifunc, mask
+
+    def _make_ma(self, npixels, diaratio, target_device_idx, xp, **kwargs):
+        ifunc, mask = self._basis(npixels, diaratio, xp)
+        obj = ModalAnalysis(ifunc=IFunc(ifunc, mask=mask, target_device_idx=target_device_idx),
+                            target_device_idx=target_device_idx, **kwargs)
+        return obj, ifunc, xp.where(mask), mask
+
+    def _make_ef(self, npixels, target_device_idx, xp, coeffs=None, ifunc=None,
+                 idx=None, valid_radius=None):
+        """EF with phase = coeffs @ ifunc on idx; A = 1 inside valid_radius
+        (pixels, from the frame centre), 0 outside (all ones if None)."""
+        ef = ElectricField(npixels, npixels, 0.1, target_device_idx=target_device_idx)
+        if coeffs is not None:
+            phase = xp.zeros((npixels, npixels), dtype=ef.dtype)
+            phase[idx] = xp.dot(coeffs, ifunc)
+            ef.phaseInNm[:] = phase
+        if valid_radius is not None:
+            y, x = xp.mgrid[:npixels, :npixels]
+            r = xp.sqrt((y - (npixels - 1) / 2) ** 2 + (x - (npixels - 1) / 2) ** 2)
+            ef.A[:] = (r <= valid_radius).astype(ef.A.dtype)
+        ef.generation_time = self.T
+        return ef
+
+    @cpu_and_gpu
+    def test_shape_mismatch_in_ef(self, target_device_idx, xp):
+        ma, _, _, _ = self._make_ma(20, 1.0, target_device_idx, xp)
+        ma.inputs['in_ef'].set(self._make_ef(16, target_device_idx, xp))
+        with self.assertRaises(ValueError):
+            ma.setup()
+
+    @cpu_and_gpu
+    def test_shape_mismatch_in_ef_list(self, target_device_idx, xp):
+        ma, _, _, _ = self._make_ma(20, 1.0, target_device_idx, xp, n_inputs=2)
+        efs = [self._make_ef(20, target_device_idx, xp), self._make_ef(16, target_device_idx, xp)]
+        ma.inputs['in_ef_list'].set(efs)
+        with self.assertRaises(ValueError):
+            ma.setup()
+
+    @cpu_and_gpu
+    def test_shape_mismatch_ifunc_inv(self, target_device_idx, xp):
+        ifunc, mask = self._basis(20, 1.0, xp)
+        ifunc_inv = IFunc(ifunc, mask=mask, target_device_idx=target_device_idx).inverse()
+        ma = ModalAnalysis(ifunc_inv=ifunc_inv, target_device_idx=target_device_idx)
+        ma.inputs['in_ef'].set(self._make_ef(16, target_device_idx, xp))
+        with self.assertRaises(ValueError):
+            ma.setup()
+
+    @cpu_and_gpu
+    def test_valid_mask_no_warning_and_correct_modes(self, target_device_idx, xp):
+        """Mask disk strictly inside the valid pupil: no error, no warning,
+        and the injected coefficients are recovered"""
+        npixels = 24
+        ma, ifunc, idx, _ = self._make_ma(npixels, 0.5, target_device_idx, xp)
+        c = xp.array([10.0, -20.0, 30.0, 5.0])
+        ef = self._make_ef(npixels, target_device_idx, xp, c, ifunc, idx, valid_radius=10)
+        ma.inputs['in_ef'].set(ef)
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', RuntimeWarning)
+            ma.setup()
+            ma.check_ready(self.T)
+            ma.trigger()
+            ma.post_trigger()
+        np.testing.assert_allclose(cpuArray(ma.outputs['out_modes'].value), cpuArray(c),
+                                   rtol=1e-4, atol=1e-3)
+
+    def _invalid_case(self, target_device_idx, xp, **kwargs):
+        """Mask over the full frame, valid pupil a smaller disk"""
+        npixels = 24
+        ma, ifunc, idx, mask = self._make_ma(npixels, 1.0, target_device_idx, xp, **kwargs)
+        c = xp.array([10.0, -20.0, 30.0, 5.0])
+        ef = self._make_ef(npixels, target_device_idx, xp, c, ifunc, idx, valid_radius=8)
+        n_invalid = int(((cpuArray(mask) > 0) & ~(cpuArray(ef.A) > 0)).sum())
+        self.assertGreater(n_invalid, 0)
+        ma.inputs['in_ef'].set(ef)
+        return ma, ef, n_invalid
+
+    @cpu_and_gpu
+    def test_invalid_mask_pixels_raise(self, target_device_idx, xp):
+        ma, _, n_invalid = self._invalid_case(target_device_idx, xp)
+        ma.setup()  # shape is fine: the error comes only at the first trigger
+        with self.assertRaises(ValueError) as cm:
+            ma.check_ready(self.T)
+        self.assertIn(f'{n_invalid} pixels', str(cm.exception))
+
+    @cpu_and_gpu
+    def test_mask_check_runs_only_at_first_trigger(self, target_device_idx, xp):
+        npixels = 24
+        ma, ifunc, idx, _ = self._make_ma(npixels, 0.5, target_device_idx, xp)
+        c = xp.array([1.0, 2.0, 3.0, 4.0])
+        ef = self._make_ef(npixels, target_device_idx, xp, c, ifunc, idx, valid_radius=10)
+        ma.inputs['in_ef'].set(ef)
+        ma.setup()
+        ma.check_ready(self.T)
+        ma.trigger()
+        ma.post_trigger()
+
+        # Zero the amplitude inside the mask: not re-checked at the next step
+        ef.A[idx] = 0
+        t2 = self.T + 1
+        ef.generation_time = t2
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', RuntimeWarning)
+            ma.check_ready(t2)
+        ma.trigger()
+        ma.post_trigger()
+        self.assertEqual(ma.outputs['out_modes'].generation_time, t2)
