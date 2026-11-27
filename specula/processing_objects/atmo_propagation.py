@@ -235,8 +235,12 @@ class AtmoPropagation(BaseProcessingObj):
         k = 2 * np.pi / (self.wavelengthInNm * 1e-9)
         df = 1 / (self.ef_size_padded * d_in)
 
+        # spatial coordinates: pixel centres, symmetric about the grid centre
         coord = self.xp.arange(-self.ef_size_padded // 2, self.ef_size_padded // 2) + 0.5
         x, y = self.xp.meshgrid(coord, coord)
+        fcoord = self.xp.asarray(np.fft.ifftshift(np.fft.fftfreq(self.ef_size_padded) * self.ef_size_padded),
+                                 dtype=self.dtype)
+        fx, fy = self.xp.meshgrid(fcoord, fcoord)
 
         mag = 1
         if d_out != d_in:
@@ -247,7 +251,7 @@ class AtmoPropagation(BaseProcessingObj):
             H_in = None
             H_out = None
 
-        H_ASM = self.xp.exp(-1j * np.pi ** 2 * 2 * distanceInM / mag / k * ((x * df) ** 2 + (y * df) ** 2))
+        H_ASM = self.xp.exp(-1j * np.pi ** 2 * 2 * distanceInM / mag / k * ((fx * df) ** 2 + (fy * df) ** 2))
 
         return [H_in, H_ASM, H_out]
 
@@ -349,6 +353,16 @@ class AtmoPropagation(BaseProcessingObj):
             self.propagation_distances.pop(0)
             self.propagation_distances.append(0.0)
 
+        if not self.atmo_layer_list:
+            self.fresnel_full_grid = False
+        for layer in self.common_layer_list:
+            if self.layer_height[layer] != 0:
+                # common layers act on the pupil window only: at altitude that would cut the field
+                self.fresnel_full_grid = False
+        if self.prop_sign == 1:
+            if any(far for far in self.far_field_propagation):
+                self.fresnel_full_grid = False
+
         # index of the last propagation step: light lost there only limits the extent of the
         # output plane, light lost in earlier steps is also missing from all later planes
         steps = [i for i, p in enumerate(self.propagators) if p is not None]
@@ -414,8 +428,13 @@ class AtmoPropagation(BaseProcessingObj):
                 s = (self.ef_size_padded - self.pixel_pupil) // 2
                 s_shifted = [s, s]
 
-                self.ef_fresnel[:] *= 0
-                self.ef_fresnel[s:s + self.pixel_pupil, s:s +  self.pixel_pupil] = 1 + 0j
+                if self.prop_sign == 1 and self.fresnel_full_grid:
+                    # downwards: the field of a distant source fills the whole grid
+                    self.ef_fresnel[:] = 1 + 0j
+                else:
+                    # upwards: the field starts in the transmitter aperture (pupil window)
+                    self.ef_fresnel[:] *= 0
+                    self.ef_fresnel[s:s + self.pixel_pupil, s:s +  self.pixel_pupil] = 1 + 0j
 
             if self.mergeLayersContrib:
                 output_ef = self.outputs['out_' + source_name + '_ef']
@@ -428,8 +447,13 @@ class AtmoPropagation(BaseProcessingObj):
                     output_ef = output_ef_list[li]
                     output_ef.reset()
 
+                full_grid_layer = self.doFresnel and self.fresnel_full_grid and id(layer) in self._atmo_layer_ids
+
                 interpolator = self.interpolators[source][layer]
-                if interpolator is None:
+                if full_grid_layer:
+                    # atmospheric layer on the whole padded grid
+                    self._interpolate_padded(source, layer)
+                elif interpolator is None:
                     topleft = [(layer.size[0] - self.pixel_pupil) // 2, \
                                (layer.size[1] - self.pixel_pupil) // 2]
                     x2 = topleft[0] + output_ef.size[0]
@@ -443,8 +467,12 @@ class AtmoPropagation(BaseProcessingObj):
                 if self.doFresnel:
                     # Same phase sign in both directions (reciprocity): conjugating the field
                     # upwards would propagate it backwards, mirroring beam wander and scintillation
-                    self.ef_fresnel[s:s + self.pixel_pupil, s:s + self.pixel_pupil] *= self.ef_temp.ef_at_lambda(
-                        self.wavelengthInNm)
+                    if full_grid_layer:
+                        self.ef_fresnel[:] *= self.ef_temp_pad.ef_at_lambda(self.wavelengthInNm)
+                    else:
+                        # common layers (pupil stop, DMs) act on the pupil window only
+                        self.ef_fresnel[s:s + self.pixel_pupil, s:s + self.pixel_pupil] *= self.ef_temp.ef_at_lambda(
+                            self.wavelengthInNm)
                     if self.propagators[li] is not None:
                         if not self.far_field_propagation[li]:
                             angular_spectrum_propagation(self.ef_fresnel, self.propagators[li], self.ft_ef1, self.xp)
@@ -471,6 +499,18 @@ class AtmoPropagation(BaseProcessingObj):
                                                   2 * self.xp.pi))
                 output_ef.A[:] = (abs(self.ef_fresnel[s_shifted[0]:s_shifted[0] + self.pixel_pupil, s_shifted[1]:s_shifted[1] + self.pixel_pupil]))
 
+
+    def _interpolate_padded(self, source, layer):
+        interpolator = self.interpolators_fresnel[source][layer]
+        if interpolator is None:
+            n = self.ef_size_padded
+            x1 = (layer.size[0] - n) // 2
+            y1 = (layer.size[1] - n) // 2
+            self.ef_temp_pad.A[:] = layer.A[x1:x1 + n, y1:y1 + n]
+            self.ef_temp_pad.phaseInNm[:] = layer.phaseInNm[x1:x1 + n, y1:y1 + n]
+        else:
+            interpolator.interpolate(layer.A, out=self.ef_temp_pad.A)
+            interpolator.interpolate(layer.phaseInNm, out=self.ef_temp_pad.phaseInNm)
 
     def _check_power_loss(self, source_name, step_idx, layer, power_in, power_out):
         """Warn (once per source and step) if a Fresnel-transform step lost too much light.
@@ -590,6 +630,7 @@ class AtmoPropagation(BaseProcessingObj):
     def setup_interpolators(self):
 
         self.interpolators = {}
+        self.interpolators_fresnel = {}     # atmospheric layers on the padded Fresnel grid
         self.chromatic_shifts_m = {}
         self._footprints = {source: {} for source in self.source_dict.values()}
         layer_list = self.common_layer_list + self.atmo_layer_list
@@ -598,6 +639,9 @@ class AtmoPropagation(BaseProcessingObj):
             self.chromatic_shifts_m[source] = {}
 
             self.compute_chromatic_shifts(source, self.atmo_layer_list)
+
+            if self.doFresnel:
+                self.interpolators_fresnel[source] = {}
 
             for layer in layer_list:
                 diff_height = self.source_height[source] - self.layer_height[layer]
@@ -625,7 +669,23 @@ class AtmoPropagation(BaseProcessingObj):
                 else:
                     raise ValueError('Invalid layer/source geometry')
 
-    def layer_interpolator(self, source, layer):
+                if self.doFresnel and id(layer) in self._atmo_layer_ids:
+                    self.interpolators_fresnel[source][layer] = self._fresnel_interpolator(source, layer)
+
+    def _fresnel_interpolator(self, source, layer):
+        n = self.ef_size_padded
+        if self.interpolators[source][layer] is None:
+            if layer.size[0] < n or layer.size[1] < n:
+                self.fresnel_full_grid = False
+            return None
+        li = self.layer_interpolator(source, layer, npix=n, warn=False)
+        if li is None:
+            self.fresnel_full_grid = False
+        return li
+
+    def layer_interpolator(self, source, layer, npix=None, warn=True):
+        if npix is None:
+            npix = self.pixel_pupil
         pixel_layer = layer.size[0]
         half_pixel_layer = np.array([(layer.size[0] - 1) / 2., (layer.size[1] - 1) / 2.])
         cos_sin_phi = np.array([np.cos(source.phi), np.sin(source.phi)])
@@ -671,16 +731,16 @@ class AtmoPropagation(BaseProcessingObj):
             pixel_position = pixel_position + chromatic_shift_px * elevation_vector
 
         if np.isinf(source.height):
-            pixel_pupmeta = self.pixel_pupil
+            pixel_pupmeta = npix
         else:
             cone_coeff = abs(sh - abs(lh)) / sh
-            pixel_pupmeta = self.pixel_pupil * cone_coeff
+            pixel_pupmeta = npix * cone_coeff
 
         if self.magnification_list[layer] != 1.0:
             pixel_pupmeta /= self.magnification_list[layer]
 
         angle = -layer.rotInDeg % 360
-        xx, yy = make_xy(self.pixel_pupil, pixel_pupmeta/2., xp=self.xp)
+        xx, yy = make_xy(npix, pixel_pupmeta/2., xp=self.xp)
         xx1 = xx + half_pixel_layer[0] + pixel_position[0]
         yy1 = yy + half_pixel_layer[1] + pixel_position[1]
 
@@ -691,6 +751,8 @@ class AtmoPropagation(BaseProcessingObj):
         limit1 = (layer.size[1] - pixel_pupmeta) / 2
         isInside = abs(pixel_position[0]) <= limit0 and abs(pixel_position[1]) <= limit1
         if not isInside:
+            if not warn:
+                return None
             self.logger.warning(f'Warning: Source at [r={source.r}, phi={source.phi}]'
                   f' is outside the FoV of the layer (layer size: {layer.size},'
                   f' pixel position: {pixel_position}). limits: [{-limit0}, {limit0}] x'
@@ -698,7 +760,7 @@ class AtmoPropagation(BaseProcessingObj):
                   f' which may lead to artifacts if the layer has significant shift or rotation.')  
             return None
 
-        return Interp2D(layer.size, (self.pixel_pupil, self.pixel_pupil), xx=xx1, yy=yy1,
+        return Interp2D(layer.size, (npix, npix), xx=xx1, yy=yy1,
                         rotInDeg=angle, xp=self.xp, dtype=self.dtype)
 
     def setup(self):
@@ -742,6 +804,12 @@ class AtmoPropagation(BaseProcessingObj):
                     self._block_size[layer] = div
                     break
 
+        self._atmo_layer_ids = {id(layer) for layer in self.atmo_layer_list}
+        self.fresnel_full_grid = self.doFresnel
+        if self.doFresnel:
+            self.ef_temp_pad = ElectricField(self.ef_size_padded, self.ef_size_padded, self.pixel_pitch,
+                                             target_device_idx=self.target_device_idx,
+                                             precision=self.precision)
         self.setup_interpolators()
         if self.doFresnel:
             self.doFresnel_setup()
@@ -792,7 +860,7 @@ def angular_spectrum_propagation(ef, propagator, buffer, xp):
         ef[:] *= propagator[0]
     buffer[:] = xp_fft(xp).fft2(xp_fft(xp).fftshift(ef, axes=(-2, -1)), axes=(-2, -1),
                             norm="ortho")
-    ef[:] = xp_fft(xp).fftshift(
+    ef[:] = xp_fft(xp).ifftshift(
         xp_fft(xp).ifft2(buffer * xp_fft(xp).fftshift(propagator[1], axes=(-2, -1)), norm="ortho",
                      axes=(-2, -1)), axes=(-2, -1))
     if propagator[2] is not None:
