@@ -17,6 +17,10 @@ class ModalAnalysis(BaseProcessingObj):
     Modal analysis processing object. Decomposition of an
     input ElectricField into modes defined
     by an influence function (e.g. Zernike polynomials).
+
+    The modal mask must have the shape of the input electric fields (checked
+    in setup()) and contain only their valid pixels, with amplitude > 0
+    (checked at the first trigger): otherwise a ValueError is raised.
     """
     def __init__(self,
                 ifunc: IFunc=None,
@@ -116,6 +120,7 @@ class ModalAnalysis(BaseProcessingObj):
         if nmodes is not None and nmodes > self._n_modes:
             raise ValueError(f'nmodes ({nmodes}) is larger than the number of available modes ({self._n_modes})')
         self._n_inputs = n_inputs
+        self._mask_pixels_checked = False
 
         if dorms is not None:
             warnings.warn('ModalAnalysis: dorms is deprecated and ignored, '
@@ -186,6 +191,12 @@ class ModalAnalysis(BaseProcessingObj):
         super().prepare_trigger(t)
         self.in_ef = self.local_inputs['in_ef']
         self.in_ef_list = self.local_inputs['in_ef_list']
+        # The amplitude is only known after the upstream objects have run once
+        # (in setup() it is still the default all-ones), so the check is done here.
+        # prepare_trigger() runs as Python code also when trigger_code() is in a CUDA graph.
+        if not self._mask_pixels_checked:
+            self._check_mask_pixels()
+            self._mask_pixels_checked = True
 
     # Least squares phase unwrapping by solving the Poisson equation using the discrete cosine transform
     # Z. Zhao, Phase Unwrapping Algorithms by Solving the Poisson Equation
@@ -220,12 +231,33 @@ class ModalAnalysis(BaseProcessingObj):
         # Inverse 2D DCT
         return self.idct(self.idct(dct_phi, axis=0, norm='ortho'), axis=1, norm='ortho')
 
+    def _input_efs(self):
+        if self.local_inputs['in_ef']:
+            return [self.local_inputs['in_ef']]
+        return self.local_inputs['in_ef_list'] or []
+
+    def _check_mask_pixels(self):
+        mask = self.phase2modes.mask_inf_func > 0
+        for i, ef in enumerate(self._input_efs()):
+            n_invalid = int(self.xp.count_nonzero(mask & ~(ef.A > 0)))
+            if n_invalid > 0:
+                raise ValueError(f'ModalAnalysis: {n_invalid} pixels of the modal mask fall on '
+                                 f'invalid (zero amplitude) pixels of input electric field {i}')
+
     def setup(self):
         super().setup()
         input_list = self.local_inputs['in_ef_list']
         if input_list:
             if self._n_inputs != len(input_list):
                 raise ValueError(f"Number of inputs ({len(input_list)}) does not match expected number ({self._n_inputs})")
+        # The mask indices are used directly on the input arrays: with a different
+        # frame size the phase would be read at wrong (or out-of-bounds) pixels,
+        # without any error on GPU.
+        mask_shape = tuple(self.phase2modes.mask_inf_func.shape)
+        for i, ef in enumerate(self._input_efs()):
+            if tuple(ef.size) != mask_shape:
+                raise ValueError(f'ModalAnalysis: modal mask shape {mask_shape} does not match '
+                                 f'the shape {tuple(ef.size)} of input electric field {i}')
 
     def can_accelerate(self):
         # The product uses graph_matmul.matmul(), which can be captured
