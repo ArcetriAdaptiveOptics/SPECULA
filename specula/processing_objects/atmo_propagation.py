@@ -20,6 +20,11 @@ class AtmoPropagation(BaseProcessingObj):
     This processing object simulates the propagation of light through atmospheric turbulence
     layers. It can perform both geometric and physical (Fresnel) propagation, depending on the
     configuration.
+
+    Physical propagation (doFresnel=True) is computed on the padded grid of padding_factor x pixel_pupil pixels.
+    The atmospheric layers act on the whole padded grid (not only on the pupil footprint), and downwards the field
+    starts as a wave filling the whole padded grid. With the field on the full grid, the FFT propagation is periodic:
+    a phase screen that is not periodic over the padded grid has a jump at the grid edge, which diffracts.
     """
     # On GPU, the geometric propagation with one field per source computes all the
     # sources in a single kernel (see specula.lib.geometric_propagation)
@@ -353,14 +358,26 @@ class AtmoPropagation(BaseProcessingObj):
             self.propagation_distances.pop(0)
             self.propagation_distances.append(0.0)
 
+        log = self.logger.warning if self.prop_sign == 1 else self.logger.info
         if not self.atmo_layer_list:
+            if self.fresnel_full_grid:
+                self.logger.info('Fresnel propagation in the pupil window only: no atmospheric layers.')
             self.fresnel_full_grid = False
         for layer in self.common_layer_list:
             if self.layer_height[layer] != 0:
                 # common layers act on the pupil window only: at altitude that would cut the field
+                if self.fresnel_full_grid:
+                    log(f'Fresnel propagation in the pupil window only: common layer at'
+                        f' {self.layer_height[layer]:.0f} m (common layers act on the pupil window only).')
                 self.fresnel_full_grid = False
         if self.prop_sign == 1:
-            if any(far for far in self.far_field_propagation):
+            far_steps = [d for d, far in zip(self.propagation_distances, self.far_field_propagation) if far]
+            if far_steps:
+                if self.fresnel_full_grid:
+                    z_max = self.ef_size_padded * self.pixel_pitch ** 2 / (self.wavelengthInNm * 1e-9)
+                    log(f'Fresnel propagation in the pupil window only: the downwards step of {far_steps[0]:.0f} m'
+                        f' exceeds the angular spectrum limit of the padded grid ({z_max:.0f} m);'
+                        f' increase padding_factor.')
                 self.fresnel_full_grid = False
 
         # index of the last propagation step: light lost there only limits the extent of the
@@ -674,12 +691,22 @@ class AtmoPropagation(BaseProcessingObj):
 
     def _fresnel_interpolator(self, source, layer):
         n = self.ef_size_padded
+        log = self.logger.warning if self.prop_sign == 1 else self.logger.info
         if self.interpolators[source][layer] is None:
             if layer.size[0] < n or layer.size[1] < n:
+                if self.fresnel_full_grid:
+                    log(f'Fresnel propagation in the pupil window only: the layer at {layer.height} m'
+                        f' ({layer.size[0]} x {layer.size[1]} px) is smaller than the padded grid ({n} px);'
+                        f' increase the atmosphere fov or reduce padding_factor.')
                 self.fresnel_full_grid = False
             return None
         li = self.layer_interpolator(source, layer, npix=n, warn=False)
         if li is None:
+            if self.fresnel_full_grid:
+                log(f'Fresnel propagation in the pupil window only: the padded grid ({n} px) does not fit in'
+                    f' the layer at {layer.height} m ({layer.size[0]} x {layer.size[1]} px) for the source'
+                    f' [{source.polar_coordinates[0]}, {source.polar_coordinates[1]}]; increase the atmosphere'
+                    f' fov or reduce padding_factor.')
             self.fresnel_full_grid = False
         return li
 
