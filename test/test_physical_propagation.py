@@ -801,3 +801,181 @@ class Test(unittest.TestCase):
         self.assertEqual(len(intermediate), 1)
         self.assertIn('not accurate', intermediate[0])
         self.assertIn('propagation over 24891.6 m from the layer at 6222.9 m', intermediate[0])
+
+    @staticmethod
+    def _annular_pupil(pixel_pupil, pixel_pitch, obs=0.33):
+        c = (np.arange(pixel_pupil) - (pixel_pupil - 1) / 2) * pixel_pitch
+        r = np.hypot(c[:, None], c[None, :])
+        diameter = pixel_pupil * pixel_pitch
+        return ((r <= diameter / 2) & (r >= obs * diameter / 2)).astype(float)
+
+    @staticmethod
+    def _von_karman_screen(size, pixel_pitch, seed, r0=0.1, L0=25.):
+        """von Karman phase screen [nm] (r0 [m] at 500 nm), size x size pixels"""
+        rng = np.random.default_rng(seed)
+        fx = np.fft.fftfreq(size, pixel_pitch)
+        f2 = fx[:, None] ** 2 + fx[None, :] ** 2 + 1. / L0 ** 2
+        psd = 0.023 * r0 ** (-5. / 3) * f2 ** (-11. / 6)
+        psd[0, 0] = 0
+        c = (rng.standard_normal((size, size)) + 1j * rng.standard_normal((size, size))) \
+            * np.sqrt(psd) / (size * pixel_pitch)
+        return np.real(np.fft.ifft2(c)) * size * size * 500 / (2 * np.pi)
+
+    def _fresnel_layers(self, target_device_idx, xp, upwards, pixel_pupil, pixel_pitch, wavelengthInNm,
+                        heights, layer_size, pupil, phases=None, padding_factor=4, source_height=np.inf):
+        """Fresnel propagation through atmospheric layers (layer_size x layer_size px, phases cut from
+        the centre of the given screens) and a pupil stop at 0 m. Returns the propagation object and
+        the output amplitude and phase [nm] (numpy)."""
+        simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch, zenithAngleInDeg=0.0)
+        source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=source_height,
+                        wavelengthInNm=wavelengthInNm)
+        prop = AtmoPropagation(simul_params, source_dict={'src': source}, doFresnel=True, upwards=upwards,
+                               wavelengthInNm=wavelengthInNm, padding_factor=padding_factor, precision=0,
+                               target_device_idx=target_device_idx)
+
+        def make_layer(height, size, phase=None, A=None):
+            layer = Layer(dimx=size, dimy=size, pixel_pitch=pixel_pitch, height=height, precision=0,
+                          target_device_idx=target_device_idx)
+            layer.A[:] = 1.0 if A is None else xp.asarray(A)
+            layer.phaseInNm[:] = 0.0 if phase is None else xp.asarray(phase)
+            layer.generation_time = 1
+            return layer
+
+        atmo_layers = []
+        for i, height in enumerate(heights):
+            phase = None
+            if phases is not None:
+                c0 = (phases[i].shape[0] - layer_size) // 2
+                phase = phases[i][c0:c0 + layer_size, c0:c0 + layer_size]
+            atmo_layers.append(make_layer(height, layer_size, phase))
+        prop.inputs['common_layer_list'].set([make_layer(0.0, pixel_pupil, A=pupil)])
+        prop.inputs['atmo_layer_list'].set(atmo_layers)
+        prop.setup()
+        prop.check_ready(1)
+        prop.trigger()
+        prop.post_trigger()
+        ef = prop.outputs['out_src_ef']
+        return prop, cpuArray(ef.A).copy(), cpuArray(ef.phaseInNm).copy()
+
+    @staticmethod
+    def _fresnel_reference_down(phases, pixel_pitch, wavelengthInNm, heights, pupil):
+        """Independent downwards propagation of a plane wave through the whole phase screens
+        (periodic standard DFT angular spectrum propagation), cut to the pupil (numpy)"""
+        size = phases[0].shape[0]
+        pixel_pupil = pupil.shape[0]
+        fx = np.fft.fftfreq(size, pixel_pitch)
+        f2 = fx[:, None] ** 2 + fx[None, :] ** 2
+        field = np.ones((size, size), complex)
+        distances = np.diff(np.concatenate(([0.0], heights)))   # from each layer to the next one below
+        for i in range(len(heights) - 1, -1, -1):       # from the highest layer down to the pupil
+            field *= np.exp(2j * np.pi * phases[i] / wavelengthInNm)
+            field = np.fft.ifft2(np.fft.fft2(field) * np.exp(-1j * np.pi * wavelengthInNm * 1e-9 * distances[i] * f2))
+        s = (size - pixel_pupil) // 2
+        return field[s:s + pixel_pupil, s:s + pixel_pupil] * pupil
+
+    @cpu_and_gpu
+    def test_fresnel_full_grid_down_no_turbulence_no_edge(self, target_device_idx, xp):
+        """Downwards without turbulence the field in the pupil is exactly the plane wave"""
+        pixel_pupil = 120
+        pixel_pitch = 1 / 120.
+        wavelengthInNm = 1064.0
+        heights = [4000., 12000.]
+        layer_size = 960
+        pupil = self._annular_pupil(pixel_pupil, pixel_pitch)
+
+        prop, A, _ = self._fresnel_layers(target_device_idx, xp, False, pixel_pupil, pixel_pitch,
+                                          wavelengthInNm, heights, layer_size, pupil)
+        self.assertTrue(prop.fresnel_full_grid)
+        np.testing.assert_allclose(A[pupil > 0], 1.0, atol=1e-6)
+
+    @cpu_and_gpu
+    def test_fresnel_pupil_window_mode_has_edge_artefact(self, target_device_idx, xp):
+        """Layers of pupil size: pupil-window mode, the downwards field is cut at the pupil window
+        and its edge diffracts into the pupil"""
+        pixel_pupil = 120
+        pixel_pitch = 1 / 120.
+        wavelengthInNm = 1064.0
+        heights = [4000., 12000.]
+        pupil = self._annular_pupil(pixel_pupil, pixel_pitch)
+
+        prop, A, _ = self._fresnel_layers(target_device_idx, xp, False, pixel_pupil, pixel_pitch,
+                                          wavelengthInNm, heights, pixel_pupil, pupil, padding_factor=2)
+        self.assertFalse(prop.fresnel_full_grid)
+        I = A[pupil > 0] ** 2
+        self.assertGreater(I.std() / I.mean(), 0.1)
+
+    @cpu_and_gpu
+    def test_fresnel_full_grid_down_turbulence_matches_reference(self, target_device_idx, xp):
+        """Downwards with turbulence: scintillation and phase in the pupil = reference computed on
+        the whole 8 m screens"""
+        pixel_pupil = 120
+        pixel_pitch = 1 / 120.
+        wavelengthInNm = 1064.0
+        heights = [4000., 12000.]
+        layer_size = 960
+        pupil = self._annular_pupil(pixel_pupil, pixel_pitch)
+        phases = [self._von_karman_screen(layer_size, pixel_pitch, seed) for seed in (1, 2)]
+
+        ref = self._fresnel_reference_down(phases, pixel_pitch, wavelengthInNm, heights, pupil)
+        m = pupil > 0
+        I_ref = np.abs(ref[m]) ** 2
+        self.assertGreater(I_ref.std() / I_ref.mean(), 0.2)                # real scintillation
+
+        prop, A, ph = self._fresnel_layers(target_device_idx, xp, False, pixel_pupil, pixel_pitch,
+                                           wavelengthInNm, heights, layer_size, pupil, phases=phases)
+        self.assertTrue(prop.fresnel_full_grid)
+        I = A[m] ** 2
+        err = (I - I_ref).std() / I_ref.mean()
+        self.assertLess(err, 0.01, f'intensity error {err:.4f}')
+        self.assertGreater(np.corrcoef(I, I_ref)[0, 1], 0.9999)
+        field = A * np.exp(2j * np.pi * ph / wavelengthInNm)
+        dphi = np.angle(field[m] * np.conj(ref[m]))
+        dphi -= np.angle(np.mean(np.exp(1j * dphi)))
+        self.assertLess(np.sqrt(np.mean(dphi ** 2)), 0.05)                  # [rad]
+
+    @cpu_and_gpu
+    def test_fresnel_pupil_window_mode_is_worse(self, target_device_idx, xp):
+        """The same turbulence in the pupil-window mode: much larger error"""
+        pixel_pupil = 120
+        pixel_pitch = 1 / 120.
+        wavelengthInNm = 1064.0
+        heights = [4000., 12000.]
+        layer_size = 960
+        pupil = self._annular_pupil(pixel_pupil, pixel_pitch)
+        phases = [self._von_karman_screen(layer_size, pixel_pitch, seed) for seed in (1, 2)]
+        m = pupil > 0
+        I_ref = np.abs(self._fresnel_reference_down(phases, pixel_pitch, wavelengthInNm, heights, pupil)[m]) ** 2
+
+        _, A, _ = self._fresnel_layers(target_device_idx, xp, False, pixel_pupil, pixel_pitch, wavelengthInNm,
+                                       heights, pixel_pupil, pupil, phases=phases, padding_factor=2)
+        err_window = (A[m] ** 2 - I_ref).std() / I_ref.mean()
+        _, A, _ = self._fresnel_layers(target_device_idx, xp, False, pixel_pupil, pixel_pitch, wavelengthInNm,
+                                       heights, layer_size, pupil, phases=phases)
+        err_full = (A[m] ** 2 - I_ref).std() / I_ref.mean()
+        self.assertGreater(err_window, 20 * err_full)
+
+    @cpu_and_gpu
+    def test_asm_frequencies(self, target_device_idx, xp):
+        """One angular spectrum step = numpy DFT reference (transfer function at the DFT
+        frequencies), for an even and an odd grid size"""
+        pixel_pitch = 1 / 120.
+        wavelengthInNm = 1064.0
+        distance = 1500.0
+        rng = np.random.default_rng(5)
+        for pixel_pupil, padding_factor in ((60, 2), (61, 3)):
+            simul_params = SimulParams(pixel_pupil=pixel_pupil, pixel_pitch=pixel_pitch, zenithAngleInDeg=0.0)
+            source = Source(polar_coordinates=[0.0, 0.0], magnitude=0, height=np.inf,
+                            wavelengthInNm=wavelengthInNm)
+            prop = AtmoPropagation(simul_params, source_dict={'src': source}, doFresnel=True,
+                                   wavelengthInNm=wavelengthInNm, padding_factor=padding_factor, precision=0,
+                                   target_device_idx=target_device_idx)
+            size = pixel_pupil * padding_factor
+            propagator = prop.asm_propagator(distance, pixel_pitch, pixel_pitch)
+            field = np.exp(1j * rng.uniform(0, 2 * np.pi, (size, size)))
+            ef = xp.asarray(field).copy()               # propagated in place
+            angular_spectrum_propagation(ef, propagator, xp.zeros_like(ef), xp)
+
+            fx = np.fft.fftfreq(size, pixel_pitch)
+            f2 = fx[:, None] ** 2 + fx[None, :] ** 2
+            ref = np.fft.ifft2(np.fft.fft2(field) * np.exp(-1j * np.pi * wavelengthInNm * 1e-9 * distance * f2))
+            np.testing.assert_allclose(cpuArray(ef), ref, atol=1e-9)
