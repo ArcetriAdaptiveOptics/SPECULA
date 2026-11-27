@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 
 import yaml
 import specula
@@ -630,3 +631,94 @@ class TestDataStore(unittest.TestCase):
 
             # Note: with mocked filesystem, we can't verify files
             # The test passes if save_pickle() doesn't crash
+
+
+class TestDataStoreInputListParams(unittest.TestCase):
+    """Issue #933: params.yml saved by a DataStore using input_list."""
+
+    INPUT_LIST = ['renamed-gen.output']
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='specula_ds_933_')
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _write_yml(self, store_dir):
+        params = {
+            'main': {'class': 'SimulParams', 'root_dir': self.tmp,
+                     'total_time': 0.003, 'time_step': 0.001},
+            'gen': {'class': 'WaveGenerator', 'constant': 3.0,
+                    'target_device_idx': -1, 'outputs': ['output']},
+            'data_store': {'class': 'DataStore', 'store_dir': store_dir,
+                           'target_device_idx': -1,
+                           'inputs': {'input_list': list(self.INPUT_LIST)}},
+        }
+        path = os.path.join(self.tmp, 'params.yml')
+        with open(path, 'w') as f:
+            yaml.dump(params, f, sort_keys=False)
+        return path
+
+    @staticmethod
+    def _tn_dirs(store_dir):
+        return [os.path.join(store_dir, d) for d in sorted(os.listdir(store_dir))
+                if os.path.isdir(os.path.join(store_dir, d))]
+
+    @staticmethod
+    def _stored(tn_dir):
+        with fits.open(os.path.join(tn_dir, 'renamed.fits')) as hdul:
+            return np.array(hdul[0].data)
+
+    def test_saved_params_keep_input_list_and_can_be_rerun(self):
+        """
+        Regression test for #933.
+
+        Expected: the params.yml saved in the TN directory still declares the
+        DataStore inputs as ``input_list`` (equal to the original list, with no
+        expanded per-name input ``renamed``), so that running Simul again on it
+        works and stores the same data for the renamed input.
+        Before the fix, the saved file contained ``renamed: renamed-gen.output``
+        and the second run failed with
+        "Object data_store does does not have an input called renamed".
+        """
+        store1 = os.path.join(self.tmp, 'out1')
+        store2 = os.path.join(self.tmp, 'out2')
+        os.makedirs(store1)
+        os.makedirs(store2)
+
+        Simul(self._write_yml(store1), speed_report=False).run()
+        tn1 = self._tn_dirs(store1)
+        self.assertEqual(len(tn1), 1)
+        saved = os.path.join(tn1[0], 'params.yml')
+        with open(saved) as f:
+            saved_params = yaml.safe_load(f)
+        self.assertEqual(saved_params['data_store']['inputs'],
+                         {'input_list': self.INPUT_LIST})
+        first = self._stored(tn1[0])
+        self.assertGreater(first.size, 0)
+
+        # Rerun the saved file, redirecting only the output directory
+        saved_params['data_store']['store_dir'] = store2
+        saved_params['main']['root_dir'] = self.tmp
+        rerun = os.path.join(self.tmp, 'rerun.yml')
+        with open(rerun, 'w') as f:
+            yaml.dump(saved_params, f, sort_keys=False)
+        Simul(rerun, speed_report=False).run()
+        tn2 = self._tn_dirs(store2)
+        self.assertEqual(len(tn2), 1)
+        np.testing.assert_array_equal(self._stored(tn2[0]), first)
+
+    def test_unknown_input_error_message(self):
+        """Issue #933: the message reads "does not have", not "does does not"."""
+        path = self._write_yml(os.path.join(self.tmp, 'out'))
+        with open(path) as f:
+            params = yaml.safe_load(f)
+        # A plain input (not input_list) that the DataStore does not declare
+        params['data_store']['inputs'] = {'unknown_in': 'gen.output'}
+        with open(path, 'w') as f:
+            yaml.dump(params, f, sort_keys=False)
+        with self.assertRaises(ValueError) as ctx:
+            Simul(path, speed_report=False).run()
+        msg = str(ctx.exception)
+        self.assertIn('Object data_store does not have an input called unknown_in', msg)
+        self.assertNotIn('does does', msg)
