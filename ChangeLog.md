@@ -52,6 +52,8 @@ Entries are short; the PR linked to each one has the details.
 - `ModulatedPyramid`: physical model of the pyramid defects and new `pyr_roof_ld` roof defect; `fp_obs` is a diameter in lambda/D; new `default_mod_step()` (#912)
 - `PolyCromPyramid`: parameters in lambda/D given at a reference wavelength (new `ref_wavelength_idx`) (#912)
 - `ModulatedDoubleRoof`: defects follow the roof geometry, `pyr_max_side_ld` is applied, `pyr_tip_def_ld` raises an error (#912)
+- `AtmoPropagation` with `doFresnel=True`: atmospheric layers act on the whole padded grid, and downwards the field fills the grid.
+- `PowerLoss`: with Fresnel propagation the received power is the intensity in the receiver plane; new `receiver_diameter` (default: point receiver).
 
 ### Other
 
@@ -104,6 +106,7 @@ Entries are short; the PR linked to each one has the details.
 - Fixed display server startup on Windows and `LoopControl.niters()` rounding (#864)
 - Removed unused code (#857, #870)
 - Docs: science camera tutorial and static aberrations (#845)
+- Fixed the angular spectrum propagation of `AtmoPropagation`: transfer function sampled at the DFT frequencies (the half-bin offset shifted the field sideways) and no one-pixel shift for odd grid sizes.
 
 ### Upgrade notes
 
