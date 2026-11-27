@@ -89,6 +89,40 @@ class TestLoadFitsArray(unittest.TestCase):
         self.assertLessEqual(pool.total_bytes() - before, out.nbytes + 1024)
         np.testing.assert_array_equal(cpuArray(out), data)
 
+    @unittest.skipIf(specula.cp is None, 'GPU upload only')
+    def test_staging_with_device_memory_cached_by_default_pool(self):
+        '''The device memory is held by the default pool as cached (free) blocks, except
+        for room for the result: the upload releases the cache to allocate its chunks
+        instead of running out of memory'''
+        cp = specula.cp
+        data = np.arange(2 * 1024 * 1024, dtype=np.float32).reshape(2048, 1024)   # 8 MB
+        self._write(data)
+        pool = cp.get_default_memory_pool()
+        # Room for the result only, taken out of the device memory first
+        room_pool = cp.cuda.MemoryPool()
+        with cp.cuda.using_allocator(room_pool.malloc):
+            room = cp.empty(data.nbytes, dtype=cp.uint8)
+        # Fill the device with blocks of decreasing size, then free them to the pool cache
+        blocks = []
+        size = 1 << 30
+        while size >= 1 << 20:
+            try:
+                blocks.append(cp.empty(size, dtype=cp.uint8))
+            except cp.cuda.memory.OutOfMemoryError:
+                size //= 2
+        del blocks, room
+        room_pool.free_all_blocks()
+        try:
+            # Free device memory: the result fits, the result plus two 4 MB chunks do not
+            free = cp.cuda.runtime.memGetInfo()[0]
+            self.assertGreaterEqual(free, data.nbytes)
+            self.assertLess(free, data.nbytes + (8 << 20))
+            with patch.object(fits_io, '_CHUNK_BYTES', 4 << 20):
+                out = load_fits_array(self.filename, ext=1, target_device_idx=0, precision=1)
+            np.testing.assert_array_equal(cpuArray(out), data)
+        finally:
+            pool.free_all_blocks()
+
     @cpu_and_gpu
     def test_transpose(self, target_device_idx, xp):
         '''Transposed in C order: chunks of whole rows (with a partial last chunk), and
