@@ -31,7 +31,7 @@ class IirFilter(BaseFilter):
     removing all feedback/memory from previous outputs while maintaining
     the gain characteristics defined by the numerator coefficients.
 
-    Optional input ``in_freeze`` (scalar or one value per filter, > 0.5 = frozen):
+    Optional input ``in_freeze`` (scalar or one value per filter, 0 = free, nonzero = frozen):
     a frozen filter keeps its last output, and its state is set to rest at
     that output (all past outputs equal to it, past inputs zero). For an
     integrating filter (sum of the denominator = 0) the output stays there
@@ -77,7 +77,7 @@ class IirFilter(BaseFilter):
         result = super().input_names()
         result.update({
             'in_ost': InputDesc(BaseValue, 'State update to subtract from integrators (optional)'),
-            'in_freeze': InputDesc(BaseValue, 'Freeze flag, scalar or per filter: > 0.5 keeps the last output '
+            'in_freeze': InputDesc(BaseValue, 'Freeze flag, scalar or per filter: nonzero keeps the last output '
                                               'and sets the state to rest at it (optional)')
         })
         return result
@@ -109,7 +109,7 @@ class IirFilter(BaseFilter):
             freeze = self.xp.atleast_1d(self.xp.asarray(in_freeze_input.value, dtype=self.dtype)).ravel()
             if freeze.size != self._nfilter and freeze.size != 1:
                 raise ValueError(f"in_freeze size {freeze.size} doesn't match nfilter {self._nfilter}")
-            self._freeze[:] = freeze > 0.5
+            self._freeze[:] = freeze != 0
 
     def can_accelerate(self):
         # trigger_code() only launches GPU work on arrays updated in place

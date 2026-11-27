@@ -187,13 +187,13 @@ class TestShSlopecMovableExtra(unittest.TestCase):
     # ---- hold flag ----
 
     @cpu_and_gpu
-    def test_hold_threshold_is_half(self, target_device_idx, xp):
+    def test_hold_flag_nonzero(self, target_device_idx, xp):
         frame = gaussian_spot(NP_SUB, 3.0, 2.0)
         rig = Rig(target_device_idx, xp)
-        sx, _ = rig.step(frame, [1.0, 1.0, 0.4])
+        sx, _ = rig.step(frame, [1.0, 1.0, 0.0])
         self.assertNotEqual(float(sx[0]), 0.0)
         self.assertFalse(rig.slopec._hold)
-        sx, sy = rig.step(frame, [1.0, 1.0, 0.6])
+        sx, sy = rig.step(frame, [1.0, 1.0, 1.0])
         self.assertEqual((float(sx[0]), float(sy[0])), (0.0, 0.0))
         self.assertTrue(rig.slopec._hold)
 
@@ -323,8 +323,9 @@ class TestShSlopecMovableExtra(unittest.TestCase):
         s = rig.slopec
         n = NP_SUB
         self.assertEqual(s.mask_weighted.shape, (n, n))
-        self.assertEqual(s.xweights_flat.shape, (n * n, 1))
-        self.assertEqual(s.mask_weighted_flat.shape, (n * n, 1))
+        # the combined array used by ShSlopec for the slopes holds the shifted weights
+        np.testing.assert_array_equal(s._weights[0], s.mask_weighted.ravel())
+        np.testing.assert_array_equal(s._weights[1], s.xweights.ravel())
         self.assertAlmostEqual(float(s.mask_weighted.max()), 1.0, places=6)
         # mask peak on the window: row = y = -2 + c, column = x = 3 + c
         row, col = np.unravel_index(np.argmax(s.mask_weighted), (n, n))

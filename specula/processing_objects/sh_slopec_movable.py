@@ -38,7 +38,8 @@ class ShSlopecMovable(ShSlopec):
                  interleave: bool = False,
                  target_device_idx: int = None,
                  precision: int = None):
-        # explicit signature (same as ShSlopec): the simulation builder reads the type hints
+        # Set before super().__init__(), which calls set_xy_weights()
+        self._w_applied = (0.0, 0.0)
         super().__init__(subapdata=subapdata, sn=sn, thr_value=thr_value, exp_weight=exp_weight,
                          filtmat=filtmat, weightedPixRad=weightedPixRad, windowing=windowing,
                          weight_int_pixel_dt=weight_int_pixel_dt, window_int_pixel=window_int_pixel,
@@ -50,21 +51,20 @@ class ShSlopecMovable(ShSlopec):
         if self.weighted_pix_rad == 0:
             raise ValueError('ShSlopecMovable needs weightedPixRad > 0')
         self._w = self.xp.zeros(2, dtype=self.dtype)
-        self._w_applied = (0.0, 0.0)
         self._hold = False
         self.inputs['in_window'] = InputValue(type=BaseValue, optional=True)
 
     @classmethod
     def input_names(cls):
         result = super().input_names()
-        result['in_window'] = InputDesc(BaseValue, 'Window centre [wx, wy] in px and hold flag [0/1]')
+        result['in_window'] = InputDesc(BaseValue, 'Window centre [wx, wy] in px and hold flag (0 = free, nonzero = hold)')
         return result
 
     def set_xy_weights(self):
-        super().set_xy_weights()
-        w = getattr(self, '_w_applied', (0.0, 0.0))
-        if w != (0.0, 0.0):
-            self._shift_weights(*w)
+        if self._w_applied == (0.0, 0.0):
+            super().set_xy_weights()
+        else:
+            self._shift_weights(*self._w_applied)
 
     def _shift_weights(self, wx, wy):
         """Recompute mask and coordinate weights for a window centred on (wx, wy) px."""
@@ -80,13 +80,11 @@ class ShSlopecMovable(ShSlopec):
         mask = np.outer(rows, cols)                   # axis 0 = y (rows), axis 1 = x (columns)
         mask /= np.max(mask)
         mask[mask < 1e-6] = 0.0
-        self.mask_weighted = self.to_xp(mask.astype(self.dtype))
-        self.xweights = self.to_xp((x * mask).astype(self.dtype))
-        self.yweights = self.to_xp((y * mask).astype(self.dtype))
-        self.xweights_flat = self.xweights.reshape(n * n, 1)
-        self.yweights_flat = self.yweights.reshape(n * n, 1)
-        self.mask_weighted_flat = self.mask_weighted.reshape(n * n, 1)
-        # the slopes are computed from the combined (denominator, x, y) array: refresh it, in place
+        # In place, as ShSlopec.set_xy_weights() does
+        self.mask_weighted[:] = self.to_xp(mask, dtype=self.dtype)
+        self.xweights[:] = self.to_xp(x * mask, dtype=self.dtype)
+        self.yweights[:] = self.to_xp(y * mask, dtype=self.dtype)
+        # ShSlopec computes the slopes from this combined (denominator, x, y) array
         self._weights[:] = self.xp.vstack([self.mask_weighted.ravel(), self.xweights.ravel(), self.yweights.ravel()])
 
     def compute_slopes(self):
@@ -94,7 +92,7 @@ class ShSlopecMovable(ShSlopec):
         if win is not None:
             v = self.to_xp(win.value)
             wx, wy = float(v[0]), float(v[1])
-            self._hold = bool(v[2] > 0.5) if v.size > 2 else False
+            self._hold = bool(v[2] != 0) if v.size > 2 else False
         else:
             wx = wy = 0.0
             self._hold = False
