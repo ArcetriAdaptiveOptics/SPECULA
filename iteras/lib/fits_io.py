@@ -173,7 +173,15 @@ def upload_from_file(filename, offset, shape, src_dtype, out_dtype, target_devic
         host = [np.frombuffer(cp.cuda.alloc_pinned_memory(chunk * src_dtype.itemsize),
                               dtype=src_dtype, count=chunk) for _ in range(2)]
         with cp.cuda.using_allocator(staging.malloc):
-            dev = [cp.empty(chunk, dtype=src_dtype) for _ in range(2)]
+            try:
+                dev = [cp.empty(chunk, dtype=src_dtype) for _ in range(2)]
+            except cp.cuda.memory.OutOfMemoryError:
+                # The free device memory may be held by the default pool as cached
+                # blocks (arrays freed by the caller), which this pool cannot use:
+                # release them and retry
+                staging.free_all_blocks()
+                cp.get_default_memory_pool().free_all_blocks()
+                dev = [cp.empty(chunk, dtype=src_dtype) for _ in range(2)]
         done = [cp.cuda.Event() for _ in range(2)]
         try:
             with open(filename, 'rb') as f:
